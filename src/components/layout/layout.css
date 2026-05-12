@@ -70,12 +70,18 @@
 }
 
 .nav-item.active {
-  background-color: var(--primary-light);
-  color: var(--primary);
+  background-color: var(--primary);
+  color: white;
+  box-shadow: 0 4px 12px rgba(202, 24, 26, 0.25);
+}
+
+.nav-item.active:hover {
+  background-color: var(--primary-hover);
+  color: white;
 }
 
 .nav-item.active .nav-icon {
-  color: var(--primary);
+  color: white;
 }
 
 .nav-icon {

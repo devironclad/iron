@@ -9,7 +9,8 @@ export type Permission = {
  * Fetches the permissions for the currently logged-in user.
  */
 export async function getCurrentUserPermissions(): Promise<Record<string, Permission>> {
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { session } } = await supabase.auth.getSession();
+  const user = session?.user;
   if (!user) return {};
 
   // 1. Get the profile for this user
@@ -45,10 +46,11 @@ export async function getCurrentUserPermissions(): Promise<Record<string, Permis
  * Helper to check a specific permission from the loaded map.
  */
 export function hasPermission(
-  perms: Record<string, Permission>, 
+  perms: Record<string, Permission> | null | undefined, 
   resource: string, 
   action: 'view' | 'edit' = 'view'
 ): boolean {
+  if (!perms) return false;
   const p = perms[resource];
   if (!p) return false;
   return action === 'edit' ? p.can_edit : p.can_view;

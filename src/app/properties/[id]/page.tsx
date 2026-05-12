@@ -16,20 +16,20 @@ import {
   Plus, 
   Trash2,
   Clock,
-  Navigation
+  Navigation as NavigationIcon,
+  Search,
+  X
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { hasPermission, getCurrentUserPermissions } from "@/lib/permissions";
-import "./details.css";
+import "../../auctions/new/form.css"; // Keep the styles
+import "./details.css"; // Keep the tabs structure styling
 
 const TABS_CONFIG = [
-  { id: 'general', name: 'General', icon: Info, resource: 'tab:general' },
-  { id: 'location', name: 'Location & Specs', icon: MapPin, resource: 'tab:location' },
-  { id: 'attributes', name: 'Attributes', icon: Compass, resource: 'tab:attributes' },
+  { id: 'research', name: 'Research', icon: Search, resource: 'tab:general' },
   { id: 'financials', name: 'Financials', icon: DollarSign, resource: 'tab:financials' },
-  { id: 'acquisition', name: 'Acquisition', icon: ShoppingCart, resource: 'tab:acquisition' },
-  { id: 'amenities', name: 'Amenities', icon: Navigation, resource: 'tab:amenities' },
-  { id: 'links', name: 'Links & Media', icon: LinkIcon, resource: 'tab:links' },
+  { id: 'amenities', name: 'Amenities', icon: NavigationIcon, resource: 'tab:amenities' },
+  { id: 'links', name: 'Media & Map', icon: LinkIcon, resource: 'tab:links' },
 ];
 
 export default function PropertyDetailsPage() {
@@ -37,7 +37,7 @@ export default function PropertyDetailsPage() {
   const router = useRouter();
   const id = params.id;
 
-  const [activeTab, setActiveTab] = useState('general');
+  const [activeTab, setActiveTab] = useState('research');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [property, setProperty] = useState<any>(null);
@@ -56,7 +56,6 @@ export default function PropertyDetailsPage() {
   });
 
   const visibleTabs = useMemo(() => {
-    // If permissions are loaded but empty, show all (fallback for setup)
     if (permissions && Object.keys(permissions).length > 0) {
       return TABS_CONFIG.filter(tab => hasPermission(permissions, tab.resource, 'view'));
     }
@@ -68,19 +67,17 @@ export default function PropertyDetailsPage() {
       setLoading(true);
       
       const tables = [
-        "ls_origem", "ls_status", "ls_priority", "ls_county", 
+        "ls_origem", "ls_priority", "ls_county", 
         "ls_auction_type", "ls_auction_model", "ls_property_type", 
         "ls_fema", "ls_wetlands", "ls_debit", "ls_gismap", 
         "ls_property_access", "ls_road_access", "ls_ref_construction"
       ];
 
-      // Fetch Permissions, Property, and basic lookups
       const [permsResult, propertyResult] = await Promise.all([
         getCurrentUserPermissions(),
         supabase.from('ls_assets').select(`
           *,
           ls_county ( name, state ),
-          ls_status ( name ),
           ls_priority ( name, color ),
           ls_property_type ( name )
         `).eq('id', id).single()
@@ -93,14 +90,12 @@ export default function PropertyDetailsPage() {
         if (formatted.auction_date) formatted.auction_date = new Date(formatted.auction_date).toISOString().slice(0, 16);
         if (formatted.acquisition_date) formatted.acquisition_date = new Date(formatted.acquisition_date).toISOString().slice(0, 16);
         
-        // Clean nulls to empty strings for controlled inputs
         Object.keys(formatted).forEach(key => {
           if (formatted[key] === null) formatted[key] = "";
         });
         setProperty(formatted);
       }
 
-      // Fetch Lookups
       const lookupResults: Record<string, any[]> = {};
       await Promise.all(tables.map(table => {
         const columns = table === "ls_county" ? "id, name, state" : "id, name";
@@ -110,7 +105,6 @@ export default function PropertyDetailsPage() {
       }));
       setLookups(lookupResults);
 
-      // Fetch Amenities for this asset
       const { data: amenData } = await supabase
         .from('ls_asset_amenities')
         .select(`
@@ -123,7 +117,6 @@ export default function PropertyDetailsPage() {
         .eq('asset_id', id);
       setAmenities(amenData || []);
 
-      // Fetch Lookups for Amenities
       const [catData, typeData] = await Promise.all([
         supabase.from('ls_amenity_category').select('*').order('name'),
         supabase.from('ls_amenity_type').select('*').order('name')
@@ -144,8 +137,6 @@ export default function PropertyDetailsPage() {
   };
 
   const handleSave = async () => {
-    // Check edit permission for this page/resource if needed
-    // For now, we assume if they can see it, we check the global 'edit' perm or just the tab perm
     if (permissions && !hasPermission(permissions, 'page:properties', 'edit')) {
       alert("You don't have permission to edit properties.");
       return;
@@ -156,7 +147,6 @@ export default function PropertyDetailsPage() {
       const payload = { ...property };
       
       delete payload.ls_county;
-      delete payload.ls_status;
       delete payload.ls_priority;
       delete payload.ls_property_type;
       delete payload.created_at;
@@ -165,9 +155,9 @@ export default function PropertyDetailsPage() {
       delete payload.updated_by;
       
       const numericFields = [
-        'ref_id', 'size', 'market_value', 'annual_tax', 'open_bid', 'max_bid', 
+        'ref_id', 'size', 'market_value', 'annual_tax', 'open_bid', 'min_bid', 'max_bid', 
         'max_bid_internal', 'appraisal_min', 'appraisal_avg', 'appraisal_max', 
-        'county_appraisal', 'online_appraisal', 'sqft_price_reference'
+        'county_appraisal', 'online_appraisal', 'sqft_price_reference', 'house_price'
       ];
       numericFields.forEach(f => {
         if (payload[f] === "" || payload[f] === undefined) payload[f] = null;
@@ -175,7 +165,7 @@ export default function PropertyDetailsPage() {
       });
 
       const uuidFields = [
-        'origem_id', 'status_id', 'priority_id', 'county_id', 'auction_type_id', 
+        'origem_id', 'priority_id', 'county_id', 'auction_type_id', 
         'auction_model_id', 'property_type_id', 'fema_id', 'wetlands_id', 
         'debit_id', 'gismap_id', 'prop_access_id', 'road_access_id', 'ref_construction_id'
       ];
@@ -185,6 +175,12 @@ export default function PropertyDetailsPage() {
 
       if (!payload.auction_date) payload.auction_date = null;
       if (!payload.acquisition_date) payload.acquisition_date = null;
+
+      Object.keys(payload).forEach(key => {
+        if (payload[key] === "") {
+          payload[key] = null;
+        }
+      });
 
       const { error } = await supabase.from('ls_assets').update(payload).eq('id', id);
       if (error) throw error;
@@ -229,6 +225,13 @@ export default function PropertyDetailsPage() {
     }
   };
 
+  const formatPropId = (ref_id: any) => {
+    if (ref_id && !isNaN(Number(ref_id))) {
+      return `PRP-${Number(ref_id).toString().padStart(4, '0')}`;
+    }
+    return "Not Assigned";
+  };
+
   if (loading) {
     return (
       <div className="loading-container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '60vh', gap: '1rem', color: '#64748b' }}>
@@ -238,22 +241,19 @@ export default function PropertyDetailsPage() {
     );
   }
 
-  // If the user can't view the active tab anymore (due to permission change), reset to first available
-  const isTabVisible = visibleTabs.some(t => t.id === activeTab);
-  if (!isTabVisible && visibleTabs.length > 0) {
-    setActiveTab(visibleTabs[0].id);
-  }
+  const businessId = formatPropId(property?.ref_id);
 
   return (
     <div className="property-details-container">
-      {/* Top Navigation / Header */}
       <div className="details-header">
         <div className="header-left">
           <button onClick={() => router.push('/properties')} className="back-btn">
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div className="header-title-area">
-            <div className="id-badge">ID: {property?.id}</div>
+            <div className="id-badge" style={{ backgroundColor: '#f1f5f9', color: '#475569', fontWeight: 700 }}>
+              {businessId}
+            </div>
             <h1 className="header-title">{property?.address || property?.parcel_number || 'Property Details'}</h1>
             <div className="header-subtitle">
               {property?.ls_county?.name}, {property?.ls_county?.state} • {property?.ls_property_type?.name}
@@ -261,16 +261,13 @@ export default function PropertyDetailsPage() {
           </div>
         </div>
         <div className="header-actions">
-          {(!permissions || hasPermission(permissions, 'page:properties', 'edit')) && (
-            <button className="save-btn" onClick={handleSave} disabled={saving}>
-              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-              Save Changes
-            </button>
-          )}
+          <button className="save-btn" onClick={handleSave} disabled={saving}>
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+            Save Changes
+          </button>
         </div>
       </div>
 
-      {/* Body with Vertical Navigation */}
       <div className="details-body">
         <div className="tabs-nav">
           {visibleTabs.map(tab => {
@@ -281,7 +278,6 @@ export default function PropertyDetailsPage() {
                 className={`tab-item ${activeTab === tab.id ? 'active' : ''}`}
                 onClick={() => setActiveTab(tab.id)}
                 data-title={tab.name}
-                title={tab.name}
               >
                 <Icon className="w-5 h-5" />
               </button>
@@ -289,163 +285,136 @@ export default function PropertyDetailsPage() {
           })}
         </div>
 
-        {/* Tab Content Area */}
-        <div className="tab-content" style={{ borderBottomRightRadius: '20px' }}>
+        <div className="tab-content">
           
-          {/* GENERAL TAB */}
-          {activeTab === 'general' && (
+          {/* RESEARCH TAB */}
+          {activeTab === 'research' && (
             <div className="form-tab">
               <div className="tab-section-header">
-                <h2 className="section-title">General Identity</h2>
-                <p className="section-desc">Manage the core identity and status of this asset.</p>
+                <h2 className="section-title">{TABS_CONFIG.find(t => t.id === 'research')?.name}</h2>
+                <p className="section-desc">Comprehensive data regarding the asset's origin, location, and characteristics.</p>
               </div>
-              <div className="amenity-form-card">
-                <div className="amenity-grid" style={{ gridTemplateColumns: '1fr 1fr 1fr', gap: '2rem' }}>
-                  <div className="form-group">
-                    <label>Ref ID</label>
-                    <input type="number" name="ref_id" value={property.ref_id} onChange={handleChange} className="form-input" />
-                  </div>
-                  <div className="form-group">
-                    <label>Parcel Number</label>
-                    <input type="text" name="parcel_number" value={property.parcel_number} onChange={handleChange} className="form-input" />
-                  </div>
-                  <div className="form-group">
-                    <label>Case Number</label>
-                    <input type="text" name="case_number" value={property.case_number} onChange={handleChange} className="form-input" />
-                  </div>
-                  <div className="form-group">
-                    <label>Origem</label>
-                    <select name="origem_id" value={property.origem_id} onChange={handleChange} className="form-input">
-                      <option value="">Select Origem...</option>
-                      {lookups.ls_origem?.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
-                    </select>
-                  </div>
-                  <div className="form-group">
-                    <label>Status</label>
-                    <select name="status_id" value={property.status_id} onChange={handleChange} className="form-input">
-                      <option value="">Select Status...</option>
-                      {lookups.ls_status?.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
-                    </select>
-                  </div>
-                  <div className="form-group">
-                    <label>Priority</label>
-                    <select name="priority_id" value={property.priority_id} onChange={handleChange} className="form-input">
-                      <option value="">Select Priority...</option>
-                      {lookups.ls_priority?.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
-                    </select>
-                  </div>
-                  <div className="form-group">
-                    <label>Property Type</label>
-                    <select name="property_type_id" value={property.property_type_id} onChange={handleChange} className="form-input">
-                      <option value="">Select Type...</option>
-                      {lookups.ls_property_type?.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
-                    </select>
-                  </div>
+              
+              <div className="form-grid col-3" style={{ padding: '0 1rem' }}>
+                <div className="input-group">
+                  <label className="input-label">Origin</label>
+                  <select name="origem_id" value={property.origem_id} onChange={handleChange} className="input-field">
+                    <option value="">Select Origin...</option>
+                    {lookups.ls_origem?.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
+                  </select>
                 </div>
-              </div>
-            </div>
-          )}
-
-          {/* LOCATION TAB */}
-          {activeTab === 'location' && (
-            <div className="form-tab">
-              <div className="tab-section-header">
-                <h2 className="section-title">Location & Specs</h2>
-                <p className="section-desc">Physical location, boundaries, and sizing information.</p>
-              </div>
-              <div className="amenity-form-card">
-                <div className="amenity-grid" style={{ gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
-                  <div className="form-group" style={{ gridColumn: 'span 2' }}>
-                    <label>Address</label>
-                    <input type="text" name="address" value={property.address} onChange={handleChange} className="form-input" />
-                  </div>
-                  <div className="form-group">
-                    <label>County</label>
-                    <select name="county_id" value={property.county_id} onChange={handleChange} className="form-input">
-                      <option value="">Select County...</option>
-                      {lookups.ls_county?.map(i => <option key={i.id} value={i.id}>{i.name} ({i.state})</option>)}
-                    </select>
-                  </div>
-                  <div className="form-group">
-                    <label>Coordinates</label>
-                    <input type="text" name="coordinates" value={property.coordinates} onChange={handleChange} className="form-input" />
-                  </div>
-                  <div className="form-group">
-                    <label>Zoning</label>
-                    <input type="text" name="zoning" value={property.zoning} onChange={handleChange} className="form-input" />
-                  </div>
-                  <div className="form-group">
-                    <label>Size (Acres/SqFt)</label>
-                    <input type="number" name="size" value={property.size} onChange={handleChange} className="form-input" />
-                  </div>
-                  <div className="form-group" style={{ flexDirection: 'row', alignItems: 'center', gap: '1rem', marginTop: '1rem' }}>
-                    <input type="checkbox" name="corner_lot" checked={property.corner_lot} onChange={handleChange} style={{ width: '20px', height: '20px' }} />
-                    <label style={{ textTransform: 'none', letterSpacing: 'normal', fontSize: '1rem', color: '#1e293b' }}>Corner Lot?</label>
-                  </div>
-                  <div className="form-group" style={{ gridColumn: 'span 2' }}>
-                    <label>Legal Description</label>
-                    <textarea name="legal_description" value={property.legal_description} onChange={handleChange} className="form-input" rows={4} style={{ resize: 'vertical' }} />
-                  </div>
+                <div className="input-group">
+                  <label className="input-label">Acquisition Date</label>
+                  <input type="datetime-local" name="acquisition_date" value={property.acquisition_date} onChange={handleChange} className="input-field" />
                 </div>
-              </div>
-            </div>
-          )}
+                <div className="input-group">
+                  <label className="input-label">County</label>
+                  <select name="county_id" value={property.county_id} onChange={handleChange} className="input-field">
+                    <option value="">Select County...</option>
+                    {lookups.ls_county?.map(i => <option key={i.id} value={i.id}>{i.name} ({i.state})</option>)}
+                  </select>
+                </div>
 
-          {/* ATTRIBUTES TAB */}
-          {activeTab === 'attributes' && (
-            <div className="form-tab">
-              <div className="tab-section-header">
-                <h2 className="section-title">Property Attributes</h2>
-                <p className="section-desc">Environmental factors, access levels, and site visit logs.</p>
-              </div>
-              <div className="amenity-form-card">
-                <div className="amenity-grid" style={{ gridTemplateColumns: '1fr 1fr 1fr', gap: '2rem' }}>
-                  <div className="form-group">
-                    <label>FEMA Zone</label>
-                    <select name="fema_id" value={property.fema_id} onChange={handleChange} className="form-input">
-                      <option value="">Select FEMA...</option>
-                      {lookups.ls_fema?.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
-                    </select>
-                  </div>
-                  <div className="form-group">
-                    <label>Wetlands</label>
-                    <select name="wetlands_id" value={property.wetlands_id} onChange={handleChange} className="form-input">
-                      <option value="">Select Wetlands...</option>
-                      {lookups.ls_wetlands?.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
-                    </select>
-                  </div>
-                  <div className="form-group">
-                    <label>GIS Map</label>
-                    <select name="gismap_id" value={property.gismap_id} onChange={handleChange} className="form-input">
-                      <option value="">Select Map...</option>
-                      {lookups.ls_gismap?.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
-                    </select>
-                  </div>
-                  <div className="form-group">
-                    <label>Property Access</label>
-                    <select name="prop_access_id" value={property.prop_access_id} onChange={handleChange} className="form-input">
-                      <option value="">Select Access...</option>
-                      {lookups.ls_property_access?.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
-                    </select>
-                  </div>
-                  <div className="form-group">
-                    <label>Road Access</label>
-                    <select name="road_access_id" value={property.road_access_id} onChange={handleChange} className="form-input">
-                      <option value="">Select Road...</option>
-                      {lookups.ls_road_access?.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
-                    </select>
-                  </div>
-                  <div className="form-group">
-                    <label>Construction Ref</label>
-                    <select name="ref_construction_id" value={property.ref_construction_id} onChange={handleChange} className="form-input">
-                      <option value="">Select Ref...</option>
-                      {lookups.ls_ref_construction?.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
-                    </select>
-                  </div>
-                  <div className="form-group" style={{ flexDirection: 'row', alignItems: 'center', gap: '1rem', marginTop: '1rem' }}>
-                    <input type="checkbox" name="inperson_visit" checked={property.inperson_visit} onChange={handleChange} style={{ width: '20px', height: '20px' }} />
-                    <label style={{ textTransform: 'none', letterSpacing: 'normal', fontSize: '1rem', color: '#1e293b' }}>In-person Visit?</label>
-                  </div>
+                <div className="input-group" style={{ gridColumn: 'span 2' }}>
+                  <label className="input-label">Address</label>
+                  <input type="text" name="address" value={property.address} onChange={handleChange} className="input-field" />
+                </div>
+                <div className="input-group">
+                  <label className="input-label">Coordinates</label>
+                  <input type="text" name="coordinates" value={property.coordinates} onChange={handleChange} className="input-field" />
+                </div>
+
+                <div className="input-group">
+                  <label className="input-label">Zoning</label>
+                  <input type="text" name="zoning" value={property.zoning} onChange={handleChange} className="input-field" />
+                </div>
+                <div className="input-group">
+                  <label className="input-label">Size (Acres/SqFt)</label>
+                  <input type="number" name="size" value={property.size} onChange={handleChange} className="input-field" />
+                </div>
+                <div className="input-group">
+                  <label className="input-label">Parcel Number</label>
+                  <input type="text" name="parcel_number" value={property.parcel_number} onChange={handleChange} className="input-field" />
+                </div>
+
+                <div className="input-group">
+                  <label className="input-label">Case Number</label>
+                  <input type="text" name="case_number" value={property.case_number} onChange={handleChange} className="input-field" />
+                </div>
+                <div className="input-group" style={{ gridColumn: 'span 2' }}>
+                  <label className="input-label">Legal Description</label>
+                  <textarea name="legal_description" value={property.legal_description} onChange={handleChange} className="input-field" rows={2} style={{ resize: 'vertical' }} />
+                </div>
+
+                <div className="input-group">
+                  <label className="input-label">GIS Map Reference</label>
+                  <select name="gismap_id" value={property.gismap_id} onChange={handleChange} className="input-field">
+                    <option value="">Select Map...</option>
+                    {lookups.ls_gismap?.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
+                  </select>
+                </div>
+                <div className="input-group">
+                  <label className="input-label">Wetlands</label>
+                  <select name="wetlands_id" value={property.wetlands_id} onChange={handleChange} className="input-field">
+                    <option value="">Select Wetlands...</option>
+                    {lookups.ls_wetlands?.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
+                  </select>
+                </div>
+                <div className="input-group">
+                  <label className="input-label">FEMA Zone</label>
+                  <select name="fema_id" value={property.fema_id} onChange={handleChange} className="input-field">
+                    <option value="">Select FEMA...</option>
+                    {lookups.ls_fema?.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
+                  </select>
+                </div>
+
+                <div className="input-group">
+                  <label className="input-label">Debit Status</label>
+                  <select name="debit_id" value={property.debit_id} onChange={handleChange} className="input-field">
+                    <option value="">Select Debit...</option>
+                    {lookups.ls_debit?.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
+                  </select>
+                </div>
+                <div className="input-group">
+                  <label className="input-label">Property Type</label>
+                  <select name="property_type_id" value={property.property_type_id} onChange={handleChange} className="input-field">
+                    <option value="">Select Type...</option>
+                    {lookups.ls_property_type?.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
+                  </select>
+                </div>
+                <div className="input-group">
+                  <label className="input-label">Property Access</label>
+                  <select name="prop_access_id" value={property.prop_access_id} onChange={handleChange} className="input-field">
+                    <option value="">Select Access...</option>
+                    {lookups.ls_property_access?.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
+                  </select>
+                </div>
+
+                <div className="input-group">
+                  <label className="input-label">Road Access</label>
+                  <select name="road_access_id" value={property.road_access_id} onChange={handleChange} className="input-field">
+                    <option value="">Select Road...</option>
+                    {lookups.ls_road_access?.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
+                  </select>
+                </div>
+                <div className="checkbox-group">
+                  <input type="checkbox" id="inperson_visit" name="inperson_visit" checked={property.inperson_visit} onChange={handleChange} className="checkbox-input" />
+                  <label htmlFor="inperson_visit" className="checkbox-label">In Person Visitor?</label>
+                </div>
+                <div className="checkbox-group">
+                  <input type="checkbox" id="corner_lot" name="corner_lot" checked={property.corner_lot} onChange={handleChange} className="checkbox-input" />
+                  <label htmlFor="corner_lot" className="checkbox-label">Corner Lot?</label>
+                </div>
+
+                <div className="input-group" style={{ gridColumn: 'span 2' }}>
+                  <label className="input-label">Regrid Link</label>
+                  <input type="url" name="link_regrid" value={property.link_regrid} onChange={handleChange} className="input-field" placeholder="https://regrid.com/..." />
+                </div>
+                <div className="input-group"></div>
+
+                <div className="input-group" style={{ gridColumn: 'span 3' }}>
+                  <label className="input-label">Observations</label>
+                  <textarea name="observation" value={property.observation} onChange={handleChange} className="input-field" rows={3} style={{ resize: 'vertical' }} />
                 </div>
               </div>
             </div>
@@ -458,94 +427,68 @@ export default function PropertyDetailsPage() {
                 <h2 className="section-title">Appraisals & Financials</h2>
                 <p className="section-desc">Valuation history, tax records, and debt status.</p>
               </div>
-              <div className="amenity-form-card">
-                <div className="amenity-grid" style={{ gridTemplateColumns: '1fr 1fr 1fr', gap: '2rem' }}>
-                  <div className="form-group">
-                    <label>Market Value ($)</label>
-                    <input type="number" name="market_value" value={property.market_value} onChange={handleChange} className="form-input" />
-                  </div>
-                  <div className="form-group">
-                    <label>Annual Tax ($)</label>
-                    <input type="number" name="annual_tax" value={property.annual_tax} onChange={handleChange} className="form-input" />
-                  </div>
-                  <div className="form-group">
-                    <label>Debit Status</label>
-                    <select name="debit_id" value={property.debit_id} onChange={handleChange} className="form-input">
-                      <option value="">Select Debit...</option>
-                      {lookups.ls_debit?.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
-                    </select>
-                  </div>
-                  <div className="form-group">
-                    <label>Appraisal Min ($)</label>
-                    <input type="number" name="appraisal_min" value={property.appraisal_min} onChange={handleChange} className="form-input" />
-                  </div>
-                  <div className="form-group">
-                    <label>Appraisal Avg ($)</label>
-                    <input type="number" name="appraisal_avg" value={property.appraisal_avg} onChange={handleChange} className="form-input" />
-                  </div>
-                  <div className="form-group">
-                    <label>Appraisal Max ($)</label>
-                    <input type="number" name="appraisal_max" value={property.appraisal_max} onChange={handleChange} className="form-input" />
-                  </div>
-                  <div className="form-group">
-                    <label>County Appraisal ($)</label>
-                    <input type="number" name="county_appraisal" value={property.county_appraisal} onChange={handleChange} className="form-input" />
-                  </div>
-                  <div className="form-group">
-                    <label>Online Appraisal ($)</label>
-                    <input type="number" name="online_appraisal" value={property.online_appraisal} onChange={handleChange} className="form-input" />
-                  </div>
-                  <div className="form-group">
-                    <label>SqFt Price Ref ($)</label>
-                    <input type="number" name="sqft_price_reference" value={property.sqft_price_reference} onChange={handleChange} className="form-input" />
+              <div className="form-grid col-3" style={{ padding: '0 1rem' }}>
+                <div className="input-group">
+                  <label className="input-label">Market Value ($)</label>
+                  <div className="currency-input-wrapper">
+                    <span className="currency-symbol">$</span>
+                    <input type="number" step="any" name="market_value" value={property.market_value} onChange={handleChange} className="input-field currency" />
                   </div>
                 </div>
-              </div>
-            </div>
-          )}
-
-          {/* ACQUISITION TAB */}
-          {activeTab === 'acquisition' && (
-            <div className="form-tab">
-              <div className="tab-section-header">
-                <h2 className="section-title">Acquisition & Auction</h2>
-                <p className="section-desc">Timeline and bidding metrics from the acquisition process.</p>
-              </div>
-              <div className="amenity-form-card">
-                <div className="amenity-grid" style={{ gridTemplateColumns: '1fr 1fr 1fr', gap: '2rem' }}>
-                  <div className="form-group">
-                    <label>Auction Date</label>
-                    <input type="datetime-local" name="auction_date" value={property.auction_date} onChange={handleChange} className="form-input" />
+                <div className="input-group">
+                  <label className="input-label">Annual Tax ($)</label>
+                  <div className="currency-input-wrapper">
+                    <span className="currency-symbol">$</span>
+                    <input type="number" step="any" name="annual_tax" value={property.annual_tax} onChange={handleChange} className="input-field currency" />
                   </div>
-                  <div className="form-group">
-                    <label>Acquisition Date</label>
-                    <input type="datetime-local" name="acquisition_date" value={property.acquisition_date} onChange={handleChange} className="form-input" />
+                </div>
+                <div className="input-group">
+                  <label className="input-label">SqFt Price Ref ($)</label>
+                  <div className="currency-input-wrapper">
+                    <span className="currency-symbol">$</span>
+                    <input type="number" step="any" name="sqft_price_reference" value={property.sqft_price_reference} onChange={handleChange} className="input-field currency" />
                   </div>
-                  <div className="form-group">
-                    <label>Auction Type</label>
-                    <select name="auction_type_id" value={property.auction_type_id} onChange={handleChange} className="form-input">
-                      <option value="">Select Type...</option>
-                      {lookups.ls_auction_type?.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
-                    </select>
+                </div>
+                <div className="input-group">
+                  <label className="input-label">Appraisal Min ($)</label>
+                  <div className="currency-input-wrapper">
+                    <span className="currency-symbol">$</span>
+                    <input type="number" step="any" name="appraisal_min" value={property.appraisal_min} onChange={handleChange} className="input-field currency" />
                   </div>
-                  <div className="form-group">
-                    <label>Auction Model</label>
-                    <select name="auction_model_id" value={property.auction_model_id} onChange={handleChange} className="form-input">
-                      <option value="">Select Model...</option>
-                      {lookups.ls_auction_model?.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
-                    </select>
+                </div>
+                <div className="input-group">
+                  <label className="input-label">Appraisal Avg ($)</label>
+                  <div className="currency-input-wrapper">
+                    <span className="currency-symbol">$</span>
+                    <input type="number" step="any" name="appraisal_avg" value={property.appraisal_avg} onChange={handleChange} className="input-field currency" />
                   </div>
-                  <div className="form-group">
-                    <label>Open Bid ($)</label>
-                    <input type="number" name="open_bid" value={property.open_bid} onChange={handleChange} className="form-input" />
+                </div>
+                <div className="input-group">
+                  <label className="input-label">Appraisal Max ($)</label>
+                  <div className="currency-input-wrapper">
+                    <span className="currency-symbol">$</span>
+                    <input type="number" step="any" name="appraisal_max" value={property.appraisal_max} onChange={handleChange} className="input-field currency" />
                   </div>
-                  <div className="form-group">
-                    <label>Max Bid ($)</label>
-                    <input type="number" name="max_bid" value={property.max_bid} onChange={handleChange} className="form-input" />
+                </div>
+                <div className="input-group">
+                  <label className="input-label">County Appraisal ($)</label>
+                  <div className="currency-input-wrapper">
+                    <span className="currency-symbol">$</span>
+                    <input type="number" step="any" name="county_appraisal" value={property.county_appraisal} onChange={handleChange} className="input-field currency" />
                   </div>
-                  <div className="form-group">
-                    <label>Internal Max Bid ($)</label>
-                    <input type="number" name="max_bid_internal" value={property.max_bid_internal} onChange={handleChange} className="form-input" />
+                </div>
+                <div className="input-group">
+                  <label className="input-label">Online Appraisal ($)</label>
+                  <div className="currency-input-wrapper">
+                    <span className="currency-symbol">$</span>
+                    <input type="number" step="any" name="online_appraisal" value={property.online_appraisal} onChange={handleChange} className="input-field currency" />
+                  </div>
+                </div>
+                <div className="input-group">
+                  <label className="input-label">House Price ($)</label>
+                  <div className="currency-input-wrapper">
+                    <span className="currency-symbol">$</span>
+                    <input type="number" step="any" name="house_price" value={property.house_price} onChange={handleChange} className="input-field currency" />
                   </div>
                 </div>
               </div>
@@ -560,27 +503,27 @@ export default function PropertyDetailsPage() {
                 <p className="section-desc">Manage points of interest, schools, and health facilities near the property.</p>
               </div>
 
-              <div className="amenity-form-card">
-                <h3>Add New Amenity</h3>
-                <div className="amenity-grid">
-                  <div className="form-group">
-                    <label>Category</label>
+              <div style={{ backgroundColor: '#f8fafc', padding: '1.5rem', borderRadius: '0.75rem', marginBottom: '2rem', border: '1px solid #e2e8f0', margin: '0 1rem' }}>
+                <h4 style={{ margin: '0 0 1rem 0', fontSize: '0.9rem', fontWeight: 700, color: '#0f172a' }}>Add New Amenity</h4>
+                <div className="form-grid col-3" style={{ alignItems: 'flex-end' }}>
+                  <div className="input-group">
+                    <label className="input-label">Category</label>
                     <select 
                       value={newAmenity.category_id} 
                       onChange={(e) => setNewAmenity({...newAmenity, category_id: e.target.value, type_id: ''})}
-                      className="form-input"
+                      className="input-field"
                     >
                       <option value="">Select Category...</option>
                       {amenityCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                     </select>
                   </div>
-                  <div className="form-group">
-                    <label>Type / Description</label>
+                  <div className="input-group">
+                    <label className="input-label">Type / Description</label>
                     <select 
                       value={newAmenity.type_id} 
                       onChange={(e) => setNewAmenity({...newAmenity, type_id: e.target.value})}
                       disabled={!newAmenity.category_id}
-                      className="form-input"
+                      className="input-field"
                     >
                       <option value="">Select Type...</option>
                       {amenityTypes
@@ -588,113 +531,95 @@ export default function PropertyDetailsPage() {
                         .map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                     </select>
                   </div>
-                  <div className="form-group">
-                    <label>Distance (mi)</label>
-                    <input 
-                      type="number" 
-                      step="0.1" 
-                      value={newAmenity.distance} 
-                      onChange={(e) => setNewAmenity({...newAmenity, distance: e.target.value})}
-                      placeholder="2.5"
-                      className="form-input"
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>Time (min)</label>
-                    <input 
-                      type="number" 
-                      value={newAmenity.time} 
-                      onChange={(e) => setNewAmenity({...newAmenity, time: e.target.value})}
-                      placeholder="10"
-                      className="form-input"
-                    />
-                  </div>
-                  <div className="form-group add-btn-cell">
-                    <button onClick={handleAddAmenity} className="add-amenity-btn" disabled={!newAmenity.type_id} title="Add Amenity">
-                      <Plus className="w-5 h-5" />
-                    </button>
+                  <div className="input-group">
+                    <div style={{ display: 'flex', gap: '1rem' }}>
+                      <div style={{ flex: 1 }}>
+                        <label className="input-label">Distance (mi)</label>
+                        <input 
+                          type="number" 
+                          step="0.1" 
+                          value={newAmenity.distance} 
+                          onChange={(e) => {
+                            const dist = e.target.value;
+                            const calcTime = dist ? Math.round(parseFloat(dist) * 2) : '';
+                            setNewAmenity({...newAmenity, distance: dist, time: calcTime.toString()});
+                          }}
+                          className="input-field"
+                        />
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <label className="input-label">Time (min)</label>
+                        <input 
+                          type="number" 
+                          value={newAmenity.time} 
+                          onChange={(e) => setNewAmenity({...newAmenity, time: e.target.value})}
+                          className="input-field"
+                        />
+                      </div>
+                      <button onClick={handleAddAmenity} className="save-btn" style={{ height: '38px', padding: '0 1rem', marginTop: 'auto', backgroundColor: 'var(--primary)', color: 'white', border: 'none' }} disabled={!newAmenity.type_id}>
+                        <Plus className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
 
-              <div className="amenities-list">
-                {amenities.length === 0 ? (
-                  <div className="empty-amenities">No amenities registered for this property yet.</div>
-                ) : (
-                  <table className="amenities-table">
-                    <thead>
-                      <tr>
-                        <th>Category</th>
-                        <th>Description</th>
-                        <th>Distance</th>
-                        <th>Time</th>
-                        <th style={{ textAlign: 'right' }}>Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {amenities.map(a => (
-                        <tr key={a.id}>
-                          <td className="cat-cell">{a.ls_amenity_type?.ls_amenity_category?.name}</td>
-                          <td className="type-cell">{a.ls_amenity_type?.name}</td>
-                          <td>
-                            <span className="dist-badge">
-                              <MapPin className="w-3 h-3" style={{ opacity: 0.6 }} />
-                              {a.distance_miles} mi
-                            </span>
-                          </td>
-                          <td>
-                            <span className="dist-badge">
-                              <Clock className="w-3 h-3" style={{ opacity: 0.6 }} />
-                              {a.time_minutes} min
-                            </span>
-                          </td>
-                          <td style={{ textAlign: 'right' }}>
-                            <button onClick={() => handleDeleteAmenity(a.id)} className="delete-btn" style={{ marginLeft: 'auto' }}>
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
+              <div className="amenity-cards-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1.5rem', padding: '1rem' }}>
+                {amenities.map(a => {
+                  const catName = a.ls_amenity_type?.ls_amenity_category?.name || "";
+                  return (
+                    <div key={a.id} style={{ backgroundColor: 'white', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '1.25rem', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
+                        <div>
+                          <span style={{ fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase', color: '#94a3b8' }}>{catName}</span>
+                          <h4 style={{ margin: '0.25rem 0 0 0', fontSize: '1rem', fontWeight: 700 }}>{a.ls_amenity_type?.name}</h4>
+                        </div>
+                        <button onClick={() => handleDeleteAmenity(a.id)} style={{ color: '#cbd5e1', background: 'none', border: 'none', cursor: 'pointer' }}>
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                      <div style={{ display: 'flex', gap: '0.75rem' }}>
+                        <span style={{ backgroundColor: '#f1f5f9', padding: '0.25rem 0.5rem', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                          <MapPin className="w-3 h-3" /> {a.distance_miles} mi
+                        </span>
+                        <span style={{ backgroundColor: '#f1f5f9', padding: '0.25rem 0.5rem', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                          <Clock className="w-3 h-3" /> {a.time_minutes} min
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
 
-          {/* LINKS & MEDIA TAB */}
+          {/* MEDIA & MAP TAB */}
           {activeTab === 'links' && (
             <div className="form-tab">
               <div className="tab-section-header">
-                <h2 className="section-title">Links & Media</h2>
+                <h2 className="section-title">Media & Map Links</h2>
                 <p className="section-desc">External data sources, research links, and property observations.</p>
               </div>
-              <div className="amenity-form-card">
-                <div className="amenity-grid" style={{ gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
-                  <div className="form-group">
-                    <label>Regrid Link</label>
-                    <input type="url" name="link_regrid" value={property.link_regrid} onChange={handleChange} className="form-input" placeholder="https://regrid.com/..." />
-                  </div>
-                  <div className="form-group">
-                    <label>Other Sources Link</label>
-                    <input type="url" name="link_sources" value={property.link_sources} onChange={handleChange} className="form-input" placeholder="https://..." />
-                  </div>
-                  <div className="form-group">
-                    <label>House Sources Link</label>
-                    <input type="url" name="link_house_sources" value={property.link_house_sources} onChange={handleChange} className="form-input" placeholder="https://zillow.com/..." />
-                  </div>
-                  <div className="form-group">
-                    <label>Video Link</label>
-                    <input type="url" name="link_video" value={property.link_video} onChange={handleChange} className="form-input" placeholder="https://youtube.com/..." />
-                  </div>
-                  <div className="form-group" style={{ gridColumn: 'span 2' }}>
-                    <label>Observations</label>
-                    <textarea name="observation" value={property.observation} onChange={handleChange} className="form-input" rows={4} style={{ resize: 'vertical' }} />
-                  </div>
-                  <div className="form-group" style={{ gridColumn: 'span 2' }}>
-                    <label>Surrounds</label>
-                    <textarea name="surrounds" value={property.surrounds} onChange={handleChange} className="form-input" rows={2} style={{ resize: 'vertical' }} />
-                  </div>
+              <div className="form-grid col-2" style={{ padding: '0 1rem' }}>
+                <div className="input-group" style={{ gridColumn: 'span 2' }}>
+                  <label className="input-label">Google Earth Link</label>
+                  <input type="url" name="link_earth" value={property.link_earth} onChange={handleChange} className="input-field" placeholder="https://earth.google.com/..." />
+                </div>
+                <div className="input-group">
+                  <label className="input-label">Other Sources Link</label>
+                  <input type="url" name="link_sources" value={property.link_sources} onChange={handleChange} className="input-field" placeholder="https://..." />
+                </div>
+                <div className="input-group">
+                  <label className="input-label">House Sources Link</label>
+                  <input type="url" name="link_house_sources" value={property.link_house_sources} onChange={handleChange} className="input-field" placeholder="https://zillow.com/..." />
+                </div>
+                <div className="input-group">
+                  <label className="input-label">Video Link</label>
+                  <input type="url" name="link_video" value={property.link_video} onChange={handleChange} className="input-field" placeholder="https://youtube.com/..." />
+                </div>
+                <div className="input-group" style={{ gridColumn: 'span 2' }}>
+                  <label className="input-label">Surrounds Notes</label>
+                  <textarea name="surrounds" value={property.surrounds} onChange={handleChange} className="input-field" rows={4} style={{ resize: 'vertical' }} />
                 </div>
               </div>
             </div>

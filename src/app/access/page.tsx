@@ -19,6 +19,7 @@ import {
   X
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { PermissionGuard } from "@/components/auth/PermissionGuard";
 import "./access.css";
 
 const RESOURCES = [
@@ -35,6 +36,25 @@ const RESOURCES = [
   { id: "tab:acquisition", label: "Property: Acquisition Tab", category: "Property Tabs" },
   { id: "tab:amenities", label: "Property: Amenities Tab", category: "Property Tabs" },
   { id: "tab:links", label: "Property: Links Tab", category: "Property Tabs" },
+  // Manager Tables
+  { id: "table:ls_origem", label: "Manager: Origem", category: "Manager Tables" },
+  { id: "table:ls_status", label: "Manager: Status", category: "Manager Tables" },
+  { id: "table:ls_priority", label: "Manager: Priority", category: "Manager Tables" },
+  { id: "table:ls_county", label: "Manager: County", category: "Manager Tables" },
+  { id: "table:ls_auction_type", label: "Manager: Auction Type", category: "Manager Tables" },
+  { id: "table:ls_auction_model", label: "Manager: Auction Model", category: "Manager Tables" },
+  { id: "table:ls_property_type", label: "Manager: Property Type", category: "Manager Tables" },
+  { id: "table:ls_fema", label: "Manager: FEMA", category: "Manager Tables" },
+  { id: "table:ls_wetlands", label: "Manager: Wetlands", category: "Manager Tables" },
+  { id: "table:ls_debit", label: "Manager: Debit", category: "Manager Tables" },
+  { id: "table:ls_gismap", label: "Manager: GIS Map", category: "Manager Tables" },
+  { id: "table:ls_property_access", label: "Manager: Property Access", category: "Manager Tables" },
+  { id: "table:ls_road_access", label: "Manager: Road Access", category: "Manager Tables" },
+  { id: "table:ls_ref_construction", label: "Manager: Ref Construction", category: "Manager Tables" },
+  { id: "table:ls_amenity_category", label: "Manager: Amenity Categories", category: "Manager Tables" },
+  { id: "table:ls_amenity_type", label: "Manager: Amenity Types", category: "Manager Tables" },
+  // Actions
+  { id: "action:export_auctions", label: "Action: Export Auctions Data", category: "Actions" },
 ];
 
 export default function AccessPage() {
@@ -195,7 +215,8 @@ export default function AccessPage() {
   }
 
   return (
-    <div className="access-container">
+    <PermissionGuard resource="page:access">
+      <div className="access-container">
       <div className="access-header">
         <div className="header-text">
           <h1 className="page-title">Access Control<span className="dot">.</span></h1>
@@ -308,6 +329,58 @@ export default function AccessPage() {
                       ))}
                       <tr className="category-row"><td colSpan={3}>Internal Property Tabs</td></tr>
                       {RESOURCES.filter(r => r.category === "Property Tabs").map(r => (
+                        <tr key={r.id}>
+                          <td className="resource-name">{r.label}</td>
+                          <td className="center">
+                            <label className="permission-toggle">
+                              <input 
+                                type="checkbox" 
+                                checked={permissions[r.id]?.can_view || false} 
+                                onChange={() => togglePermission(r.id, 'can_view')}
+                              />
+                              <div className="toggle-slider"><Eye className="w-3 h-3 icon-view" /></div>
+                            </label>
+                          </td>
+                          <td className="center">
+                            <label className="permission-toggle edit">
+                              <input 
+                                type="checkbox" 
+                                checked={permissions[r.id]?.can_edit || false} 
+                                onChange={() => togglePermission(r.id, 'can_edit')}
+                              />
+                              <div className="toggle-slider"><Edit3 className="w-3 h-3 icon-edit" /></div>
+                            </label>
+                          </td>
+                        </tr>
+                      ))}
+                      <tr className="category-row"><td colSpan={3}>Manager Tables</td></tr>
+                      {RESOURCES.filter(r => r.category === "Manager Tables").map(r => (
+                        <tr key={r.id}>
+                          <td className="resource-name">{r.label}</td>
+                          <td className="center">
+                            <label className="permission-toggle">
+                              <input 
+                                type="checkbox" 
+                                checked={permissions[r.id]?.can_view || false} 
+                                onChange={() => togglePermission(r.id, 'can_view')}
+                              />
+                              <div className="toggle-slider"><Eye className="w-3 h-3 icon-view" /></div>
+                            </label>
+                          </td>
+                          <td className="center">
+                            <label className="permission-toggle edit">
+                              <input 
+                                type="checkbox" 
+                                checked={permissions[r.id]?.can_edit || false} 
+                                onChange={() => togglePermission(r.id, 'can_edit')}
+                              />
+                              <div className="toggle-slider"><Edit3 className="w-3 h-3 icon-edit" /></div>
+                            </label>
+                          </td>
+                        </tr>
+                      ))}
+                      <tr className="category-row"><td colSpan={3}>Functional Actions</td></tr>
+                      {RESOURCES.filter(r => r.category === "Actions").map(r => (
                         <tr key={r.id}>
                           <td className="resource-name">{r.label}</td>
                           <td className="center">
@@ -490,6 +563,7 @@ export default function AccessPage() {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </PermissionGuard>
   );
 }

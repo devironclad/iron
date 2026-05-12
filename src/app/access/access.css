@@ -1,17 +1,15 @@
 .access-container {
-  padding: 2rem;
-  max-width: 1400px;
-  margin: 0 auto;
-  font-family: 'Inter', system-ui, sans-serif;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  height: 100%;
 }
 
 .access-header {
   display: flex;
   justify-content: space-between;
-  align-items: flex-end;
-  margin-bottom: 2.5rem;
-  border-bottom: 1px solid #f1f5f9;
-  padding-bottom: 1.5rem;
+  align-items: flex-start;
+  margin-bottom: 0.5rem;
 }
 
 .access-tabs {
@@ -42,9 +40,13 @@
 }
 
 .access-tab-btn.active {
-  background: white;
-  color: #0f172a;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  background: var(--primary);
+  color: white;
+  box-shadow: 0 4px 10px rgba(202, 24, 26, 0.2);
+}
+
+.access-tab-btn.active:hover {
+  color: white;
 }
 
 .profile-select {
@@ -113,11 +115,12 @@
 }
 
 .page-title {
-  font-size: 2.5rem;
+  font-size: 2rem;
   font-weight: 800;
-  color: #0f172a;
-  margin: 0;
-  letter-spacing: -0.04em;
+  color: var(--text-primary);
+  margin-top: 0;
+  margin-bottom: 0.25rem;
+  letter-spacing: -0.02em;
 }
 
 .page-title .dot {
@@ -125,9 +128,8 @@
 }
 
 .page-subtitle {
-  color: #64748b;
-  margin-top: 0.5rem;
-  font-size: 1.1rem;
+  color: var(--text-secondary);
+  font-size: 0.95rem;
 }
 
 .access-layout {
@@ -200,8 +202,16 @@
 }
 
 .profile-item.active {
-  background: #f0fdf4;
-  border-color: #bbf7d0;
+  background: var(--primary);
+  border-color: var(--primary);
+}
+
+.profile-item.active .profile-name {
+  color: white;
+}
+
+.profile-item.active .profile-desc {
+  color: rgba(255, 255, 255, 0.7);
 }
 
 .profile-info {
@@ -227,7 +237,7 @@
 }
 
 .profile-item.active .icon {
-  color: #10b981;
+  color: white;
   transform: translateX(4px);
 }
 

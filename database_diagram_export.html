@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ironcladgroup Full Database Schema Export</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f8fafc;
+            color: #1e293b;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+        header {
+            border-bottom: 2px solid #e2e8f0;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        h1 {
+            margin: 0;
+            color: #0f172a;
+            font-size: 22px;
+        }
+        .print-hint {
+            font-size: 13px;
+            color: #64748b;
+            background: #f1f5f9;
+            padding: 6px 10px;
+            border-radius: 6px;
+        }
+        .mermaid {
+            display: flex;
+            justify-content: center;
+            overflow-x: auto;
+        }
+        @media print {
+            body { background: white; padding: 0; }
+            .container { box-shadow: none; width: 100%; max-width: none; padding: 0; border-radius: 0; }
+            .print-hint { display: none; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Ironcladgroup - Full Database Schema Diagram</h1>
+            <div class="print-hint">Tip: Press <b>Ctrl + P</b> to save as PDF</div>
+        </header>
+
+        <div class="mermaid">
+erDiagram
+    ls_assets {
+        bigint id PK
+        numeric ref_id
+        uuid origem_id FK
+        uuid status_id FK
+        uuid priority_id FK
+        uuid county_id FK
+        uuid auction_type_id FK
+        uuid auction_model_id FK
+        uuid property_type_id FK
+        uuid fema_id FK
+        uuid wetlands_id FK
+        uuid debit_id FK
+        uuid gismap_id FK
+        uuid prop_access_id FK
+        uuid road_access_id FK
+        uuid ref_construction_id FK
+        varchar record_type
+        varchar address
+        varchar parcel_number
+        varchar case_number
+        text legal_description
+        varchar coordinates
+        varchar zoning
+        numeric size
+        numeric market_value
+        numeric annual_tax
+        numeric house_price
+        numeric open_bid
+        numeric max_bid
+        numeric appraisal_min
+        numeric appraisal_avg
+        numeric appraisal_max
+        numeric county_appraisal
+        numeric online_appraisal
+        timestamp auction_date
+        timestamp upset_date
+        timestamp acquisition_date
+        boolean inperson_visit
+        boolean corner_lot
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    ls_origem {
+        uuid id PK
+        varchar name
+    }
+
+    ls_status {
+        uuid id PK
+        varchar name
+    }
+
+    ls_priority {
+        uuid id PK
+        varchar name
+        varchar color
+    }
+
+    ls_county {
+        uuid id PK
+        varchar name
+        varchar state
+    }
+
+    ls_auction_type {
+        uuid id PK
+        varchar name
+    }
+
+    ls_auction_model {
+        uuid id PK
+        varchar name
+    }
+
+    ls_property_type {
+        uuid id PK
+        varchar name
+    }
+
+    ls_fema {
+        uuid id PK
+        varchar name
+    }
+
+    ls_wetlands {
+        uuid id PK
+        varchar name
+    }
+
+    ls_debit {
+        uuid id PK
+        varchar name
+    }
+
+    ls_gismap {
+        uuid id PK
+        varchar name
+    }
+
+    ls_property_access {
+        uuid id PK
+        varchar name
+    }
+
+    ls_road_access {
+        uuid id PK
+        varchar name
+    }
+
+    ls_ref_construction {
+        uuid id PK
+        varchar name
+    }
+
+    ls_users_metadata {
+        uuid id PK
+        varchar email
+        varchar full_name
+        text avatar_url
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    ls_profiles {
+        uuid id PK
+        varchar name
+        text description
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    ls_user_profiles {
+        uuid user_id PK
+        uuid profile_id FK
+        timestamp created_at
+    }
+
+    ls_amenity_category {
+        uuid id PK
+        varchar name
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    ls_amenity_type {
+        uuid id PK
+        uuid category_id FK
+        varchar name
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    ls_asset_amenities {
+        uuid id PK
+        bigint asset_id FK
+        uuid amenity_type_id FK
+        decimal distance_miles
+        integer time_minutes
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    ls_audit_logs {
+        uuid id PK
+        bigint asset_id FK
+        uuid user_id FK
+        varchar field_name
+        text old_value
+        text new_value
+        timestamp created_at
+    }
+
+    ls_permissions {
+        uuid id PK
+        uuid profile_id FK
+        varchar resource_key
+        boolean can_view
+        boolean can_edit
+        timestamp created_at
+    }
+
+    %% Relationships
+    ls_assets }|--|| ls_origem : "origem_id"
+    ls_assets }|--|| ls_status : "status_id"
+    ls_assets }|--|| ls_priority : "priority_id"
+    ls_assets }|--|| ls_county : "county_id"
+    ls_assets }|--|| ls_auction_type : "auction_type_id"
+    ls_assets }|--|| ls_auction_model : "auction_model_id"
+    ls_assets }|--|| ls_property_type : "property_type_id"
+    ls_assets }|--|| ls_fema : "fema_id"
+    ls_assets }|--|| ls_wetlands : "wetlands_id"
+    ls_assets }|--|| ls_debit : "debit_id"
+    ls_assets }|--|| ls_gismap : "gismap_id"
+    ls_assets }|--|| ls_property_access : "prop_access_id"
+    ls_assets }|--|| ls_road_access : "road_access_id"
+    ls_assets }|--|| ls_ref_construction : "ref_construction_id"
+
+    ls_user_profiles }|--|| ls_profiles : "profile_id"
+    ls_user_profiles ||--|| ls_users_metadata : "user_id"
+
+    ls_amenity_type }|--|| ls_amenity_category : "category_id"
+    ls_asset_amenities }|--|| ls_assets : "asset_id"
+    ls_asset_amenities }|--|| ls_amenity_type : "amenity_type_id"
+    ls_audit_logs }|--|| ls_assets : "asset_id"
+    ls_permissions }|--|| ls_profiles : "profile_id"
+        </div>
+    </div>
+
+    <script>
+        mermaid.initialize({ startOnLoad: true, theme: 'neutral', securityLevel: 'loose' });
+    </script>
+</body>
+</html>

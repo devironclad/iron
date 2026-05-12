@@ -67,6 +67,7 @@ CREATE TABLE ls_assets (
     link_sources TEXT,
     link_house_sources TEXT,
     link_video TEXT,
+    link_earth TEXT,
     
     -- Financials & Bids
     market_value NUMERIC,
@@ -74,6 +75,7 @@ CREATE TABLE ls_assets (
     open_bid NUMERIC,
     max_bid NUMERIC,
     max_bid_internal NUMERIC,
+    min_bid NUMERIC,
     
     -- Appraisals
     appraisal_min NUMERIC,
@@ -82,9 +84,11 @@ CREATE TABLE ls_assets (
     county_appraisal NUMERIC,
     online_appraisal NUMERIC,
     sqft_price_reference NUMERIC,
+    house_price NUMERIC,
     
     -- Dates (Stored with timezone for safety)
     auction_date TIMESTAMP WITH TIME ZONE,
+    upset_date TIMESTAMP WITH TIME ZONE,
     acquisition_date TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -170,6 +174,7 @@ CREATE TABLE IF NOT EXISTS ls_asset_amenities (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     created_by UUID,
     updated_by UUID
+);
 
 -- ==============================================================================
 -- 7. ACCESS CONTROL MODULE
@@ -212,7 +217,9 @@ CREATE TRIGGER tr_ls_user_profiles_updated_at BEFORE UPDATE ON ls_user_profiles 
 INSERT INTO ls_profiles (name, description) VALUES 
 ('Administrator', 'Full access to all modules and editing capabilities.'),
 ('Analyst', 'Can view and edit assets, but limited access to sensitive tabs.'),
-('Viewer', 'Read-only access to specific public modules.');-- ==============================================================================
+('Viewer', 'Read-only access to specific public modules.');
+
+-- ==============================================================================
 -- 9. USER METADATA (Public Mirror of auth.users)
 -- ==============================================================================
 

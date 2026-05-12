@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/lib/supabase";
+import { FloridaMap } from "@/components/dashboard/FloridaMap";
 import { 
   Gavel, 
   Building2, 
@@ -16,6 +17,7 @@ import {
   PieChart
 } from "lucide-react";
 import Link from "next/link";
+import { PermissionGuard } from "@/components/auth/PermissionGuard";
 import "./dashboard.css";
 
 const CHART_COLORS = ['#ca181a', '#1e293b', '#10b981', '#3b82f6', '#f59e0b', '#8b5cf6'];
@@ -138,6 +140,14 @@ export default function Dashboard() {
     });
   };
 
+  const countyMapData = useMemo(() => {
+    const map: Record<string, number> = {};
+    stats.countyStats.forEach(c => {
+      map[c.name] = c.count;
+    });
+    return map;
+  }, [stats.countyStats]);
+
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency', currency: 'USD', maximumFractionDigits: 0
@@ -155,139 +165,143 @@ export default function Dashboard() {
   const donutSegments = getDonutSegments();
 
   return (
-    <div className="dashboard-container">
-      {/* Header */}
-      <header className="dashboard-header">
-        <div className="dashboard-title">
-          <h1>Welcome back<span className="dot">.</span></h1>
-          <p>Portfolio overview and upcoming opportunities.</p>
-        </div>
-        <div className="current-date">
-          <Calendar className="w-5 h-5 text-primary" />
-          {new Date().toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long' })}
-        </div>
-      </header>
+    <PermissionGuard resource="page:dashboard">
+      <div className="dashboard-container">
+        {/* Header */}
+        <header className="dashboard-header">
+          <div className="dashboard-title">
+            <h1>Welcome back<span className="dot">.</span></h1>
+            <p>Portfolio overview and upcoming opportunities.</p>
+          </div>
+          <div className="current-date">
+            <Calendar className="w-5 h-5 text-primary" />
+            {new Date().toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long' })}
+          </div>
+        </header>
 
-      {/* KPI Cards */}
-      <div className="kpi-grid">
-        <div className="kpi-card">
-          <div className="kpi-icon-wrapper" style={{ background: 'rgba(202, 24, 26, 0.1)', color: '#ca181a' }}>
-             <Building2 className="w-6 h-6" />
-          </div>
-          <div className="kpi-info">
-            <h3>Total Properties</h3>
-            <p className="kpi-value">{stats.totalAssets}</p>
-          </div>
-        </div>
-
-        <div className="kpi-card">
-          <div className="kpi-icon-wrapper" style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#10b981' }}>
-             <Gavel className="w-6 h-6" />
-          </div>
-          <div className="kpi-info">
-            <h3>Active Auctions</h3>
-            <p className="kpi-value">{stats.activeAuctions}</p>
-          </div>
-        </div>
-
-        <div className="kpi-card">
-          <div className="kpi-icon-wrapper" style={{ background: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6' }}>
-             <TrendingUp className="w-6 h-6" />
-          </div>
-          <div className="kpi-info">
-            <h3>Active Target Value</h3>
-            <p className="kpi-value">{formatCurrency(stats.totalInvestment)}</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Main Content */}
-      <div className="dashboard-main">
-        <div className="left-column">
-          <section className="content-section compact">
-            <div className="section-header">
-              <h2>Auctions by Priority</h2>
-              <BarChart3 className="w-5 h-5 text-muted" />
+        {/* KPI Cards */}
+        <div className="kpi-grid">
+          <div className="kpi-card">
+            <div className="kpi-icon-wrapper" style={{ background: 'rgba(202, 24, 26, 0.1)', color: '#ca181a' }}>
+               <Building2 className="w-6 h-6" />
             </div>
-            <div className="chart-container">
-              {stats.priorityStats.slice(0, 4).map(p => (
-                <div key={p.name} className="chart-row">
-                  <div className="chart-label">
-                    <span>{p.name}</span>
-                    <span>{p.count} auctions</span>
-                  </div>
-                  <div className="chart-bar-bg">
-                    <div className="chart-bar-fill" style={{ width: `${p.percentage}%`, backgroundColor: p.color }} />
-                  </div>
-                </div>
-              ))}
+            <div className="kpi-info">
+              <h3>Total Properties</h3>
+              <p className="kpi-value">{stats.totalAssets}</p>
             </div>
-          </section>
+          </div>
 
-          <section className="content-section">
-            <div className="section-header">
-              <h2>Portfolio by County</h2>
-              <PieChart className="w-5 h-5 text-muted" />
+          <div className="kpi-card">
+            <div className="kpi-icon-wrapper" style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#10b981' }}>
+               <Gavel className="w-6 h-6" />
             </div>
-            <div className="donut-chart-wrapper">
-              <div className="donut-container">
-                <svg width="150" height="150" viewBox="0 0 100 100" className="donut-svg">
-                  {donutSegments.map((seg, i) => (
-                    <circle key={i} cx="50" cy="50" r="35" fill="transparent" stroke={seg.color} strokeWidth="12" strokeDasharray={seg.strokeDasharray} strokeDashoffset={seg.strokeDashoffset} strokeLinecap="round" />
-                  ))}
-                </svg>
-                <div className="donut-hole-text">
-                  <span>{stats.totalAssets}</span>
-                  <small>Total</small>
-                </div>
+            <div className="kpi-info">
+              <h3>Active Auctions</h3>
+              <p className="kpi-value">{stats.activeAuctions}</p>
+            </div>
+          </div>
+
+          <div className="kpi-card">
+            <div className="kpi-icon-wrapper" style={{ background: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6' }}>
+               <TrendingUp className="w-6 h-6" />
+            </div>
+            <div className="kpi-info">
+              <h3>Active Target Value</h3>
+              <p className="kpi-value">{formatCurrency(stats.totalInvestment)}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Main Content */}
+        <div className="dashboard-main">
+          <div className="left-column">
+            <section className="content-section compact">
+              <div className="section-header">
+                <h2>Auctions by Priority</h2>
+                <BarChart3 className="w-5 h-5 text-muted" />
               </div>
-              <div className="donut-legend">
-                {donutSegments.map((seg, i) => (
-                  <div key={i} className="legend-item">
-                    <div className="legend-color" style={{ background: seg.color }} />
-                    <div className="legend-info">
-                      <span className="legend-name">{seg.name}</span>
-                      <span className="legend-value">{seg.count}</span>
+              <div className="chart-container">
+                {stats.priorityStats.slice(0, 4).map(p => (
+                  <div key={p.name} className="chart-row">
+                    <div className="chart-label">
+                      <span>{p.name}</span>
+                      <span>{p.count} auctions</span>
+                    </div>
+                    <div className="chart-bar-bg">
+                      <div className="chart-bar-fill" style={{ width: `${p.percentage}%`, backgroundColor: p.color }} />
                     </div>
                   </div>
                 ))}
               </div>
+            </section>
+
+            <section className="content-section">
+              <div className="section-header">
+                <h2>Portfolio by County</h2>
+                <PieChart className="w-5 h-5 text-muted" />
+              </div>
+              <div className="donut-chart-wrapper">
+                <div className="donut-container">
+                  <svg width="150" height="150" viewBox="0 0 100 100" className="donut-svg">
+                    {donutSegments.map((seg, i) => (
+                      <circle key={i} cx="50" cy="50" r="35" fill="transparent" stroke={seg.color} strokeWidth="12" strokeDasharray={seg.strokeDasharray} strokeDashoffset={seg.strokeDashoffset} strokeLinecap="round" />
+                    ))}
+                  </svg>
+                  <div className="donut-hole-text">
+                    <span>{stats.totalAssets}</span>
+                    <small>Total</small>
+                  </div>
+                </div>
+                <div className="donut-legend">
+                  {donutSegments.map((seg, i) => (
+                    <div key={i} className="legend-item">
+                      <div className="legend-color" style={{ background: seg.color }} />
+                      <div className="legend-info">
+                        <span className="legend-name">{seg.name}</span>
+                        <span className="legend-value">{seg.count}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </section>
+          </div>
+
+          {/* Right Column: Timeline with Links */}
+          <section className="content-section">
+            <div className="section-header">
+              <h2>TOP FIVE: Next Auctions</h2>
+              <Clock className="w-5 h-5 text-muted" />
+            </div>
+            <div className="upcoming-list">
+              {stats.upcomingEvents.length > 0 ? stats.upcomingEvents.map((ev, idx) => (
+                <Link 
+                  key={idx} 
+                  href={`/auctions?county=${ev.countyId}&date=${ev.dateStr}`}
+                  className="event-card"
+                  style={{ textDecoration: 'none' }}
+                >
+                  <div className="event-date-badge">
+                    <span className="day">{ev.date.getDate()}</span>
+                    <span className="month">{ev.date.toLocaleDateString('en-US', { month: 'short' })}</span>
+                  </div>
+                  <div className="event-info">
+                    <h4>{ev.county}</h4>
+                    <p><MapPin className="w-3 h-3" /> {ev.state}</p>
+                  </div>
+                  <div className="event-count">{ev.count} {ev.count === 1 ? 'Auction' : 'Auctions'}</div>
+                  <ChevronRight className="w-4 h-4 text-muted" />
+                </Link>
+              )) : <p className="text-muted">No upcoming auctions.</p>}
+              <Link href="/auctions" className="primary-btn" style={{ marginTop: '1rem', justifyContent: 'center' }}>
+                View All Auctions
+              </Link>
             </div>
           </section>
         </div>
 
-        {/* Right Column: Timeline with Links */}
-        <section className="content-section">
-          <div className="section-header">
-            <h2>TOP FIVE: Next Auctions</h2>
-            <Clock className="w-5 h-5 text-muted" />
-          </div>
-          <div className="upcoming-list">
-            {stats.upcomingEvents.length > 0 ? stats.upcomingEvents.map((ev, idx) => (
-              <Link 
-                key={idx} 
-                href={`/auctions?county=${ev.countyId}&date=${ev.dateStr}`}
-                className="event-card"
-                style={{ textDecoration: 'none' }}
-              >
-                <div className="event-date-badge">
-                  <span className="day">{ev.date.getDate()}</span>
-                  <span className="month">{ev.date.toLocaleDateString('en-US', { month: 'short' })}</span>
-                </div>
-                <div className="event-info">
-                  <h4>{ev.county}</h4>
-                  <p><MapPin className="w-3 h-3" /> {ev.state}</p>
-                </div>
-                <div className="event-count">{ev.count} {ev.count === 1 ? 'Auction' : 'Auctions'}</div>
-                <ChevronRight className="w-4 h-4 text-muted" />
-              </Link>
-            )) : <p className="text-muted">No upcoming auctions.</p>}
-            <Link href="/auctions" className="primary-btn" style={{ marginTop: '1rem', justifyContent: 'center' }}>
-              View All Auctions
-            </Link>
-          </div>
-        </section>
+        <FloridaMap countyData={countyMapData} />
       </div>
-    </div>
+    </PermissionGuard>
   );
 }

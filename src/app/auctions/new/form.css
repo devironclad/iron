@@ -227,3 +227,35 @@ select.input-field {
   background-color: var(--bg-base);
   color: var(--text-primary);
 }
+
+/* Currency Inputs */
+.currency-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.currency-symbol {
+  position: absolute;
+  left: 0.75rem;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  font-weight: 600;
+  pointer-events: none;
+}
+
+.input-field.currency {
+  padding-left: 1.75rem;
+}
+
+.required-star {
+  color: #ef4444;
+  margin-left: 2px;
+  font-weight: bold;
+}
+
+@keyframes modalSlideIn {
+  from { opacity: 0; transform: translateY(20px) scale(0.95); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+

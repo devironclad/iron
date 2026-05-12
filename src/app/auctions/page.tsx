@@ -3,8 +3,15 @@
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Grid, List, Plus, MapPin, Calendar, Tag, ExternalLink, Search, Filter, ArrowRight, Loader2, ChevronLeft, ChevronRight, CheckCircle2, Navigation } from "lucide-react";
+import { 
+  Grid, List, Plus, MapPin, Calendar, Tag, ExternalLink, Search, 
+  Filter, ArrowRight, Loader2, ChevronLeft, ChevronRight, 
+  CheckCircle2, Navigation, Layers, Maximize, Download, Trash2 
+} from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { getCurrentUserPermissions, hasPermission, Permission } from "@/lib/permissions";
+import * as XLSX from "xlsx";
+import { PermissionGuard } from "@/components/auth/PermissionGuard";
 import "./auctions.css";
 
 export default function AuctionsPage() {
@@ -18,25 +25,57 @@ export default function AuctionsPage() {
   const router = useRouter();
   const highlightId = searchParams.get('highlight');
   const [highlightedRow, setHighlightedRow] = useState<string | null>(null);
+  const [totalCount, setTotalCount] = useState(0);
+  const [auctionToDelete, setAuctionToDelete] = useState<{id: number, parcel: string} | null>(null);
 
   // Filters & Pagination
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedState, setSelectedState] = useState("all");
   const [selectedCounty, setSelectedCounty] = useState(searchParams.get('county') || "all");
   const [selectedDate, setSelectedDate] = useState(searchParams.get('date') || "");
+  const [selectedOrigem, setSelectedOrigem] = useState("all");
+  const [selectedAuctionType, setSelectedAuctionType] = useState("all");
+  const [selectedPropertyType, setSelectedPropertyType] = useState("all");
+  const [selectedPriority, setSelectedPriority] = useState("all");
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [showPast, setShowPast] = useState(false);
+  
+  const [lookups, setLookups] = useState<{
+    origens: any[],
+    auctionTypes: any[],
+    propertyTypes: any[],
+    priorities: any[]
+  }>({
+    origens: [],
+    auctionTypes: [],
+    propertyTypes: [],
+    priorities: []
+  });
+  const [userPermissions, setUserPermissions] = useState<Record<string, Permission> | null>(null);
+
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 24;
 
   const uniqueStates = Array.from(new Set(counties.map(c => c.state).filter(Boolean))).sort();
 
   useEffect(() => {
-    fetchAuctions();
     fetchCounties();
-  }, [selectedCounty, selectedDate]);
+    fetchLookups();
+    loadPermissions();
+  }, []);
+
+  async function loadPermissions() {
+    const perms = await getCurrentUserPermissions();
+    setUserPermissions(perms);
+  }
+
+  useEffect(() => {
+    fetchAuctions();
+  }, [selectedCounty, selectedDate, selectedOrigem, selectedAuctionType, selectedPropertyType, selectedPriority, showPast, currentPage, searchTerm]);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, selectedCounty, selectedState]);
+  }, [searchTerm, selectedCounty, selectedState, selectedOrigem, selectedAuctionType, selectedPropertyType, selectedPriority, selectedDate]);
 
   useEffect(() => {
     const savedView = localStorage.getItem("auctionsViewMode");
@@ -84,45 +123,222 @@ export default function AuctionsPage() {
     setCounties(data || []);
   }
 
+  async function fetchLookups() {
+    const [origens, auctionTypes, propertyTypes, priorities] = await Promise.all([
+      supabase.from("ls_origem").select("id, name").order("name"),
+      supabase.from("ls_auction_type").select("id, name").order("name"),
+      supabase.from("ls_property_type").select("id, name").order("name"),
+      supabase.from("ls_priority").select("id, name").order("name"),
+    ]);
+
+    setLookups({
+      origens: origens.data || [],
+      auctionTypes: auctionTypes.data || [],
+      propertyTypes: propertyTypes.data || [],
+      priorities: priorities.data || []
+    });
+  }
+
   async function fetchAuctions() {
     setLoading(true);
     try {
+      const isFilteringByState = selectedState && selectedState !== "all";
+      const selectStr = `
+        *,
+        ls_county${isFilteringByState ? '!inner' : ''}(name, state),
+        ls_status(name),
+        ls_priority(name, color),
+        ls_auction_type(name),
+        ls_property_type(name)
+      `;
+
       let query = supabase
         .from("ls_assets")
-        .select(`
-          *,
-          ls_county(name, state),
-          ls_status(name),
-          ls_priority(name, color),
-          ls_auction_type(name)
-        `)
-        .eq("record_type", "AUCTION")
-        .order("auction_date", { ascending: true });
+        .select(selectStr, { count: "exact" })
+        .eq("record_type", "AUCTION");
+
+      if (!showPast) {
+        query = query.gte("auction_date", new Date().toISOString().split('T')[0]);
+      }
 
       if (selectedCounty && selectedCounty !== "all") {
         query = query.eq("county_id", selectedCounty);
       }
 
+      if (selectedOrigem && selectedOrigem !== "all") {
+        query = query.eq("origem_id", selectedOrigem);
+      }
+
+      if (selectedAuctionType && selectedAuctionType !== "all") {
+        query = query.eq("auction_type_id", selectedAuctionType);
+      }
+
+      if (selectedPropertyType && selectedPropertyType !== "all") {
+        query = query.eq("property_type_id", selectedPropertyType);
+      }
+
+      if (selectedPriority && selectedPriority !== "all") {
+        query = query.eq("priority_id", selectedPriority);
+      }
+
       if (selectedDate) {
-        // Filter by the specific day
         query = query.gte("auction_date", `${selectedDate}T00:00:00`)
                      .lte("auction_date", `${selectedDate}T23:59:59`);
       }
 
-      const { data, error } = await query;
+      if (isFilteringByState) {
+        query = query.eq("ls_county.state", selectedState);
+      }
 
-      if (error) throw error;
+      // Server-side search for main text fields
+      if (searchTerm) {
+        const s = `%${searchTerm}%`;
+        // Note: Using double quotes around values in .or() helps with special characters
+        query = query.or(`parcel_number.ilike."${s}",address.ilike."${s}",case_number.ilike."${s}",coordinates.ilike."${s}"`);
+      }
+
+      const from = (currentPage - 1) * ITEMS_PER_PAGE;
+      const to = from + ITEMS_PER_PAGE - 1;
+
+      const { data, error, count } = await query
+        .order("auction_date", { ascending: true })
+        .range(from, to);
+
+      if (error) {
+        console.error("Supabase Error Details:", {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code
+        });
+        throw error;
+      }
       setAuctions(data || []);
-    } catch (err) {
-      console.error("Error fetching auctions:", err);
+      setTotalCount(count || 0);
+    } catch (err: any) {
+      console.error("Error fetching auctions:", err.message || err);
     } finally {
       setLoading(false);
     }
   }
 
-  const isExpired = (dateString: string | null) => {
-    if (!dateString) return false;
-    return new Date(dateString) <= new Date();
+  const handleDelete = (id: number, parcel: string) => {
+    setAuctionToDelete({ id, parcel });
+  };
+
+  const confirmDelete = async () => {
+    if (!auctionToDelete) return;
+
+    try {
+      const { error } = await supabase
+        .from("ls_assets")
+        .delete()
+        .eq("id", auctionToDelete.id);
+
+      if (error) throw error;
+      
+      setToastMsg({ title: "Deleted", desc: "Auction record successfully removed." });
+      setTimeout(() => setToastMsg(null), 3000);
+      setAuctionToDelete(null);
+      fetchAuctions();
+    } catch (err: any) {
+      console.error("Delete Error:", err);
+      alert("Error deleting: " + err.message);
+    }
+  };
+
+  const handleExportExcel = async () => {
+    try {
+      setLoading(true);
+      const isFilteringByState = selectedState && selectedState !== "all";
+      const selectStr = `
+        *,
+        ls_county${isFilteringByState ? '!inner' : ''}(name, state),
+        ls_status(name),
+        ls_priority(name),
+        ls_auction_type(name),
+        ls_property_type(name),
+        ls_origem(name)
+      `;
+
+      let query = supabase
+        .from("ls_assets")
+        .select(selectStr)
+        .eq("record_type", "AUCTION");
+
+      if (!showPast) {
+        query = query.gte("auction_date", new Date().toISOString().split('T')[0]);
+      }
+      if (selectedCounty && selectedCounty !== "all") query = query.eq("county_id", selectedCounty);
+      if (selectedOrigem && selectedOrigem !== "all") query = query.eq("origem_id", selectedOrigem);
+      if (selectedAuctionType && selectedAuctionType !== "all") query = query.eq("auction_type_id", selectedAuctionType);
+      if (selectedPropertyType && selectedPropertyType !== "all") query = query.eq("property_type_id", selectedPropertyType);
+      if (selectedPriority && selectedPriority !== "all") query = query.eq("priority_id", selectedPriority);
+      if (selectedDate) {
+        query = query.gte("auction_date", `${selectedDate}T00:00:00`)
+                     .lte("auction_date", `${selectedDate}T23:59:59`);
+      }
+      if (isFilteringByState) {
+        query = query.eq("ls_county.state", selectedState);
+      }
+      if (searchTerm) {
+        const s = `%${searchTerm}%`;
+        query = query.or(`parcel_number.ilike."${s}",address.ilike."${s}",case_number.ilike."${s}"`);
+      }
+
+      const { data, error } = await query.order("auction_date", { ascending: true });
+
+      if (error) throw error;
+
+      // Prepare data for Excel
+      const excelData = (data || []).map((item: any) => ({
+        "ID": item.id,
+        "Parcel Number": item.parcel_number || "",
+        "Case Number": item.case_number || "",
+        "County": item.ls_county?.name || "",
+        "State": item.ls_county?.state || "",
+        "Origin": item.ls_origem?.name || "",
+        "Auction Date": item.auction_date ? new Date(item.auction_date).toLocaleDateString() : "",
+        "Auction Type": item.ls_auction_type?.name || "",
+        "Property Type": item.ls_property_type?.name || "",
+        "Priority": item.ls_priority?.name || "",
+        "Market Value": item.market_value || 0,
+        "Open Bid": item.open_bid || 0,
+        "Max Bid": item.max_bid || 0,
+        "House Price": item.house_price || 0,
+        "Address": item.address || "",
+        "Zoning": item.zoning || "",
+        "Size": item.size || 0,
+        "Observations": item.observation || ""
+      }));
+
+      const worksheet = XLSX.utils.json_to_sheet(excelData);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Auctions");
+
+      // Set column widths
+      const wscols = [
+        {wch: 10}, {wch: 20}, {wch: 15}, {wch: 15}, {wch: 8}, {wch: 15}, 
+        {wch: 15}, {wch: 15}, {wch: 15}, {wch: 15}, {wch: 15}, {wch: 15},
+        {wch: 15}, {wch: 15}, {wch: 30}, {wch: 15}, {wch: 10}, {wch: 40}
+      ];
+      worksheet['!cols'] = wscols;
+
+      XLSX.writeFile(workbook, `auctions_export_${new Date().toISOString().split('T')[0]}.xlsx`);
+
+      setToastMsg({ title: "Export Complete", desc: "Your auction data has been exported to Excel." });
+    } catch (err: any) {
+      console.error("Export Error:", err);
+      alert("Error exporting to Excel: " + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Date formatting helper
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return "N/A";
+    return new Date(dateString).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
   };
 
   const formatCurrency = (val: number | null) => {
@@ -130,35 +346,63 @@ export default function AuctionsPage() {
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(val);
   };
 
-  const formatDate = (dateString: string | null) => {
-    if (!dateString) return "N/A";
-    return new Date(dateString).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
-  };
-
   const truncateText = (text: string | null, limit: number) => {
     if (!text) return '';
     return text.length > limit ? text.substring(0, limit) + '...' : text;
   };
 
-  const filteredAuctions = auctions.filter(a => {
-    const searchLower = searchTerm.toLowerCase();
-    const matchesSearch = (
-      (a.parcel_number?.toLowerCase().includes(searchLower)) ||
-      (a.ls_county?.name?.toLowerCase().includes(searchLower)) ||
-      (a.address?.toLowerCase().includes(searchLower))
-    );
-    const matchesState = selectedState === "all" || a.ls_county?.state === selectedState;
-    return matchesSearch && matchesState;
-  });
-
-  const totalPages = Math.ceil(filteredAuctions.length / ITEMS_PER_PAGE);
-  const paginatedAuctions = filteredAuctions.slice(
-    (currentPage - 1) * ITEMS_PER_PAGE,
-    currentPage * ITEMS_PER_PAGE
-  );
+  const paginatedAuctions = auctions;
+  const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE);
 
   return (
-    <div className="auctions-container">
+    <PermissionGuard resource="page:auctions">
+      <div className="auctions-container">
+
+      {auctionToDelete && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
+          backgroundColor: 'rgba(15, 23, 42, 0.4)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200
+        }}>
+          <div style={{
+            backgroundColor: 'white', borderRadius: '1.25rem', width: '100%', maxWidth: '400px',
+            padding: '2rem', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.3)',
+            display: 'flex', flexDirection: 'column', gap: '1.25rem',
+            animation: 'modalSlideIn 0.3s ease-out'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', color: '#ef4444' }}>
+              <div style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', padding: '0.75rem', borderRadius: '0.75rem' }}>
+                <Trash2 className="w-6 h-6" />
+              </div>
+              <div>
+                <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: '#0f172a' }}>Delete Auction</h2>
+                <p style={{ margin: 0, fontSize: '0.875rem', color: '#64748b' }}>Parcel: {auctionToDelete.parcel}</p>
+              </div>
+            </div>
+            
+            <p style={{ color: '#475569', fontSize: '0.95rem', margin: 0, lineHeight: 1.5 }}>
+              Are you absolutely sure you want to permanently delete this auction record from the system?
+            </p>
+
+            <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem' }}>
+              <button 
+                onClick={() => setAuctionToDelete(null)}
+                className="btn-secondary"
+                style={{ flex: 1, justifyContent: 'center' }}
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={confirmDelete}
+                className="primary-btn"
+                style={{ flex: 1, justifyContent: 'center', backgroundColor: '#ef4444', borderColor: '#ef4444' }}
+              >
+                Yes, Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Page Header */}
       <div className="page-header">
@@ -166,10 +410,18 @@ export default function AuctionsPage() {
           <h1 className="page-title">Auctions<span className="dot">.</span></h1>
           <p className="page-subtitle">Manage upcoming auctions and research prospective acquisitions.</p>
         </div>
-        <Link href="/auctions/new" className="primary-btn" style={{ textDecoration: 'none' }}>
-          <Plus className="w-5 h-5" />
-          New Auction
-        </Link>
+        <div style={{ display: 'flex', gap: '0.75rem' }}>
+          {hasPermission(userPermissions, 'action:export_auctions') && (
+            <button onClick={handleExportExcel} className="btn-secondary" disabled={loading}>
+              <Download className="w-5 h-5" />
+              Export
+            </button>
+          )}
+          <Link href="/auctions/new" className="primary-btn" style={{ textDecoration: 'none' }}>
+            <Plus className="w-5 h-5" />
+            New Auction
+          </Link>
+        </div>
       </div>
 
       {/* Search and Filter Bar */}
@@ -186,16 +438,8 @@ export default function AuctionsPage() {
         </div>
 
         <div className="bar-actions">
-          <div className="totalizer" style={{
-            fontSize: '0.875rem',
-            color: '#64748b',
-            fontWeight: 500,
-            paddingRight: '1rem',
-            borderRight: '1px solid #e2e8f0',
-            display: 'flex',
-            alignItems: 'center'
-          }}>
-            <strong style={{ color: '#0f172a', marginRight: '0.35rem', fontSize: '1.25rem', lineHeight: 1 }}>{filteredAuctions.length}</strong> items
+          <div className="totalizer">
+            <strong>{totalCount}</strong> items
           </div>
 
           <div className="view-toggle">
@@ -213,40 +457,152 @@ export default function AuctionsPage() {
             </button>
           </div>
 
-          <select
-            className="filter-dropdown"
-            value={selectedState}
-            onChange={(e) => {
-              setSelectedState(e.target.value);
-              setSelectedCounty("all");
-            }}
-            style={{ backgroundColor: 'transparent', outline: 'none' }}
+          <button 
+            className={`filter-toggle-btn ${showAdvanced ? 'active' : ''}`}
+            onClick={() => setShowAdvanced(!showAdvanced)}
           >
-            <option value="all">All States</option>
-            {uniqueStates.map(s => <option key={s as string} value={s as string}>{s as string}</option>)}
-          </select>
+            <Filter className="w-4 h-4" />
+            <span>Filters</span>
+          </button>
 
-          <select
-            className="filter-dropdown"
-            value={selectedCounty}
-            onChange={(e) => setSelectedCounty(e.target.value)}
-            style={{ backgroundColor: 'transparent', outline: 'none' }}
-          >
-            <option value="all">All Counties</option>
-            {counties
-              .filter(c => selectedState === "all" || c.state === selectedState)
-              .map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
+          <label className="show-past-toggle" style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            fontSize: '0.85rem',
+            fontWeight: 600,
+            color: 'var(--text-secondary)',
+            cursor: 'pointer',
+            padding: '0.5rem 0.75rem',
+            borderRadius: '0.5rem',
+            backgroundColor: showPast ? 'var(--primary-light)' : 'transparent',
+            border: `1px solid ${showPast ? 'var(--primary)' : 'var(--border-subtle)'}`,
+            transition: 'all 0.2s'
+          }}>
+            <input 
+              type="checkbox" 
+              checked={showPast} 
+              onChange={(e) => setShowPast(e.target.checked)}
+              style={{ accentColor: 'var(--primary)' }}
+            />
+            <span>Show Past</span>
+          </label>
+        </div>
+
+        {/* Integrated Advanced Filters Panel */}
+        <div className={`auc-advanced-filters-panel ${showAdvanced ? 'show' : ''}`}>
+          <div className="auc-filters-container">
+            <div className="auc-filter-item">
+              <label>State</label>
+              <select
+                className="auc-filter-select"
+                value={selectedState}
+                onChange={(e) => {
+                  setSelectedState(e.target.value);
+                  setSelectedCounty("all");
+                }}
+              >
+                <option value="all">All States</option>
+                {uniqueStates.map(s => <option key={s as string} value={s as string}>{s as string}</option>)}
+              </select>
+            </div>
+
+            <div className="auc-filter-item">
+              <label>County</label>
+              <select
+                className="auc-filter-select"
+                value={selectedCounty}
+                onChange={(e) => setSelectedCounty(e.target.value)}
+              >
+                <option value="all">All Counties</option>
+                {counties
+                  .filter(c => selectedState === "all" || c.state === selectedState)
+                  .map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
+
+            <div className="auc-filter-item">
+              <label>Auction Date</label>
+              <input 
+                type="date" 
+                className="auc-filter-select"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+              />
+            </div>
+
+            <div className="auc-filter-item">
+              <label>Origem</label>
+              <select
+                className="auc-filter-select"
+                value={selectedOrigem}
+                onChange={(e) => setSelectedOrigem(e.target.value)}
+              >
+                <option value="all">All Origens</option>
+                {lookups.origens.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+              </select>
+            </div>
+
+            <div className="auc-filter-item">
+              <label>Auction Type</label>
+              <select
+                className="auc-filter-select"
+                value={selectedAuctionType}
+                onChange={(e) => setSelectedAuctionType(e.target.value)}
+              >
+                <option value="all">All Types</option>
+                {lookups.auctionTypes.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </select>
+            </div>
+
+            <div className="auc-filter-item">
+              <label>Property Type</label>
+              <select
+                className="auc-filter-select"
+                value={selectedPropertyType}
+                onChange={(e) => setSelectedPropertyType(e.target.value)}
+              >
+                <option value="all">All Prop. Types</option>
+                {lookups.propertyTypes.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </select>
+            </div>
+
+            <div className="auc-filter-item">
+              <label>Priority</label>
+              <select
+                className="auc-filter-select"
+                value={selectedPriority}
+                onChange={(e) => setSelectedPriority(e.target.value)}
+              >
+                <option value="all">All Priorities</option>
+                {lookups.priorities.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            </div>
+            
+            <div className="auc-filter-item auc-actions-item">
+              <button className="auc-clear-filters-link" onClick={() => {
+                setSelectedState("all");
+                setSelectedCounty("all");
+                setSelectedDate("");
+                setSelectedOrigem("all");
+                setSelectedAuctionType("all");
+                setSelectedPropertyType("all");
+                setSelectedPriority("all");
+                setSearchTerm("");
+              }}>
+                Clear All
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Main Content */}
       {loading ? (
         <div className="empty-state">
           <Loader2 className="w-8 h-8 animate-spin" style={{ margin: '0 auto 1rem', color: 'var(--primary)' }} />
           <span>Fetching real-time data from Supabase...</span>
         </div>
-      ) : filteredAuctions.length === 0 ? (
+      ) : totalCount === 0 ? (
         <div className="empty-state">
           <span>No auctions found matching your criteria.</span>
           <Link href="/auctions/new" style={{ color: 'var(--primary)', fontWeight: 600, display: 'block', marginTop: '1rem' }}>
@@ -256,7 +612,6 @@ export default function AuctionsPage() {
       ) : viewMode === "grid" ? (
         <div className="auctions-grid">
           {paginatedAuctions.map((auction) => {
-            const expired = isExpired(auction.auction_date);
             const isHighlighted = highlightedRow === auction.id.toString();
             return (
               <div
@@ -276,19 +631,10 @@ export default function AuctionsPage() {
                     <span className="card-label">ID: {auction.id}</span>
                   </div>
                   <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-                    <span className="card-status">{expired ? 'EXPIRED' : (auction.ls_status?.name || 'NEW').toUpperCase()}</span>
                     {auction.ls_priority?.name && (
                       <span
-                        style={{
-                          backgroundColor: auction.ls_priority.color || '#94a3b8',
-                          color: '#fff',
-                          padding: '0.15rem 0.5rem',
-                          borderRadius: '999px',
-                          fontSize: '0.65rem',
-                          fontWeight: 700,
-                          textTransform: 'uppercase',
-                          boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
-                        }}
+                        className="card-priority-badge"
+                        style={{ backgroundColor: auction.ls_priority.color || '#94a3b8' }}
                       >
                         {auction.ls_priority.name}
                       </span>
@@ -313,11 +659,19 @@ export default function AuctionsPage() {
                   </div>
                   <div className="detail-item">
                     <Calendar className="w-4 h-4 detail-icon" />
-                    <span style={{ color: expired ? "var(--status-expired)" : "inherit" }}>{formatDate(auction.auction_date)}</span>
+                    <span>{formatDate(auction.auction_date)}</span>
                   </div>
                   <div className="detail-item">
                     <Tag className="w-4 h-4 detail-icon" />
-                    <span>{auction.ls_auction_type?.name || 'Unspecified'}</span>
+                    <span title={`Auction: ${auction.ls_auction_type?.name || 'N/A'}`}>{auction.ls_auction_type?.name || 'N/A'}</span>
+                  </div>
+                  <div className="detail-item">
+                    <Layers className="w-4 h-4 detail-icon" />
+                    <span title={`Property: ${auction.ls_property_type?.name || 'N/A'}`}>{auction.ls_property_type?.name || 'N/A'}</span>
+                  </div>
+                  <div className="detail-item">
+                    <Maximize className="w-4 h-4 detail-icon" />
+                    <span>{auction.size ? `${auction.size} AC/SF` : 'No Size'}</span>
                   </div>
                   <div className="detail-item link-item">
                     <ExternalLink className="w-4 h-4 detail-icon link-icon" />
@@ -332,18 +686,28 @@ export default function AuctionsPage() {
                 <div className="card-financials">
                   <div className="fin-block">
                     <span className="fin-label">CASE NUMBER</span>
-                    <span className="fin-value-large" style={{ fontSize: '1.125rem' }}>{auction.case_number || 'N/A'}</span>
+                    <span className="fin-value-large" style={{ fontSize: '1.05rem' }}>{auction.case_number || 'N/A'}</span>
                   </div>
                   <div className="fin-block align-right">
-                    <span className="fin-label">MKT VALUE</span>
-                    <span className="fin-value-green">{formatCurrency(auction.market_value)}</span>
+                    <span className="fin-label">PARCEL NUMBER</span>
+                    <span className="fin-value-green" style={{ color: 'var(--primary)', fontSize: '1rem' }}>{auction.parcel_number || 'N/A'}</span>
                   </div>
                 </div>
 
-                <Link href={`/auctions/new?id=${auction.id}`} className="card-details-btn" style={{ textDecoration: 'none' }}>
-                  Edit Details
-                  <ArrowRight className="w-4 h-4" />
-                </Link>
+                <div style={{ display: 'flex', gap: '0.5rem', marginTop: 'auto' }}>
+                  <Link href={`/auctions/new?id=${auction.id}`} className="card-details-btn" style={{ textDecoration: 'none', flex: 1 }}>
+                    Edit Details
+                    <ArrowRight className="w-4 h-4" />
+                  </Link>
+                  <button 
+                    onClick={() => handleDelete(auction.id, auction.parcel_number)}
+                    className="card-details-btn" 
+                    style={{ backgroundColor: '#fee2e2', color: '#ef4444', border: 'none', width: '40px', padding: 0, justifyContent: 'center' }}
+                    title="Delete"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             );
           })}
@@ -365,14 +729,12 @@ export default function AuctionsPage() {
               <th>Type</th>
               <th>Open Bid</th>
               <th>Mkt Value</th>
-              <th>Status</th>
               <th>Priority</th>
               <th>Action</th>
             </tr>
           </thead>
           <tbody>
             {paginatedAuctions.map((auction) => {
-              const expired = isExpired(auction.auction_date);
               const isHighlighted = highlightedRow === auction.id.toString();
               return (
                 <tr
@@ -386,24 +748,12 @@ export default function AuctionsPage() {
                   <td>{auction.id}</td>
                   <td style={{ fontWeight: 600 }}>{auction.parcel_number}</td>
                   <td>{auction.ls_county?.name}</td>
-                  <td style={{ color: expired ? "var(--status-expired)" : "inherit" }}>
+                  <td>
                     {formatDate(auction.auction_date)}
                   </td>
                   <td>{auction.ls_auction_type?.name}</td>
                   <td style={{ fontWeight: 700 }}>{formatCurrency(auction.open_bid)}</td>
                   <td style={{ fontWeight: 600, color: "#10b981" }}>{formatCurrency(auction.market_value)}</td>
-                  <td>
-                    <span style={{
-                      padding: "0.25rem 0.5rem",
-                      borderRadius: "999px",
-                      fontSize: "0.75rem",
-                      backgroundColor: expired ? "#fee2e2" : "#f1f5f9",
-                      color: expired ? "#ef4444" : "#475569",
-                      fontWeight: 600
-                    }}>
-                      {expired ? 'EXPIRED' : (auction.ls_status?.name || 'NEW').toUpperCase()}
-                    </span>
-                  </td>
                   <td>
                     {auction.ls_priority?.name ? (
                       <span style={{
@@ -421,8 +771,16 @@ export default function AuctionsPage() {
                       <span style={{ color: "#94a3b8", fontSize: "0.85rem" }}>--</span>
                     )}
                   </td>
-                  <td>
+                  <td style={{ display: 'flex', gap: '0.4rem' }}>
                     <Link href={`/auctions/new?id=${auction.id}`} className="primary-btn" style={{ padding: "0.3rem 0.75rem", fontSize: "0.75rem", textDecoration: 'none' }}>Edit</Link>
+                    <button 
+                      onClick={() => handleDelete(auction.id, auction.parcel_number)}
+                      className="primary-btn" 
+                      style={{ padding: "0.3rem 0.5rem", fontSize: "0.75rem", background: "#fee2e2", color: "#ef4444", border: "none" }}
+                      title="Delete"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
                   </td>
                 </tr>
               )
@@ -432,7 +790,7 @@ export default function AuctionsPage() {
       )}
 
       {/* Pagination Controls */}
-      {!loading && filteredAuctions.length > 0 && totalPages > 1 && (
+      {!loading && totalCount > 0 && totalPages > 1 && (
         <div className="pagination-container" style={{
           display: 'flex',
           justifyContent: 'center',
@@ -496,6 +854,7 @@ export default function AuctionsPage() {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </PermissionGuard>
   );
 }

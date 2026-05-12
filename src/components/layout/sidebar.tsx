@@ -34,8 +34,10 @@ export function Sidebar() {
 
   useEffect(() => {
     async function initUser() {
-      // 1. Get current session
-      const { data: { user } } = await supabase.auth.getUser();
+      // 1. Get current session (using getSession to reduce lock contention with getUser calls in pages)
+      const { data: { session } } = await supabase.auth.getSession();
+      const user = session?.user;
+      
       if (!user) {
         setUser(null);
         return;
@@ -67,10 +69,11 @@ export function Sidebar() {
     router.refresh();
   };
 
-  // Fallback logic: if permissions are loaded but empty, we show all (to prevent lockouts during setup)
-  const visibleItems = permissions && Object.keys(permissions).length > 0
+  // Security logic: only show items if the user has explicit permission.
+  // If permissions are empty, it means the user has no profile assigned yet.
+  const visibleItems = permissions 
     ? NAV_ITEMS.filter(item => hasPermission(permissions, item.resource, 'view'))
-    : NAV_ITEMS; 
+    : []; 
 
   return (
     <aside className="sidebar">
