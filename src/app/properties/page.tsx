@@ -5,7 +5,7 @@ import Link from "next/link";
 import { 
   Plus, Search, Grid, List, MapPin, Calendar, ExternalLink, 
   ArrowRight, Tag, Loader2, Navigation, ChevronLeft, ChevronRight,
-  Filter, Layers, Maximize
+  Filter, Layers, Maximize, Hash
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { PermissionGuard } from "@/components/auth/PermissionGuard";
@@ -515,7 +515,9 @@ export default function PropertiesPage() {
                 </div>
                 <div className="detail-item">
                   <Calendar className="w-4 h-4 detail-icon" />
-                  <span>{formatDate(prop.acquisition_date || prop.auction_date)}</span>
+                  <span title={prop.case_number || 'No Case Number'}>
+                    {prop.case_number || 'No Case Number'}
+                  </span>
                 </div>
                 <div className="detail-item">
                   <Tag className="w-4 h-4 detail-icon" />
@@ -526,8 +528,10 @@ export default function PropertiesPage() {
                   <span title={`Property: ${prop.ls_property_type?.name || 'N/A'}`}>{prop.ls_property_type?.name || 'N/A'}</span>
                 </div>
                 <div className="detail-item">
-                   <Maximize className="w-4 h-4 detail-icon" />
-                   <span>{prop.size ? `${prop.size} AC/SF` : 'No Size'}</span>
+                  <Hash className="w-4 h-4 detail-icon" />
+                  <span title={prop.parcel_number || 'No Parcel Number'}>
+                    {prop.parcel_number || 'No Parcel Number'}
+                  </span>
                 </div>
                 <div className="detail-item link-item">
                   <ExternalLink className="w-4 h-4 detail-icon link-icon" />
@@ -541,12 +545,12 @@ export default function PropertiesPage() {
 
               <div className="card-financials">
                 <div className="fin-block">
-                  <span className="fin-label">CASE NUMBER</span>
-                  <span className="fin-value-large" style={{ fontSize: '1.05rem' }}>{prop.case_number || 'N/A'}</span>
+                  <span className="fin-label">ACQUISITION DATE</span>
+                  <span className="fin-value-large" style={{ fontSize: '1.05rem' }}>{formatDate(prop.acquisition_date || prop.auction_date)}</span>
                 </div>
                 <div className="fin-block align-right">
-                  <span className="fin-label">PARCEL NUMBER</span>
-                  <span className="fin-value-green" style={{ color: '#10b981', fontSize: '1rem' }}>{prop.parcel_number || 'N/A'}</span>
+                  <span className="fin-label">SIZE</span>
+                  <span className="fin-value-green" style={{ color: '#10b981', fontSize: '1rem' }}>{prop.size ? `${prop.size} AC/SF` : 'No Size'}</span>
                 </div>
               </div>
 

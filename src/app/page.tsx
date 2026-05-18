@@ -41,12 +41,12 @@ export default function Dashboard() {
       try {
         const { data: allAssets } = await supabase
           .from('ls_assets')
-          .select('id, market_value, ls_priority(name, color), auction_date, address, record_type, county_id, ls_county(name, state)');
+          .select('id, market_value, max_bid, ls_priority(name, color), auction_date, address, record_type, county_id, ls_county(name, state)');
 
         const assets = allAssets || [];
         const properties = assets.filter(a => a.record_type === 'PROPERTY');
         const activeAuctions = assets.filter(a => a.record_type === 'AUCTION' && a.auction_date && a.auction_date >= today);
-        const totalInvestmentValue = activeAuctions.reduce((acc, curr) => acc + (Number(curr.market_value) || 0), 0);
+        const totalInvestmentValue = activeAuctions.reduce((acc, curr) => acc + (Number(curr.max_bid) || 0), 0);
 
         // Priority Stats
         const priorities: Record<string, { count: number, color: string }> = {};
@@ -97,19 +97,25 @@ export default function Dashboard() {
         });
 
         // County Stats (For Donut)
-        const counties: Record<string, number> = {};
+        const counties: Record<string, { count: number, state: string, countyName: string }> = {};
         properties.forEach(prop => {
           const county = (Array.isArray(prop.ls_county) ? prop.ls_county[0] : prop.ls_county) as any;
-          const cName = county?.name || "Other";
-          counties[cName] = (counties[cName] || 0) + 1;
+          const countyName = county?.name || "Other";
+          const state = county?.state || "Other";
+          const key = county ? `${county.name}_${state}` : "Other_Other";
+          if (!counties[key]) {
+            counties[key] = { count: 0, state, countyName };
+          }
+          counties[key].count++;
         });
 
         const countyArray = Object.entries(counties)
-          .map(([name, count], index) => ({
-            name,
-            count,
+          .map(([key, data], index) => ({
+            name: data.countyName,
+            state: data.state,
+            count: data.count,
             color: CHART_COLORS[index % CHART_COLORS.length],
-            percentage: properties.length > 0 ? (count / properties.length) * 100 : 0
+            percentage: properties.length > 0 ? (data.count / properties.length) * 100 : 0
           }))
           .sort((a, b) => b.count - a.count);
 
@@ -164,7 +170,7 @@ export default function Dashboard() {
     const radius = 35;
     const circumference = 2 * Math.PI * radius;
 
-    return stats.countyStats.slice(0, 5).map((c) => {
+    return stats.countyStats.map((c) => {
       const strokeDasharray = `${(c.percentage * circumference) / 100} ${circumference}`;
       const strokeDashoffset = -currentOffset;
       currentOffset += (c.percentage * circumference) / 100;
@@ -179,6 +185,18 @@ export default function Dashboard() {
     }).format(val);
   };
 
+  const donutSegments = getDonutSegments();
+  
+  const segmentsByState = useMemo(() => {
+    const groups: Record<string, typeof donutSegments> = {};
+    donutSegments.forEach(seg => {
+      const stateName = seg.state || "Other";
+      if (!groups[stateName]) groups[stateName] = [];
+      groups[stateName].push(seg);
+    });
+    return Object.entries(groups).sort(([a], [b]) => a.localeCompare(b));
+  }, [donutSegments]);
+
   if (loading) {
     return (
       <div className="dashboard-container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
@@ -186,8 +204,6 @@ export default function Dashboard() {
       </div>
     );
   }
-
-  const donutSegments = getDonutSegments();
 
   return (
     <PermissionGuard resource="page:dashboard">
@@ -207,12 +223,12 @@ export default function Dashboard() {
         {/* KPI Cards */}
         <div className="kpi-grid">
           <div className="kpi-card">
-            <div className="kpi-icon-wrapper" style={{ background: 'rgba(202, 24, 26, 0.1)', color: '#ca181a' }}>
-               <Building2 className="w-6 h-6" />
+            <div className="kpi-icon-wrapper" style={{ background: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6' }}>
+               <TrendingUp className="w-6 h-6" />
             </div>
             <div className="kpi-info">
-              <h3>Total Portfolio</h3>
-              <p className="kpi-value">{stats.totalAssets}</p>
+              <h3>Target Value</h3>
+              <p className="kpi-value">{formatCurrency(stats.totalInvestment)}</p>
             </div>
           </div>
 
@@ -227,12 +243,12 @@ export default function Dashboard() {
           </div>
 
           <div className="kpi-card">
-            <div className="kpi-icon-wrapper" style={{ background: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6' }}>
-               <TrendingUp className="w-6 h-6" />
+            <div className="kpi-icon-wrapper" style={{ background: 'rgba(202, 24, 26, 0.1)', color: '#ca181a' }}>
+               <Building2 className="w-6 h-6" />
             </div>
             <div className="kpi-info">
-              <h3>Target Value</h3>
-              <p className="kpi-value">{formatCurrency(stats.totalInvestment)}</p>
+              <h3>Total Portfolio</h3>
+              <p className="kpi-value">{stats.totalAssets}</p>
             </div>
           </div>
         </div>
@@ -242,7 +258,7 @@ export default function Dashboard() {
           <div className="left-column">
             <section className="content-section compact">
               <div className="section-header">
-                <h2>Asset for auction by Week</h2>
+                <h2>Assets for auction by week</h2>
                 <Calendar className="w-5 h-5 text-muted" />
               </div>
               <div className="chart-container">
@@ -262,7 +278,7 @@ export default function Dashboard() {
 
             <section className="content-section compact">
               <div className="section-header">
-                <h2>Asset for auctions by Priority</h2>
+                <h2>Assets for auction by priority</h2>
                 <BarChart3 className="w-5 h-5 text-muted" />
               </div>
               <div className="chart-container">
@@ -297,14 +313,30 @@ export default function Dashboard() {
                     <small>Total</small>
                   </div>
                 </div>
-                <div className="donut-legend">
-                  {donutSegments.map((seg, i) => (
-                    <div key={i} className="legend-item">
-                      <div className="legend-color" style={{ background: seg.color }} />
-                      <div className="legend-info">
-                        <span className="legend-name">{seg.name}</span>
-                        <span className="legend-value">{seg.count}</span>
+                <div className="donut-legend" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', width: '100%' }}>
+                  {segmentsByState.map(([state, segs]) => (
+                    <div key={state} className="legend-state-group" style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                      <div className="legend-state-header" style={{ 
+                        fontSize: '0.75rem', 
+                        fontWeight: 800, 
+                        color: 'var(--text-muted)', 
+                        textTransform: 'uppercase', 
+                        letterSpacing: '0.05em',
+                        borderBottom: '1px solid var(--border-subtle)',
+                        paddingBottom: '2px',
+                        marginBottom: '4px'
+                      }}>
+                        {state === "Other" ? "Other Regions" : state}
                       </div>
+                      {segs.map((seg, i) => (
+                        <div key={i} className="legend-item">
+                          <div className="legend-color" style={{ background: seg.color }} />
+                          <div className="legend-info">
+                            <span className="legend-name">{seg.name}</span>
+                            <span className="legend-value">{seg.count}</span>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   ))}
                 </div>
@@ -334,7 +366,7 @@ export default function Dashboard() {
                     <h4>{ev.county}</h4>
                     <p><MapPin className="w-3 h-3" /> {ev.state}</p>
                   </div>
-                  <div className="event-count">{ev.count} {ev.count === 1 ? 'Auction' : 'Auctions'}</div>
+                  <div className="event-count">{ev.count} {ev.count === 1 ? 'Asset' : 'Assets'}</div>
                   <ChevronRight className="w-4 h-4 text-muted" />
                 </Link>
               )) : <p className="text-muted">No upcoming auctions.</p>}

@@ -6,7 +6,7 @@ import Link from "next/link";
 import { 
   Grid, List, Plus, MapPin, Calendar, Tag, ExternalLink, Search, 
   Filter, ArrowRight, Loader2, ChevronLeft, ChevronRight, 
-  CheckCircle2, Navigation, Layers, Maximize, Download, Trash2 
+  CheckCircle2, Navigation, Layers, Maximize, Download, Trash2, Hash
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { getCurrentUserPermissions, hasPermission, Permission } from "@/lib/permissions";
@@ -659,7 +659,9 @@ export default function AuctionsPage() {
                   </div>
                   <div className="detail-item">
                     <Calendar className="w-4 h-4 detail-icon" />
-                    <span>{formatDate(auction.auction_date)}</span>
+                    <span title={auction.case_number || 'No Case Number'}>
+                      {auction.case_number || 'No Case Number'}
+                    </span>
                   </div>
                   <div className="detail-item">
                     <Tag className="w-4 h-4 detail-icon" />
@@ -670,8 +672,10 @@ export default function AuctionsPage() {
                     <span title={`Property: ${auction.ls_property_type?.name || 'N/A'}`}>{auction.ls_property_type?.name || 'N/A'}</span>
                   </div>
                   <div className="detail-item">
-                    <Maximize className="w-4 h-4 detail-icon" />
-                    <span>{auction.size ? `${auction.size} AC/SF` : 'No Size'}</span>
+                    <Hash className="w-4 h-4 detail-icon" />
+                    <span title={auction.parcel_number || 'No Parcel Number'}>
+                      {auction.parcel_number || 'No Parcel Number'}
+                    </span>
                   </div>
                   <div className="detail-item link-item">
                     <ExternalLink className="w-4 h-4 detail-icon link-icon" />
@@ -685,12 +689,12 @@ export default function AuctionsPage() {
 
                 <div className="card-financials">
                   <div className="fin-block">
-                    <span className="fin-label">CASE NUMBER</span>
-                    <span className="fin-value-large" style={{ fontSize: '1.05rem' }}>{auction.case_number || 'N/A'}</span>
+                    <span className="fin-label">AUCTION DATE</span>
+                    <span className="fin-value-large" style={{ fontSize: '1.05rem' }}>{formatDate(auction.auction_date)}</span>
                   </div>
                   <div className="fin-block align-right">
-                    <span className="fin-label">PARCEL NUMBER</span>
-                    <span className="fin-value-green" style={{ color: 'var(--primary)', fontSize: '1rem' }}>{auction.parcel_number || 'N/A'}</span>
+                    <span className="fin-label">SIZE</span>
+                    <span className="fin-value-green" style={{ color: 'var(--primary)', fontSize: '1rem' }}>{auction.size ? `${auction.size} AC/SF` : 'No Size'}</span>
                   </div>
                 </div>
 
