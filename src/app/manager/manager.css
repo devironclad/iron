@@ -251,6 +251,17 @@
   border-bottom: 1px solid var(--border-subtle);
 }
 
+.sortable-th {
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  user-select: none;
+}
+
+.sortable-th:hover {
+  background-color: #f1f5f9;
+  color: var(--primary);
+}
+
 .manager-table td {
   padding: 1rem 1.5rem;
   font-size: 0.9rem;

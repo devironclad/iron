@@ -702,7 +702,7 @@ export default function AuctionsPage() {
                   <button 
                     onClick={() => handleDelete(auction.id, auction.parcel_number)}
                     className="card-details-btn" 
-                    style={{ backgroundColor: '#fee2e2', color: '#ef4444', border: 'none', width: '40px', padding: 0, justifyContent: 'center' }}
+                    style={{ backgroundColor: 'white', color: '#475569', border: '1px solid #cbd5e1', width: '40px', padding: 0, justifyContent: 'center' }}
                     title="Delete"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -727,6 +727,7 @@ export default function AuctionsPage() {
               <th>County</th>
               <th>Date</th>
               <th>Type</th>
+              <th>Status</th>
               <th>Open Bid</th>
               <th>Mkt Value</th>
               <th>Priority</th>
@@ -752,18 +753,34 @@ export default function AuctionsPage() {
                     {formatDate(auction.auction_date)}
                   </td>
                   <td>{auction.ls_auction_type?.name}</td>
+                  <td>
+                    {auction.ls_status?.name ? (
+                      <span style={{ 
+                        fontSize: '0.7rem', 
+                        fontWeight: 700, 
+                        color: 'var(--text-secondary)',
+                        backgroundColor: '#f1f5f9',
+                        padding: '0.2rem 0.5rem',
+                        borderRadius: '0.4rem',
+                        whiteSpace: 'nowrap'
+                      }}>
+                        {auction.ls_status.name}
+                      </span>
+                    ) : '--'}
+                  </td>
                   <td style={{ fontWeight: 700 }}>{formatCurrency(auction.open_bid)}</td>
                   <td style={{ fontWeight: 600, color: "#10b981" }}>{formatCurrency(auction.market_value)}</td>
                   <td>
                     {auction.ls_priority?.name ? (
                       <span style={{
-                        padding: "0.25rem 0.5rem",
+                        padding: "0.2rem 0.5rem",
                         borderRadius: "999px",
-                        fontSize: "0.75rem",
+                        fontSize: "0.7rem",
                         backgroundColor: auction.ls_priority.color || "#94a3b8",
                         color: "#fff",
                         fontWeight: 700,
-                        textTransform: 'uppercase'
+                        textTransform: 'uppercase',
+                        whiteSpace: 'nowrap'
                       }}>
                         {auction.ls_priority.name}
                       </span>
@@ -772,11 +789,16 @@ export default function AuctionsPage() {
                     )}
                   </td>
                   <td style={{ display: 'flex', gap: '0.4rem' }}>
-                    <Link href={`/auctions/new?id=${auction.id}`} className="primary-btn" style={{ padding: "0.3rem 0.75rem", fontSize: "0.75rem", textDecoration: 'none' }}>Edit</Link>
+                    <Link 
+                      href={`/auctions/new?id=${auction.id}`} 
+                      className="btn-list-edit"
+                    >
+                      Edit
+                    </Link>
                     <button 
                       onClick={() => handleDelete(auction.id, auction.parcel_number)}
-                      className="primary-btn" 
-                      style={{ padding: "0.3rem 0.5rem", fontSize: "0.75rem", background: "#fee2e2", color: "#ef4444", border: "none" }}
+                      className="btn-secondary" 
+                      style={{ padding: "0.3rem 0.5rem", fontSize: "0.75rem", background: "white", color: "#475569", border: "1px solid #cbd5e1" }}
                       title="Delete"
                     >
                       <Trash2 className="w-3.5 h-3.5" />

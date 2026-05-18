@@ -32,6 +32,7 @@ const TABLES = [
   { id: "ls_ref_construction", label: "Ref Construction", icon: Info, desc: "New build vs rehab status" },
   { id: "ls_amenity_category", label: "Amenity Categories", icon: Layers, desc: "Groups like Shopping, Transport, etc" },
   { id: "ls_amenity_type", label: "Amenity Types", icon: MapPin, desc: "Specific items like Walmart, Schools" },
+  { id: "ls_request_category", label: "Request Category", icon: Layers, desc: "Categories for Helpdesk requests" },
 ];
 
 function ManagerContent() {
@@ -54,8 +55,11 @@ function ManagerContent() {
   const [newCategoryId, setNewCategoryId] = useState("");
   const [editCategoryId, setEditCategoryId] = useState("");
   const [filterCategoryId, setFilterCategoryId] = useState("");
+  const [filterState, setFilterState] = useState("");
+  const [states, setStates] = useState<string[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
   const [permissions, setPermissions] = useState<any>(null);
+  const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ key: 'name', direction: 'asc' });
 
   useEffect(() => {
     async function loadPermissions() {
@@ -67,23 +71,35 @@ function ManagerContent() {
 
   useEffect(() => {
     setFilterCategoryId(""); // Reset filter when table changes
+    setFilterState("");
     if (selectedTable) {
       fetchData();
       if (selectedTable === "ls_amenity_type") {
         fetchCategories();
       }
+      if (selectedTable === "ls_county") {
+        fetchStates();
+      }
     }
   }, [selectedTable]);
 
   useEffect(() => {
-    if (selectedTable === "ls_amenity_type") {
+    if (selectedTable === "ls_amenity_type" || selectedTable === "ls_county") {
       fetchData();
     }
-  }, [filterCategoryId]);
+  }, [filterCategoryId, filterState, sortConfig]);
 
   async function fetchCategories() {
     const { data: cats } = await supabase.from("ls_amenity_category").select("*").order("name");
     setCategories(cats || []);
+  }
+
+  async function fetchStates() {
+    const { data: result } = await supabase.from("ls_county").select("state");
+    if (result) {
+      const uniqueStates = Array.from(new Set(result.map(r => r.state).filter(Boolean))) as string[];
+      setStates(uniqueStates.sort());
+    }
   }
 
   async function fetchData() {
@@ -91,11 +107,17 @@ function ManagerContent() {
     setLoading(true);
     setError(null);
     try {
-      let query = supabase.from(selectedTable).select("*").order('name', { ascending: true });
+      let query = supabase.from(selectedTable).select("*");
       
       if (selectedTable === "ls_amenity_type" && filterCategoryId) {
         query = query.eq('category_id', filterCategoryId);
       }
+
+      if (selectedTable === "ls_county" && filterState) {
+        query = query.eq('state', filterState);
+      }
+
+      query = query.order(sortConfig.key, { ascending: sortConfig.direction === 'asc' });
 
       const { data: result, error: supabaseError } = await query;
 
@@ -106,6 +128,13 @@ function ManagerContent() {
     } finally {
       setLoading(false);
     }
+  }
+
+  function handleSort(key: string) {
+    setSortConfig(prev => ({
+      key,
+      direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc'
+    }));
   }
 
   async function handleAdd() {
@@ -339,6 +368,20 @@ function ManagerContent() {
                       </select>
                     </div>
                   )}
+
+                  {selectedTable === "ls_county" && (
+                    <div className="filter-group">
+                      <ListFilter className="w-4 h-4" />
+                      <select 
+                        className="manager-input filter-select"
+                        value={filterState}
+                        onChange={(e) => setFilterState(e.target.value)}
+                      >
+                        <option value="">All States</option>
+                        {states.map(s => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -360,9 +403,19 @@ function ManagerContent() {
               <table className="manager-table">
                 <thead>
                   <tr>
-                    {selectedTable === "ls_amenity_type" && <th>Category</th>}
-                    <th>Name</th>
-                    {selectedTable === "ls_county" && <th>State</th>}
+                    {selectedTable === "ls_amenity_type" && (
+                      <th onClick={() => handleSort('category_id')} className="sortable-th">
+                        Category {sortConfig.key === 'category_id' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                      </th>
+                    )}
+                    <th onClick={() => handleSort('name')} className="sortable-th">
+                      Name {sortConfig.key === 'name' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                    </th>
+                    {selectedTable === "ls_county" && (
+                      <th onClick={() => handleSort('state')} className="sortable-th">
+                        State {sortConfig.key === 'state' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                      </th>
+                    )}
                     {selectedTable === "ls_priority" && <th>Color</th>}
                     <th className="actions-col">Actions</th>
                   </tr>

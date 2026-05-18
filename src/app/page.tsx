@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/lib/supabase";
-import { FloridaMap } from "@/components/dashboard/FloridaMap";
 import { 
   Gavel, 
   Building2, 
@@ -28,6 +27,7 @@ export default function Dashboard() {
     activeAuctions: 0,
     totalInvestment: 0,
     priorityStats: [] as any[],
+    weeklyStats: [] as any[],
     countyStats: [] as any[],
     upcomingEvents: [] as any[]
   });
@@ -64,6 +64,37 @@ export default function Dashboard() {
           color: data.color,
           percentage: activeAuctions.length > 0 ? (data.count / activeAuctions.length) * 100 : 0
         })).sort((a, b) => b.count - a.count);
+
+        // Weekly Stats (Current + 3 Weeks)
+        const weeklyArray = [];
+        const now = new Date();
+        now.setHours(0, 0, 0, 0);
+
+        for (let i = 0; i < 4; i++) {
+          const start = new Date(now);
+          start.setDate(now.getDate() + (i * 7));
+          const end = new Date(start);
+          end.setDate(start.getDate() + 6);
+          end.setHours(23, 59, 59, 999);
+
+          const count = activeAuctions.filter(auc => {
+            const d = new Date(auc.auction_date);
+            return d >= start && d <= end;
+          }).length;
+
+          weeklyArray.push({
+            label: i === 0 ? "Current Week" : `Week +${i}`,
+            range: `${start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${end.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`,
+            count,
+            percentage: activeAuctions.length > 0 ? (count / Math.max(...[1, ...activeAuctions.map(() => 1)])) * 100 : 0 // Placeholder logic for bar width
+          });
+        }
+        
+        // Fix percentage for weekly bars based on max count in the 4 weeks
+        const maxWeeklyCount = Math.max(...weeklyArray.map(w => w.count), 1);
+        weeklyArray.forEach(w => {
+          w.percentage = (w.count / maxWeeklyCount) * 100;
+        });
 
         // County Stats (For Donut)
         const counties: Record<string, number> = {};
@@ -114,6 +145,7 @@ export default function Dashboard() {
           activeAuctions: activeAuctions.length,
           totalInvestment: totalInvestmentValue,
           priorityStats: priorityArray,
+          weeklyStats: weeklyArray,
           countyStats: countyArray,
           upcomingEvents: upcomingArray
         });
@@ -140,13 +172,6 @@ export default function Dashboard() {
     });
   };
 
-  const countyMapData = useMemo(() => {
-    const map: Record<string, number> = {};
-    stats.countyStats.forEach(c => {
-      map[c.name] = c.count;
-    });
-    return map;
-  }, [stats.countyStats]);
 
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -215,6 +240,26 @@ export default function Dashboard() {
         {/* Main Content */}
         <div className="dashboard-main">
           <div className="left-column">
+            <section className="content-section compact">
+              <div className="section-header">
+                <h2>Auctions by Week</h2>
+                <Calendar className="w-5 h-5 text-muted" />
+              </div>
+              <div className="chart-container">
+                {stats.weeklyStats.map(w => (
+                  <div key={w.label} className="chart-row">
+                    <div className="chart-label">
+                      <span>{w.label} <small style={{ color: 'var(--text-muted)', fontWeight: 400 }}>({w.range})</small></span>
+                      <span>{w.count} auctions</span>
+                    </div>
+                    <div className="chart-bar-bg">
+                      <div className="chart-bar-fill" style={{ width: `${w.percentage}%`, backgroundColor: '#3b82f6' }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+
             <section className="content-section compact">
               <div className="section-header">
                 <h2>Auctions by Priority</h2>
@@ -300,7 +345,6 @@ export default function Dashboard() {
           </section>
         </div>
 
-        <FloridaMap countyData={countyMapData} />
       </div>
     </PermissionGuard>
   );

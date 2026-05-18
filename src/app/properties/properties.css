@@ -5,23 +5,11 @@
   height: 100%;
 }
 
-/* Page Header */
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 0;
-  padding-top: 0; 
+/* Shared styles are now in globals.css */
+.properties-container .page-title .dot {
+  color: #10b981; /* Emerald green for properties */
 }
 
-.page-title {
-  font-size: 2rem;
-  font-weight: 800;
-  color: var(--text-primary);
-  margin-top: 0;
-  margin-bottom: 0.25rem;
-  letter-spacing: -0.02em;
-}
 
 .properties-container .page-title .dot {
   color: #10b981; /* Emerald green for properties */
@@ -101,9 +89,9 @@
 }
 
 .properties-container .view-btn.active {
-  background-color: white;
-  color: #10b981;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+  background-color: #334155;
+  color: white;
+  box-shadow: 0 4px 8px rgba(51, 65, 85, 0.2);
 }
 
 .filter-dropdown {
@@ -127,22 +115,13 @@
 }
 
 .properties-container .primary-btn {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.6rem 1.25rem;
-  background-color: #10b981; /* Emerald for properties action */
-  color: white;
-  border: none;
-  border-radius: 0.5rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background-color var(--transition-fast);
+  background-color: #10b981; /* Emerald override */
 }
 
 .properties-container .primary-btn:hover {
   background-color: #059669;
 }
+
 
 /* Grid View */
 .properties-grid {

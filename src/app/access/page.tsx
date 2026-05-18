@@ -26,6 +26,7 @@ const RESOURCES = [
   { id: "page:dashboard", label: "Dashboard Page", category: "Pages" },
   { id: "page:auctions", label: "Auctions Page", category: "Pages" },
   { id: "page:properties", label: "Properties Page", category: "Pages" },
+  { id: "page:requests", label: "Requests Page", category: "Pages" },
   { id: "page:manager", label: "Manager Page", category: "Pages" },
   { id: "page:access", label: "Access Control Page", category: "Pages" },
   { id: "page:settings", label: "Settings Page", category: "Pages" },
@@ -53,6 +54,7 @@ const RESOURCES = [
   { id: "table:ls_ref_construction", label: "Manager: Ref Construction", category: "Manager Tables" },
   { id: "table:ls_amenity_category", label: "Manager: Amenity Categories", category: "Manager Tables" },
   { id: "table:ls_amenity_type", label: "Manager: Amenity Types", category: "Manager Tables" },
+  { id: "table:ls_request_category", label: "Manager: Request Category", category: "Manager Tables" },
   // Actions
   { id: "action:export_auctions", label: "Action: Export Auctions Data", category: "Actions" },
 ];

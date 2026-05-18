@@ -156,6 +156,52 @@ export default function NewAuctionForm() {
     return () => container?.removeEventListener("scroll", handleScroll);
   }, []);
 
+  // Automatic Calculations for Min Bid, Max Bid and Market Value
+  useEffect(() => {
+    const appraisalMinStr = formData.appraisal_min;
+    const appraisalAvgStr = formData.appraisal_avg;
+    const housePriceStr = formData.house_price;
+    
+    let calculatedMinBid = formData.min_bid;
+    if (appraisalMinStr !== "" && appraisalMinStr !== null) {
+      calculatedMinBid = parseFloat(appraisalMinStr) * 0.5;
+    } else {
+      calculatedMinBid = "";
+    }
+
+    let calculatedMaxBid = formData.max_bid;
+    if (appraisalAvgStr !== "" && appraisalAvgStr !== null) {
+      calculatedMaxBid = parseFloat(appraisalAvgStr) * 0.5;
+    } else {
+      calculatedMaxBid = "";
+    }
+    
+    let calculatedMarketValue = formData.market_value;
+    if (housePriceStr !== "" && housePriceStr !== null) {
+      const housePrice = parseFloat(housePriceStr);
+      if (['FL', 'GA'].includes(formSelectedState)) {
+        calculatedMarketValue = housePrice * 0.25;
+      } else {
+        calculatedMarketValue = housePrice * 0.20;
+      }
+    } else {
+      calculatedMarketValue = "";
+    }
+
+    if (
+      formData.min_bid !== calculatedMinBid ||
+      formData.max_bid !== calculatedMaxBid || 
+      formData.market_value !== calculatedMarketValue
+    ) {
+      setFormData((prev: any) => ({
+        ...prev,
+        min_bid: calculatedMinBid,
+        max_bid: calculatedMaxBid,
+        market_value: calculatedMarketValue
+      }));
+    }
+  }, [formData.appraisal_min, formData.appraisal_avg, formData.house_price, formSelectedState, formData.min_bid, formData.max_bid, formData.market_value]);
+
   const scrollToSection = (id: string) => {
     const element = document.getElementById(id);
     const container = document.querySelector(".form-content-area");
@@ -819,17 +865,17 @@ export default function NewAuctionForm() {
               </div>
             </div>
             <div className="input-group">
-              <label className="input-label">Min Bid ($)</label>
+              <label className="input-label">Min Bid ($) (Auto)</label>
               <div className="currency-input-wrapper">
                 <span className="currency-symbol">$</span>
-                <input type="number" step="any" name="min_bid" value={formData.min_bid} onChange={handleChange} className="input-field currency" placeholder="0.00" />
+                <input type="number" step="any" name="min_bid" value={formData.min_bid} className="input-field currency locked" placeholder="0.00" readOnly disabled />
               </div>
             </div>
             <div className="input-group">
-              <label className="input-label">Max Bid ($)</label>
+              <label className="input-label">Max Bid ($) (Auto)</label>
               <div className="currency-input-wrapper">
                 <span className="currency-symbol">$</span>
-                <input type="number" step="any" name="max_bid" value={formData.max_bid} onChange={handleChange} className="input-field currency" placeholder="0.00" />
+                <input type="number" step="any" name="max_bid" value={formData.max_bid} className="input-field currency locked" placeholder="0.00" readOnly disabled />
               </div>
             </div>
             <div className="input-group">
@@ -837,14 +883,6 @@ export default function NewAuctionForm() {
               <div className="currency-input-wrapper">
                 <span className="currency-symbol">$</span>
                 <input type="number" step="any" name="max_bid_internal" value={formData.max_bid_internal} onChange={handleChange} className="input-field currency" placeholder="0.00" />
-              </div>
-            </div>
-
-            <div className="input-group">
-              <label className="input-label">Market Value ($)</label>
-              <div className="currency-input-wrapper">
-                <span className="currency-symbol">$</span>
-                <input type="number" step="any" name="market_value" value={formData.market_value} onChange={handleChange} className="input-field currency" placeholder="0.00" />
               </div>
             </div>
             <div className="input-group">
@@ -903,6 +941,14 @@ export default function NewAuctionForm() {
               <div className="currency-input-wrapper">
                 <span className="currency-symbol">$</span>
                 <input type="number" step="any" name="appraisal_max" value={formData.appraisal_max} onChange={handleChange} className="input-field currency" placeholder="0.00" />
+              </div>
+            </div>
+
+            <div className="input-group">
+              <label className="input-label">Market Value ($) (Auto)</label>
+              <div className="currency-input-wrapper">
+                <span className="currency-symbol">$</span>
+                <input type="number" step="any" name="market_value" value={formData.market_value} className="input-field currency locked" placeholder="0.00" readOnly disabled />
               </div>
             </div>
           </div>

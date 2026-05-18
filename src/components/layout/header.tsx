@@ -1,7 +1,8 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { Bell, Search } from "lucide-react";
+import { Search } from "lucide-react";
+import { NotificationBell } from "./NotificationBell";
 import "./layout.css";
 
 export function Header() {
@@ -24,9 +25,7 @@ export function Header() {
         <button className="header-action" aria-label="Search">
           <Search className="w-5 h-5" />
         </button>
-        <button className="header-action" aria-label="Notifications">
-          <Bell className="w-5 h-5" />
-        </button>
+        <NotificationBell />
         
         <div className="user-profile">
           <div className="avatar">AD</div>

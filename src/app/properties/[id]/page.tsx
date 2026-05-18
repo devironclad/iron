@@ -260,12 +260,6 @@ export default function PropertyDetailsPage() {
             </div>
           </div>
         </div>
-        <div className="header-actions">
-          <button className="save-btn" onClick={handleSave} disabled={saving}>
-            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-            Save Changes
-          </button>
-        </div>
       </div>
 
       <div className="details-body">
@@ -627,6 +621,20 @@ export default function PropertyDetailsPage() {
 
         </div>
 
+      </div>
+
+      <div className="form-actions-bar">
+        <button className="btn-secondary" onClick={() => router.push('/properties')}>
+          <X className="w-4 h-4" />
+          Cancel
+        </button>
+        
+        <div style={{ flex: 1 }}></div>
+
+        <button className="primary-btn" onClick={handleSave} disabled={saving}>
+          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+          {saving ? "Saving..." : "Save Changes"}
+        </button>
       </div>
     </div>
   );

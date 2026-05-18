@@ -11,16 +11,19 @@ import {
   LayoutDashboard,
   Database,
   LogOut,
-  UserCircle
+  UserCircle,
+  ClipboardList
 } from "lucide-react";
 import { hasPermission, getCurrentUserPermissions } from "@/lib/permissions";
 import { supabase } from "@/lib/supabase";
+import { NotificationBell } from "./NotificationBell";
 import "./layout.css";
 
 const NAV_ITEMS = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard, resource: "page:dashboard" },
   { name: "Auctions", href: "/auctions", icon: Gavel, resource: "page:auctions" },
   { name: "Properties", href: "/properties", icon: Building2, resource: "page:properties" },
+  { name: "Requests", href: "/requests", icon: ClipboardList, resource: "page:requests" },
   { name: "Manager", href: "/manager", icon: Database, resource: "page:manager" },
   { name: "Access", href: "/access", icon: Users, resource: "page:access" },
   { name: "Settings", href: "/settings", icon: Settings, resource: "page:settings" },
@@ -110,6 +113,7 @@ export function Sidebar() {
                 <span className="user-role" style={{ fontSize: '10px', opacity: 0.7, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.email}</span>
               </div>
             </div>
+            <NotificationBell />
             <button onClick={handleLogout} className="logout-btn-minimal" title="Logout" style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '5px' }}>
               <LogOut className="w-5 h-5 hover:text-white transition-colors" />
             </button>
