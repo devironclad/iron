@@ -211,7 +211,7 @@ export default function Dashboard() {
                <Building2 className="w-6 h-6" />
             </div>
             <div className="kpi-info">
-              <h3>Total Properties</h3>
+              <h3>Total Portfolio</h3>
               <p className="kpi-value">{stats.totalAssets}</p>
             </div>
           </div>
@@ -221,7 +221,7 @@ export default function Dashboard() {
                <Gavel className="w-6 h-6" />
             </div>
             <div className="kpi-info">
-              <h3>Active Auctions</h3>
+              <h3>Active Asset for Auctions</h3>
               <p className="kpi-value">{stats.activeAuctions}</p>
             </div>
           </div>
@@ -231,7 +231,7 @@ export default function Dashboard() {
                <TrendingUp className="w-6 h-6" />
             </div>
             <div className="kpi-info">
-              <h3>Active Target Value</h3>
+              <h3>Target Value</h3>
               <p className="kpi-value">{formatCurrency(stats.totalInvestment)}</p>
             </div>
           </div>
@@ -242,7 +242,7 @@ export default function Dashboard() {
           <div className="left-column">
             <section className="content-section compact">
               <div className="section-header">
-                <h2>Auctions by Week</h2>
+                <h2>Asset for auction by Week</h2>
                 <Calendar className="w-5 h-5 text-muted" />
               </div>
               <div className="chart-container">
@@ -262,7 +262,7 @@ export default function Dashboard() {
 
             <section className="content-section compact">
               <div className="section-header">
-                <h2>Auctions by Priority</h2>
+                <h2>Asset for auctions by Priority</h2>
                 <BarChart3 className="w-5 h-5 text-muted" />
               </div>
               <div className="chart-container">
@@ -315,7 +315,7 @@ export default function Dashboard() {
           {/* Right Column: Timeline with Links */}
           <section className="content-section">
             <div className="section-header">
-              <h2>TOP FIVE: Next Auctions</h2>
+              <h2>Top Five Asset</h2>
               <Clock className="w-5 h-5 text-muted" />
             </div>
             <div className="upcoming-list">
