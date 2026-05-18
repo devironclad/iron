@@ -71,7 +71,7 @@ export default function AuctionsPage() {
 
   useEffect(() => {
     fetchAuctions();
-  }, [selectedCounty, selectedDate, selectedOrigem, selectedAuctionType, selectedPropertyType, selectedPriority, showPast, currentPage, searchTerm]);
+  }, [selectedState, selectedCounty, selectedDate, selectedOrigem, selectedAuctionType, selectedPropertyType, selectedPriority, showPast, currentPage, searchTerm]);
 
   useEffect(() => {
     setCurrentPage(1);
