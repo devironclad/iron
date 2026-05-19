@@ -870,7 +870,7 @@ export default function AuctionsPage() {
           backgroundColor: '#10b981', color: 'white',
           padding: '1rem 1.5rem', borderRadius: '0.75rem',
           boxShadow: '0 10px 25px -5px rgba(16, 185, 129, 0.5), 0 8px 10px -6px rgba(16, 185, 129, 0.1)',
-          zIndex: 50, display: 'flex', alignItems: 'flex-start', gap: '0.75rem',
+          zIndex: 10000, display: 'flex', alignItems: 'flex-start', gap: '0.75rem',
           animation: 'slideUpFade 0.3s ease-out forwards'
         }}>
           <CheckCircle2 className="w-6 h-6 flex-shrink-0" style={{ marginTop: '0.125rem' }} />

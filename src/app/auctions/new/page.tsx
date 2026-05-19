@@ -858,34 +858,6 @@ export default function NewAuctionForm() {
           
           <div className="form-grid col-3">
             <div className="input-group">
-              <label className="input-label">Open Bid ($) <span className="required-star">*</span></label>
-              <div className="currency-input-wrapper">
-                <span className="currency-symbol">$</span>
-                <input type="number" step="any" name="open_bid" value={formData.open_bid} onChange={handleChange} className="input-field currency" placeholder="0.00" />
-              </div>
-            </div>
-            <div className="input-group">
-              <label className="input-label">Min Bid ($) (Auto)</label>
-              <div className="currency-input-wrapper">
-                <span className="currency-symbol">$</span>
-                <input type="number" step="any" name="min_bid" value={formData.min_bid} className="input-field currency locked" placeholder="0.00" readOnly disabled />
-              </div>
-            </div>
-            <div className="input-group">
-              <label className="input-label">Max Bid ($) (Auto)</label>
-              <div className="currency-input-wrapper">
-                <span className="currency-symbol">$</span>
-                <input type="number" step="any" name="max_bid" value={formData.max_bid} className="input-field currency locked" placeholder="0.00" readOnly disabled />
-              </div>
-            </div>
-            <div className="input-group">
-              <label className="input-label">Internal Max Bid ($)</label>
-              <div className="currency-input-wrapper">
-                <span className="currency-symbol">$</span>
-                <input type="number" step="any" name="max_bid_internal" value={formData.max_bid_internal} onChange={handleChange} className="input-field currency" placeholder="0.00" />
-              </div>
-            </div>
-            <div className="input-group">
               <label className="input-label">Annual Tax ($) <span className="required-star">*</span></label>
               <div className="currency-input-wrapper">
                 <span className="currency-symbol">$</span>
@@ -893,18 +865,10 @@ export default function NewAuctionForm() {
               </div>
             </div>
             <div className="input-group">
-              <label className="input-label">House Price ($)</label>
+              <label className="input-label">Open Bid ($) <span className="required-star">*</span></label>
               <div className="currency-input-wrapper">
                 <span className="currency-symbol">$</span>
-                <input type="number" step="any" name="house_price" value={formData.house_price} onChange={handleChange} className="input-field currency" placeholder="0.00" />
-              </div>
-            </div>
-
-            <div className="input-group">
-              <label className="input-label">SqFt Price Reference ($)</label>
-              <div className="currency-input-wrapper">
-                <span className="currency-symbol">$</span>
-                <input type="number" step="any" name="sqft_price_reference" value={formData.sqft_price_reference} onChange={handleChange} className="input-field currency" placeholder="0.00" />
+                <input type="number" step="any" name="open_bid" value={formData.open_bid} onChange={handleChange} className="input-field currency" placeholder="0.00" />
               </div>
             </div>
             <div className="input-group">
@@ -912,13 +876,6 @@ export default function NewAuctionForm() {
               <div className="currency-input-wrapper">
                 <span className="currency-symbol">$</span>
                 <input type="number" step="any" name="county_appraisal" value={formData.county_appraisal} onChange={handleChange} className="input-field currency" placeholder="0.00" />
-              </div>
-            </div>
-            <div className="input-group">
-              <label className="input-label">Online Appraisal ($)</label>
-              <div className="currency-input-wrapper">
-                <span className="currency-symbol">$</span>
-                <input type="number" step="any" name="online_appraisal" value={formData.online_appraisal} onChange={handleChange} className="input-field currency" placeholder="0.00" />
               </div>
             </div>
 
@@ -944,6 +901,42 @@ export default function NewAuctionForm() {
               </div>
             </div>
 
+            <div className="input-group">
+              <label className="input-label">House Price ($)</label>
+              <div className="currency-input-wrapper">
+                <span className="currency-symbol">$</span>
+                <input type="number" step="any" name="house_price" value={formData.house_price} onChange={handleChange} className="input-field currency" placeholder="0.00" />
+              </div>
+            </div>
+            <div className="input-group">
+              <label className="input-label">SqFt Price Reference ($)</label>
+              <div className="currency-input-wrapper">
+                <span className="currency-symbol">$</span>
+                <input type="number" step="any" name="sqft_price_reference" value={formData.sqft_price_reference} onChange={handleChange} className="input-field currency" placeholder="0.00" />
+              </div>
+            </div>
+            <div className="input-group">
+              <label className="input-label">Internal Max Bid ($)</label>
+              <div className="currency-input-wrapper">
+                <span className="currency-symbol">$</span>
+                <input type="number" step="any" name="max_bid_internal" value={formData.max_bid_internal} onChange={handleChange} className="input-field currency" placeholder="0.00" />
+              </div>
+            </div>
+
+            <div className="input-group">
+              <label className="input-label">Min Bid ($) (Auto)</label>
+              <div className="currency-input-wrapper">
+                <span className="currency-symbol">$</span>
+                <input type="number" step="any" name="min_bid" value={formData.min_bid} className="input-field currency locked" placeholder="0.00" readOnly disabled />
+              </div>
+            </div>
+            <div className="input-group">
+              <label className="input-label">Max Bid ($) (Auto)</label>
+              <div className="currency-input-wrapper">
+                <span className="currency-symbol">$</span>
+                <input type="number" step="any" name="max_bid" value={formData.max_bid} className="input-field currency locked" placeholder="0.00" readOnly disabled />
+              </div>
+            </div>
             <div className="input-group">
               <label className="input-label">Market Value ($) (Auto)</label>
               <div className="currency-input-wrapper">
