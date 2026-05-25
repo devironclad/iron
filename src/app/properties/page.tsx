@@ -93,16 +93,34 @@ export default function PropertiesPage() {
   }, [searchParams, router]);
 
   useEffect(() => {
-    if (highlightId) {
-      setHighlightedRow(highlightId);
-      const timer = setTimeout(() => {
-        setHighlightedRow(null);
-        const newUrl = new URL(window.location.href);
-        newUrl.searchParams.delete('highlight');
-        router.replace(newUrl.pathname + newUrl.search, { scroll: false });
-      }, 4000);
-      return () => clearTimeout(timer);
+    if (!highlightId) return;
+
+    setHighlightedRow(highlightId);
+    const timer = setTimeout(() => {
+      setHighlightedRow(null);
+      const newUrl = new URL(window.location.href);
+      newUrl.searchParams.delete('highlight');
+      router.replace(newUrl.pathname + newUrl.search, { scroll: false });
+    }, 4000);
+
+    // Find which page contains this property and jump to it.
+    // The list is ordered by id DESC, so we count records with id > highlightId
+    // to determine its rank, then derive the page number.
+    async function jumpToPage() {
+      const { count } = await supabase
+        .from('ls_assets')
+        .select('id', { count: 'exact', head: true })
+        .eq('record_type', 'PROPERTY')
+        .gt('id', Number(highlightId));
+
+      if (count !== null) {
+        const targetPage = Math.ceil((count + 1) / ITEMS_PER_PAGE);
+        setCurrentPage(targetPage);
+      }
     }
+    jumpToPage();
+
+    return () => clearTimeout(timer);
   }, [highlightId, router]);
 
   useEffect(() => {
