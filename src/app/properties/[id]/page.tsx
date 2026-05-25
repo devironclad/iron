@@ -154,6 +154,7 @@ export default function PropertyDetailsPage() {
   const [activeTab, setActiveTab] = useState('research');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savedOk, setSavedOk] = useState(false);
   const [property, setProperty] = useState<any>(null);
   const [lookups, setLookups] = useState<Record<string, any[]>>({});
   const [permissions, setPermissions] = useState<any>(null);
@@ -458,9 +459,10 @@ export default function PropertyDetailsPage() {
 
       const { error } = await supabase.from('ls_assets').update(payload).eq('id', id);
       if (error) throw error;
-      
-      localStorage.setItem('pendingHighlightId', String(id));
-      window.location.href = `/properties?action=updated`;
+
+      setSavedOk(true);
+      // Navigate back via client-side router (proven to work with highlight)
+      setTimeout(() => router.push('/properties'), 1200);
     } catch (err: any) {
       console.error(err);
       alert("Error updating property: " + err.message);
@@ -1354,9 +1356,14 @@ export default function PropertyDetailsPage() {
         
         <div style={{ flex: 1 }}></div>
 
-        <button className="primary-btn" onClick={handleSave} disabled={saving}>
+        <button
+          className="primary-btn"
+          onClick={handleSave}
+          disabled={saving || savedOk}
+          style={savedOk ? { backgroundColor: '#10b981', cursor: 'default' } : undefined}
+        >
           {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-          {saving ? "Saving..." : "Save Changes"}
+          {saving ? "Saving..." : savedOk ? "Saved! Returning..." : "Save Changes"}
         </button>
       </div>
     </div>

@@ -224,15 +224,14 @@ export default function AuctionsPage() {
       setAuctions(data || []);
       setTotalCount(count || 0);
 
-      // Check localStorage for a pending highlight (set by the edit page before redirecting)
-      const pendingId = localStorage.getItem('pendingHighlightId');
-      if (pendingId) {
-        const numId = Number(pendingId);
-        if ((data || []).some((a: any) => a.id === numId)) {
-          localStorage.removeItem('pendingHighlightId');
-          setRecentCardId(numId);
-          setTimeout(() => setRecentCardId(null), 30_000);
-        }
+      // Highlight the most recently updated card (updated in last 30s)
+      const RECENT_MS = 30_000;
+      const recent = (data || []).find(
+        (a: any) => a.updated_at && Date.now() - new Date(a.updated_at).getTime() < RECENT_MS
+      ) as any;
+      if (recent) {
+        setRecentCardId(recent.id);
+        setTimeout(() => setRecentCardId(null), RECENT_MS);
       }
     } catch (err: any) {
       console.error("Error fetching auctions:", err.message || err);

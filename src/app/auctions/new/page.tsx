@@ -23,6 +23,7 @@ export default function NewAuctionForm() {
 
   const [activeSection, setActiveSection] = useState("identity");
   const [loading, setLoading] = useState(false);
+  const [savedOk, setSavedOk] = useState(false);
   const [fetchingData, setFetchingData] = useState(true);
   const [showBuyConfirm, setShowBuyConfirm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -339,16 +340,16 @@ export default function NewAuctionForm() {
           console.error("Supabase Update Error:", error);
           throw error;
         }
-        localStorage.setItem('pendingHighlightId', String(editId));
-        window.location.href = `/auctions?action=updated`;
+        setSavedOk(true);
+        setTimeout(() => router.push('/auctions'), 1200);
       } else {
         const { data, error } = await supabase.from("ls_assets").insert([payload]).select("id").single();
         if (error) {
           console.error("Supabase Insert Error:", error);
           throw error;
         }
-        if (data?.id) localStorage.setItem('pendingHighlightId', String(data.id));
-        window.location.href = data?.id ? `/auctions?action=created` : "/auctions";
+        setSavedOk(true);
+        setTimeout(() => router.push('/auctions'), 1200);
       }
     } catch (err: any) {
       console.error("Full Error Object:", err);
@@ -460,8 +461,8 @@ export default function NewAuctionForm() {
         throw error;
       }
       
-      localStorage.setItem('pendingHighlightId', String(editId));
-      window.location.href = `/auctions?action=purchased`;
+      setSavedOk(true);
+      setTimeout(() => router.push('/auctions'), 1200);
     } catch (err: any) {
       console.error("Full Error Object:", err);
       const msg = err.message || err.details || "Unknown error";
@@ -1059,9 +1060,14 @@ export default function NewAuctionForm() {
             Buy
           </button>
         )}
-        <button className="primary-btn" onClick={handleSave} disabled={loading || fetchingData}>
+        <button
+          className="primary-btn"
+          onClick={handleSave}
+          disabled={loading || fetchingData || savedOk}
+          style={savedOk ? { backgroundColor: '#10b981', cursor: 'default' } : undefined}
+        >
           {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-          {loading ? "Saving..." : (isEditing ? "Save Changes" : "Save Auction")}
+          {loading ? "Saving..." : savedOk ? "Saved! Returning..." : (isEditing ? "Save Changes" : "Save Auction")}
         </button>
       </div>
     </div>

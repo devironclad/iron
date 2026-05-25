@@ -237,16 +237,14 @@ export default function PropertiesPage() {
       setProperties(data || []);
       setTotalCount(count || 0);
 
-      // Check localStorage for a pending highlight (set by the edit page before redirecting)
-      // Reading here guarantees data is available and the card exists in current results
-      const pendingId = localStorage.getItem('pendingHighlightId');
-      if (pendingId) {
-        const numId = Number(pendingId);
-        if ((data || []).some((p: any) => p.id === numId)) {
-          localStorage.removeItem('pendingHighlightId');
-          setRecentCardId(numId);
-          setTimeout(() => setRecentCardId(null), 30_000);
-        }
+      // Highlight the most recently updated card (updated in last 30s)
+      const RECENT_MS = 30_000;
+      const recent = ((data || []) as any[]).find(
+        (p: any) => p.updated_at && Date.now() - new Date(p.updated_at).getTime() < RECENT_MS
+      );
+      if (recent) {
+        setRecentCardId(recent.id);
+        setTimeout(() => setRecentCardId(null), RECENT_MS);
       }
     } catch (err) {
       console.error("Error fetching properties:", err);
