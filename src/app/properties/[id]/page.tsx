@@ -462,7 +462,7 @@ export default function PropertyDetailsPage() {
 
       setSavedOk(true);
       // Navigate back via client-side router (proven to work with highlight)
-      setTimeout(() => router.push('/properties'), 1200);
+      setTimeout(() => router.push(`/properties?action=updated&highlight=${id}`), 1200);
     } catch (err: any) {
       console.error(err);
       alert("Error updating property: " + err.message);

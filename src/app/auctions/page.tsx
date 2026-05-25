@@ -24,6 +24,7 @@ export default function AuctionsPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [recentCardId, setRecentCardId] = useState<number | null>(null);
+  const [highlightId, setHighlightId] = useState<number | null>(null);
   const [totalCount, setTotalCount] = useState(0);
   const [auctionToDelete, setAuctionToDelete] = useState<{id: number, parcel: string} | null>(null);
 
@@ -100,6 +101,25 @@ export default function AuctionsPage() {
     return () => clearTimeout(timer);
   }, []);
 
+  // Read the edited/created record id from the URL and locate which page it lives on
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const h = params.get('highlight');
+    if (h) locateHighlight(Number(h));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Once the target record is present in the loaded page, highlight it
+  useEffect(() => {
+    if (!highlightId) return;
+    if (auctions.some((a: any) => a.id === highlightId)) {
+      setRecentCardId(highlightId);
+      setHighlightId(null);
+      const t = setTimeout(() => setRecentCardId(null), 30_000);
+      return () => clearTimeout(t);
+    }
+  }, [highlightId, auctions]);
+
   // Scroll to card when recentCardId is set (fires after DOM is updated)
   useEffect(() => {
     if (!recentCardId) return;
@@ -145,6 +165,45 @@ export default function AuctionsPage() {
       propertyTypes: propertyTypes.data || [],
       priorities: priorities.data || []
     });
+  }
+
+  // Find which paginated page contains the target auction (under the default
+  // sort: auction_date asc, id asc) and navigate there so the card is rendered.
+  async function locateHighlight(targetId: number) {
+    if (!targetId || isNaN(targetId)) return;
+    const { data: target } = await supabase
+      .from("ls_assets")
+      .select("id, auction_date")
+      .eq("id", targetId)
+      .single();
+    if (!target) return;
+
+    const today = new Date().toISOString().split('T')[0];
+    // If the auction is in the past, the default "future only" filter would hide it.
+    let usePast = showPast;
+    if (!target.auction_date || target.auction_date < today) {
+      usePast = true;
+      setShowPast(true);
+    }
+
+    let lessQ = supabase
+      .from("ls_assets")
+      .select("id", { count: "exact", head: true })
+      .eq("record_type", "AUCTION")
+      .lt("auction_date", target.auction_date);
+    if (!usePast) lessQ = lessQ.gte("auction_date", today);
+    const { count: lessCount } = await lessQ;
+
+    const { count: tieCount } = await supabase
+      .from("ls_assets")
+      .select("id", { count: "exact", head: true })
+      .eq("record_type", "AUCTION")
+      .eq("auction_date", target.auction_date)
+      .lt("id", target.id);
+
+    const index = (lessCount || 0) + (tieCount || 0);
+    setCurrentPage(Math.floor(index / ITEMS_PER_PAGE) + 1);
+    setHighlightId(targetId);
   }
 
   async function fetchAuctions() {
@@ -210,6 +269,7 @@ export default function AuctionsPage() {
 
       const { data, error, count } = await query
         .order("auction_date", { ascending: true })
+        .order("id", { ascending: true })
         .range(from, to);
 
       if (error) {
@@ -223,16 +283,6 @@ export default function AuctionsPage() {
       }
       setAuctions(data || []);
       setTotalCount(count || 0);
-
-      // Highlight the most recently updated card (updated in last 30s)
-      const RECENT_MS = 30_000;
-      const recent = (data || []).find(
-        (a: any) => a.updated_at && Date.now() - new Date(a.updated_at).getTime() < RECENT_MS
-      ) as any;
-      if (recent) {
-        setRecentCardId(recent.id);
-        setTimeout(() => setRecentCardId(null), RECENT_MS);
-      }
     } catch (err: any) {
       console.error("Error fetching auctions:", err.message || err);
     } finally {

@@ -23,6 +23,7 @@ export default function PropertiesPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [recentCardId, setRecentCardId] = useState<number | null>(null);
+  const [highlightId, setHighlightId] = useState<number | null>(null);
   const [toastMsg, setToastMsg] = useState<{ title: string, desc: string } | null>(null);
   
   // Filters
@@ -87,6 +88,25 @@ export default function PropertiesPage() {
     return () => clearTimeout(timer);
   }, []);
 
+  // Read the edited record id from the URL and locate which page it lives on
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const h = params.get('highlight');
+    if (h) locateHighlight(Number(h));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Once the target record is present in the loaded page, highlight it
+  useEffect(() => {
+    if (!highlightId) return;
+    if (properties.some((p: any) => p.id === highlightId)) {
+      setRecentCardId(highlightId);
+      setHighlightId(null);
+      const t = setTimeout(() => setRecentCardId(null), 30_000);
+      return () => clearTimeout(t);
+    }
+  }, [highlightId, properties]);
+
   // Scroll to card when recentCardId is set (fires after DOM is updated with new state)
   useEffect(() => {
     if (!recentCardId) return;
@@ -144,6 +164,19 @@ export default function PropertiesPage() {
       amenityTypes: amenityTypes.data || [],
       amenityCategories: amenityCategories.data || []
     });
+  }
+
+  // Find which paginated page contains the target property (sort: id desc)
+  // and navigate there so the card is rendered.
+  async function locateHighlight(targetId: number) {
+    if (!targetId || isNaN(targetId)) return;
+    const { count } = await supabase
+      .from("ls_assets")
+      .select("id", { count: "exact", head: true })
+      .eq("record_type", "PROPERTY")
+      .gt("id", targetId);
+    setCurrentPage(Math.floor((count || 0) / ITEMS_PER_PAGE) + 1);
+    setHighlightId(targetId);
   }
 
   async function fetchProperties() {
@@ -236,16 +269,6 @@ export default function PropertiesPage() {
       if (error) throw error;
       setProperties(data || []);
       setTotalCount(count || 0);
-
-      // Highlight the most recently updated card (updated in last 30s)
-      const RECENT_MS = 30_000;
-      const recent = ((data || []) as any[]).find(
-        (p: any) => p.updated_at && Date.now() - new Date(p.updated_at).getTime() < RECENT_MS
-      );
-      if (recent) {
-        setRecentCardId(recent.id);
-        setTimeout(() => setRecentCardId(null), RECENT_MS);
-      }
     } catch (err) {
       console.error("Error fetching properties:", err);
     } finally {
