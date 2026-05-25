@@ -102,10 +102,15 @@ export default function PropertiesPage() {
     if (properties.some((p: any) => p.id === highlightId)) {
       setRecentCardId(highlightId);
       setHighlightId(null);
-      const t = setTimeout(() => setRecentCardId(null), 30_000);
-      return () => clearTimeout(t);
     }
   }, [highlightId, properties]);
+
+  // Auto-clear the highlight after 3s
+  useEffect(() => {
+    if (!recentCardId) return;
+    const t = setTimeout(() => setRecentCardId(null), 3000);
+    return () => clearTimeout(t);
+  }, [recentCardId]);
 
   // Scroll to card when recentCardId is set (fires after DOM is updated with new state)
   useEffect(() => {
