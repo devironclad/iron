@@ -112,12 +112,16 @@ export default function PropertiesPage() {
     return () => clearTimeout(t);
   }, [recentCardId]);
 
-  // Scroll to card when recentCardId is set (fires after DOM is updated with new state)
+  // Scroll to card when recentCardId is set. The heavy Property cards (charts,
+  // KPIs) shift layout after first paint, so we retry to find the element and
+  // then do a corrective second pass once the layout has settled.
   useEffect(() => {
-    if (!recentCardId) return;
-    const timer = setTimeout(() => {
+    if (!recentCardId || loading) return;
+    let attempts = 0;
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    const doScroll = () => {
       const el = document.getElementById(`property-${recentCardId}`);
-      if (!el) return;
+      if (!el) return false;
       const container = document.querySelector('.page-content') as HTMLElement | null;
       if (container) {
         const containerRect = container.getBoundingClientRect();
@@ -129,9 +133,19 @@ export default function PropertiesPage() {
       } else {
         el.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
-    }, 150);
-    return () => clearTimeout(timer);
-  }, [recentCardId]);
+      return true;
+    };
+    const tryScroll = () => {
+      if (doScroll()) {
+        // Corrective pass after layout (images/charts) settles
+        timers.push(setTimeout(doScroll, 500));
+        return;
+      }
+      if (attempts++ < 20) timers.push(setTimeout(tryScroll, 100));
+    };
+    timers.push(setTimeout(tryScroll, 150));
+    return () => timers.forEach(clearTimeout);
+  }, [recentCardId, loading]);
 
   useEffect(() => {
     fetchProperties();
