@@ -23,8 +23,7 @@ export default function AuctionsPage() {
 
   const searchParams = useSearchParams();
   const router = useRouter();
-  const [highlightId, setHighlightId] = useState<string | null>(null);
-  const [highlightedRow, setHighlightedRow] = useState<string | null>(null);
+  const [recentCardId, setRecentCardId] = useState<number | null>(null);
   const [totalCount, setTotalCount] = useState(0);
   const [auctionToDelete, setAuctionToDelete] = useState<{id: number, parcel: string} | null>(null);
 
@@ -82,14 +81,11 @@ export default function AuctionsPage() {
     if (savedView === "list" || savedView === "grid") setViewMode(savedView);
   }, []);
 
-  // Mount-only — reads window.location.search directly, bypassing useSearchParams()
-  // which can be empty during SSR/hydration on static pages in production.
-  // Safe because window.location.href (used on save) always forces a full reload.
+  // Toast — reads window.location.search on mount
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const highlight = params.get('highlight');
     const action = params.get('action');
-
+    if (!action) return;
     if (action === 'updated') {
       setToastMsg({ title: "Successfully Updated", desc: "The auction record was successfully updated." });
     } else if (action === 'created') {
@@ -97,28 +93,25 @@ export default function AuctionsPage() {
     } else if (action === 'purchased') {
       setToastMsg({ title: "Property Purchased", desc: "The auction was successfully converted into a Property!" });
     }
-
-    if (highlight) {
-      setHighlightId(highlight);
-      setHighlightedRow(highlight);
-    }
-
-    if (action || highlight) {
-      const timer = setTimeout(() => {
-        setToastMsg(null);
-        setHighlightedRow(null);
-        setHighlightId(null);
-        window.history.replaceState(null, '', window.location.pathname);
-      }, 4000);
-      return () => clearTimeout(timer);
-    }
+    const timer = setTimeout(() => {
+      setToastMsg(null);
+      window.history.replaceState(null, '', window.location.pathname);
+    }, 3000);
+    return () => clearTimeout(timer);
   }, []);
 
-  // Scroll to highlighted card once data is loaded and cards are rendered
+  // Highlight + scroll: find the card updated in the last 30s — no URL params needed
   useEffect(() => {
-    if (!highlightId || auctions.length === 0 || loading) return;
+    if (loading || auctions.length === 0) return;
+    const RECENT_MS = 30_000;
+    const recent = auctions.find(
+      a => a.updated_at && Date.now() - new Date(a.updated_at).getTime() < RECENT_MS
+    );
+    if (!recent) return;
+    setRecentCardId(recent.id);
+    // Scroll to it
     const timer = setTimeout(() => {
-      const el = document.getElementById(`auction-${highlightId}`);
+      const el = document.getElementById(`auction-${recent.id}`);
       if (!el) return;
       const container = document.querySelector('.page-content') as HTMLElement | null;
       if (container) {
@@ -132,8 +125,10 @@ export default function AuctionsPage() {
         el.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
     }, 250);
-    return () => clearTimeout(timer);
-  }, [auctions, highlightId, loading]);
+    // Clear highlight after 30s
+    const clearTimer = setTimeout(() => setRecentCardId(null), RECENT_MS);
+    return () => { clearTimeout(timer); clearTimeout(clearTimer); };
+  }, [auctions, loading]);
 
   const handleViewModeChange = (mode: "grid" | "list") => {
     setViewMode(mode);
@@ -634,7 +629,7 @@ export default function AuctionsPage() {
       ) : viewMode === "grid" ? (
         <div className="auctions-grid">
           {paginatedAuctions.map((auction) => {
-            const isHighlighted = highlightedRow === auction.id.toString();
+            const isHighlighted = recentCardId === auction.id;
             return (
               <div
                 key={auction.id}
@@ -763,7 +758,7 @@ export default function AuctionsPage() {
           </thead>
           <tbody>
             {paginatedAuctions.map((auction) => {
-              const isHighlighted = highlightedRow === auction.id.toString();
+              const isHighlighted = recentCardId === auction.id;
               return (
                 <tr
                   key={auction.id}

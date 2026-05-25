@@ -22,8 +22,7 @@ export default function PropertiesPage() {
 
   const searchParams = useSearchParams();
   const router = useRouter();
-  const [highlightId, setHighlightId] = useState<string | null>(null);
-  const [highlightedRow, setHighlightedRow] = useState<string | null>(null);
+  const [recentCardId, setRecentCardId] = useState<number | null>(null);
   const [toastMsg, setToastMsg] = useState<{ title: string, desc: string } | null>(null);
   
   // Filters
@@ -71,41 +70,35 @@ export default function PropertiesPage() {
     fetchLookups();
   }, []);
 
-  // Mount-only — reads window.location.search directly, bypassing useSearchParams()
-  // which can be empty during SSR/hydration on static pages in production.
-  // Safe because window.location.href (used on save) always forces a full reload.
+  // Toast — reads window.location.search on mount
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const highlight = params.get('highlight');
     const action = params.get('action');
-
+    if (!action) return;
     if (action === 'updated') {
       setToastMsg({ title: "Successfully Updated", desc: "The property record was successfully updated." });
     } else if (action === 'created') {
       setToastMsg({ title: "Successfully Created", desc: "A new property record was successfully registered." });
     }
-
-    if (highlight) {
-      setHighlightId(highlight);
-      setHighlightedRow(highlight);
-    }
-
-    if (action || highlight) {
-      const timer = setTimeout(() => {
-        setToastMsg(null);
-        setHighlightedRow(null);
-        setHighlightId(null);
-        window.history.replaceState(null, '', window.location.pathname);
-      }, 4000);
-      return () => clearTimeout(timer);
-    }
+    const timer = setTimeout(() => {
+      setToastMsg(null);
+      window.history.replaceState(null, '', window.location.pathname);
+    }, 3000);
+    return () => clearTimeout(timer);
   }, []);
 
-  // Scroll to highlighted card once data is loaded and cards are rendered
+  // Highlight + scroll: find the card updated in the last 30s — no URL params needed
   useEffect(() => {
-    if (!highlightId || properties.length === 0 || loading) return;
+    if (loading || properties.length === 0) return;
+    const RECENT_MS = 30_000;
+    const recent = properties.find(
+      p => p.updated_at && Date.now() - new Date(p.updated_at).getTime() < RECENT_MS
+    );
+    if (!recent) return;
+    setRecentCardId(recent.id);
+    // Scroll to it
     const timer = setTimeout(() => {
-      const el = document.getElementById(`property-${highlightId}`);
+      const el = document.getElementById(`property-${recent.id}`);
       if (!el) return;
       const container = document.querySelector('.page-content') as HTMLElement | null;
       if (container) {
@@ -119,8 +112,10 @@ export default function PropertiesPage() {
         el.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
     }, 250);
-    return () => clearTimeout(timer);
-  }, [properties, highlightId, loading]);
+    // Clear highlight after 30s
+    const clearTimer = setTimeout(() => setRecentCardId(null), RECENT_MS);
+    return () => { clearTimeout(timer); clearTimeout(clearTimer); };
+  }, [properties, loading]);
 
   useEffect(() => {
     fetchProperties();
@@ -542,7 +537,7 @@ export default function PropertiesPage() {
       ) : viewMode === "grid" ? (
         <div className="properties-grid">
           {properties.map((prop) => {
-            const isHighlighted = highlightedRow === prop.id.toString();
+            const isHighlighted = recentCardId === prop.id;
             return (
               <div
                 key={prop.id}
@@ -758,7 +753,7 @@ export default function PropertiesPage() {
           </thead>
           <tbody>
             {properties.map((prop) => {
-              const isHighlighted = highlightedRow === prop.id.toString();
+              const isHighlighted = recentCardId === prop.id;
               return (
                 <tr 
                   key={prop.id}

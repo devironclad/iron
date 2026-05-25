@@ -459,7 +459,7 @@ export default function PropertyDetailsPage() {
       const { error } = await supabase.from('ls_assets').update(payload).eq('id', id);
       if (error) throw error;
       
-      window.location.href = `/properties?action=updated&highlight=${id}`;
+      window.location.href = `/properties?action=updated`;
     } catch (err: any) {
       console.error(err);
       alert("Error updating property: " + err.message);
