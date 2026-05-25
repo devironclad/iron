@@ -339,16 +339,14 @@ export default function NewAuctionForm() {
           console.error("Supabase Update Error:", error);
           throw error;
         }
-        sessionStorage.setItem('highlightId', String(editId));
-        router.push(`/auctions?action=updated`);
+        window.location.href = `/auctions?action=updated&highlight=${editId}`;
       } else {
         const { data, error } = await supabase.from("ls_assets").insert([payload]).select("id").single();
         if (error) {
           console.error("Supabase Insert Error:", error);
           throw error;
         }
-        if (data?.id) sessionStorage.setItem('highlightId', String(data.id));
-        router.push(data?.id ? `/auctions?action=created` : "/auctions");
+        window.location.href = data?.id ? `/auctions?action=created&highlight=${data.id}` : "/auctions";
       }
     } catch (err: any) {
       console.error("Full Error Object:", err);
@@ -460,8 +458,7 @@ export default function NewAuctionForm() {
         throw error;
       }
       
-      sessionStorage.setItem('highlightId', String(editId));
-      router.push('/auctions?action=purchased');
+      window.location.href = `/auctions?action=purchased&highlight=${editId}`;
     } catch (err: any) {
       console.error("Full Error Object:", err);
       const msg = err.message || err.details || "Unknown error";

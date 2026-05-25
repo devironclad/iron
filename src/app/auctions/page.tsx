@@ -23,7 +23,8 @@ export default function AuctionsPage() {
 
   const searchParams = useSearchParams();
   const router = useRouter();
-  const [highlightId, setHighlightId] = useState<string | null>(null);
+  // highlight comes directly from URL — reliable because window.location.href forces a full reload
+  const highlightId = searchParams.get('highlight');
   const [highlightedRow, setHighlightedRow] = useState<string | null>(null);
   const [totalCount, setTotalCount] = useState(0);
   const [auctionToDelete, setAuctionToDelete] = useState<{id: number, parcel: string} | null>(null);
@@ -86,7 +87,6 @@ export default function AuctionsPage() {
     const action = searchParams.get('action');
     if (!action) return;
 
-    // Toast
     if (action === 'updated') {
       setToastMsg({ title: "Successfully Updated", desc: "The auction record was successfully updated." });
     } else if (action === 'created') {
@@ -95,46 +95,31 @@ export default function AuctionsPage() {
       setToastMsg({ title: "Property Purchased", desc: "The auction was successfully converted into a Property!" });
     }
 
-    // Highlight — tied to searchParams so it fires reliably even when
-    // Next.js router cache reuses the component instance (mount-only effects don't fire in that case)
-    const stored = sessionStorage.getItem('highlightId');
-    if (stored) {
-      sessionStorage.removeItem('highlightId');
-      setHighlightId(stored);
-      setHighlightedRow(stored);
-      setTimeout(() => {
-        setHighlightedRow(null);
-        setHighlightId(null);
-      }, 4000);
-      // Jump to the correct pagination page
-      (async () => {
-        const { count } = await supabase
-          .from('ls_assets')
-          .select('id', { count: 'exact', head: true })
-          .eq('record_type', 'AUCTION')
-          .gt('id', Number(stored));
-        const targetPage = count !== null ? Math.ceil((count + 1) / ITEMS_PER_PAGE) : 1;
-        setCurrentPage(targetPage);
-      })();
-    }
-
-    // Clean up URL after toast
     const toastTimer = setTimeout(() => {
       setToastMsg(null);
       const newUrl = new URL(window.location.href);
       newUrl.searchParams.delete('action');
+      newUrl.searchParams.delete('highlight');
       router.replace(newUrl.pathname + newUrl.search, { scroll: false });
-    }, 2000);
+    }, 4000);
 
     return () => clearTimeout(toastTimer);
   }, [searchParams, router]);
 
+  // Activate highlight badge when highlightId arrives in URL
+  useEffect(() => {
+    if (!highlightId) return;
+    setHighlightedRow(highlightId);
+    const timer = setTimeout(() => setHighlightedRow(null), 4000);
+    return () => clearTimeout(timer);
+  }, [highlightId]);
+
+  // Scroll to highlighted card once data is loaded and cards are rendered
   useEffect(() => {
     if (!highlightId || auctions.length === 0 || loading) return;
     const timer = setTimeout(() => {
       const el = document.getElementById(`auction-${highlightId}`);
       if (!el) return;
-      // Scroll the page-content container explicitly (scrollIntoView is unreliable with custom scroll containers)
       const container = document.querySelector('.page-content') as HTMLElement | null;
       if (container) {
         const containerRect = container.getBoundingClientRect();
