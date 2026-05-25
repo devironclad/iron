@@ -68,6 +68,10 @@ CREATE TABLE ls_assets (
     link_house_sources TEXT,
     link_video TEXT,
     link_earth TEXT,
+    tax_deed TEXT,
+    warranty_deed TEXT,
+    survey TEXT,
+    site_plan TEXT,
     
     -- Financials & Bids
     market_value NUMERIC,
@@ -90,6 +94,7 @@ CREATE TABLE ls_assets (
     auction_date TIMESTAMP WITH TIME ZONE,
     upset_date TIMESTAMP WITH TIME ZONE,
     acquisition_date TIMESTAMP WITH TIME ZONE,
+    tax_pay_dead TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     
@@ -100,7 +105,38 @@ CREATE TABLE ls_assets (
     -- Booleans
     inperson_visit BOOLEAN DEFAULT FALSE,
     corner_lot BOOLEAN DEFAULT FALSE
-);
+    );
+
+-- ==============================================================================
+-- 3. NEW ENUM TYPES FOR FINANCIAL FIELDS
+-- ==============================================================================
+
+CREATE TYPE sale_status_enum AS ENUM ('Pending', 'Listed', 'Awaiting Purchase');
+CREATE TYPE improvements_enum AS ENUM ('No Improvements', 'Well only', 'Septic only', 'Well & Septic');
+CREATE TYPE mh_allowed_enum AS ENUM ('Yes', 'No', 'Modular Only');
+
+-- ==============================================================================
+-- 4. ALTER TABLE ls_assets ADD NEW COLUMNS
+-- ==============================================================================
+
+ALTER TABLE ls_assets
+  ADD COLUMN IF NOT EXISTS warrantydeedtransfer NUMERIC,
+  ADD COLUMN IF NOT EXISTS tg_warrantydeedtransfer BOOLEAN,
+  ADD COLUMN IF NOT EXISTS titleclaim_action NUMERIC,
+  ADD COLUMN IF NOT EXISTS tg_titleclaim_action BOOLEAN,
+  ADD COLUMN IF NOT EXISTS surveyor NUMERIC,
+  ADD COLUMN IF NOT EXISTS tg_surveyor BOOLEAN,
+  ADD COLUMN IF NOT EXISTS land_clearing NUMERIC,
+  ADD COLUMN IF NOT EXISTS tg_land_clearing BOOLEAN,
+  ADD COLUMN IF NOT EXISTS fencing_gate NUMERIC,
+  ADD COLUMN IF NOT EXISTS tg_fencing_gate BOOLEAN,
+  ADD COLUMN IF NOT EXISTS preapproval_review NUMERIC,
+  ADD COLUMN IF NOT EXISTS tg_preapproval_review BOOLEAN,
+  ADD COLUMN IF NOT EXISTS investment_total NUMERIC,
+  ADD COLUMN IF NOT EXISTS sale_status sale_status_enum,
+  ADD COLUMN IF NOT EXISTS improvements improvements_enum,
+  ADD COLUMN IF NOT EXISTS mh_allowed mh_allowed_enum,
+  ADD COLUMN IF NOT EXISTS utilities TEXT;
 
 
 -- ==============================================================================
@@ -235,7 +271,25 @@ CREATE TABLE IF NOT EXISTS ls_users_metadata (
 -- Trigger for updated_at
 CREATE TRIGGER tr_ls_users_metadata_updated_at BEFORE UPDATE ON ls_users_metadata FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
--- Note: In a real environment, you would add a Database Trigger in Supabase 
+-- User type: 'employee' (internal staff) or 'partner' (external partners)
+ALTER TABLE ls_users_metadata
+ADD COLUMN IF NOT EXISTS user_type VARCHAR(20) DEFAULT 'employee'
+CHECK (user_type IN ('employee', 'partner'));
+
+-- ==============================================================================
+-- PROPERTY OWNERSHIP
+-- owner_type = 'ironclad' (default) or 'partner'
+-- owner_partner_id: NULL when IronClad, UUID of ls_users_metadata when partner
+-- DEFAULT 'ironclad' ensures all existing properties are assigned to IronClad automatically.
+-- ==============================================================================
+
+ALTER TABLE ls_assets
+  ADD COLUMN IF NOT EXISTS owner_type VARCHAR(20) DEFAULT 'ironclad'
+    CHECK (owner_type IN ('ironclad', 'partner')),
+  ADD COLUMN IF NOT EXISTS owner_partner_id UUID
+    REFERENCES ls_users_metadata(id) ON DELETE SET NULL;
+
+-- Note: In a real environment, you would add a Database Trigger in Supabase
 -- to automatically populate this table when a user signs up.
 
 -- ==============================================================================
@@ -360,3 +414,48 @@ FOR EACH ROW EXECUTE FUNCTION notify_on_request_assignment();
 -- INSERT INTO ls_request_category (name) VALUES ('General Support'), ('Property Valuation'), ('Legal Review'), ('Financial Approval');
 -- INSERT INTO ls_request_priority (name, sla_days, color) VALUES ('Low', 5, '#22c55e'), ('Medium', 3, '#eab308'), ('High', 2, '#f97316'), ('Critical', 1, '#ef4444');
 -- INSERT INTO ls_request_status (name, color, is_closed) VALUES ('Open', '#3b82f6', FALSE), ('In Progress', '#eab308', FALSE), ('Waiting on Requester', '#f97316', FALSE), ('Resolved', '#22c55e', TRUE), ('Cancelled', '#94a3b8', TRUE);
+
+-- ==============================================================================
+-- 11. TAX MODULE
+-- Values for vigency, recurrence, status and type_tax are stored as plain TEXT.
+-- Options are managed in the frontend code (no lookup tables needed).
+-- ==============================================================================
+
+CREATE TABLE IF NOT EXISTS ls_asset_tax (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    asset_id BIGINT REFERENCES ls_assets(id) ON DELETE CASCADE,
+    due_date DATE,
+    pay_date DATE,
+    received_date DATE,
+    perc_iron NUMERIC,
+    perc_inv NUMERIC,
+    link_proof TEXT,
+    link_bill TEXT,
+    link_advalorem TEXT,
+    value NUMERIC,
+    vigency VARCHAR(10),    -- '2025' | '2026' | '2027' | '2028' | '2029' | '2030'
+    recurrence VARCHAR(20), -- 'Annual' | 'Single'
+    status VARCHAR(20),     -- 'On Time' | 'Over Due'
+    type_tax VARCHAR(30),   -- 'Annual Tax' | 'Fees' | 'HOA/POA'
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+    updated_by UUID REFERENCES auth.users(id) ON DELETE SET NULL
+);
+
+CREATE TRIGGER tr_ls_asset_tax_updated_at
+BEFORE UPDATE ON ls_asset_tax
+FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+-- Grant tab:tax permission to all existing profiles
+INSERT INTO ls_permissions (profile_id, resource_key, can_view, can_edit)
+SELECT id, 'tab:tax', true, true  FROM ls_profiles WHERE name = 'Administrator'
+ON CONFLICT (profile_id, resource_key) DO NOTHING;
+
+INSERT INTO ls_permissions (profile_id, resource_key, can_view, can_edit)
+SELECT id, 'tab:tax', true, false FROM ls_profiles WHERE name = 'Analyst'
+ON CONFLICT (profile_id, resource_key) DO NOTHING;
+
+INSERT INTO ls_permissions (profile_id, resource_key, can_view, can_edit)
+SELECT id, 'tab:tax', true, false FROM ls_profiles WHERE name = 'Viewer'
+ON CONFLICT (profile_id, resource_key) DO NOTHING;

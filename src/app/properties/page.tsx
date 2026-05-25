@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { 
-  Plus, Search, Grid, List, MapPin, Calendar, ExternalLink, 
+import {
+  Plus, Search, Grid, List, MapPin, Calendar, ExternalLink,
   ArrowRight, Tag, Loader2, Navigation, ChevronLeft, ChevronRight,
-  Filter, Layers, Maximize, Hash
+  Filter, Layers, Maximize, Hash, CheckCircle2, Building2, UserCheck,
+  Coins, DollarSign, TrendingUp
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { PermissionGuard } from "@/components/auth/PermissionGuard";
@@ -17,6 +19,12 @@ export default function PropertiesPage() {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [searchTerm, setSearchTerm] = useState("");
   const [totalCount, setTotalCount] = useState(0);
+
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const highlightId = searchParams.get('highlight');
+  const [highlightedRow, setHighlightedRow] = useState<string | null>(null);
+  const [toastMsg, setToastMsg] = useState<{ title: string, desc: string } | null>(null);
   
   // Filters
   const [selectedState, setSelectedState] = useState("all");
@@ -62,6 +70,49 @@ export default function PropertiesPage() {
     fetchCounties();
     fetchLookups();
   }, []);
+
+  useEffect(() => {
+    const action = searchParams.get('action');
+    if (action === 'updated') {
+      setToastMsg({ title: "Successfully Updated", desc: "The property record was successfully updated." });
+    } else if (action === 'created') {
+      setToastMsg({ title: "Successfully Created", desc: "A new property record was successfully registered." });
+    }
+
+    if (action) {
+      const toastTimer = setTimeout(() => {
+        setToastMsg(null);
+        // Clean up the URL using Next.js router
+        const newUrl = new URL(window.location.href);
+        newUrl.searchParams.delete('action');
+        router.replace(newUrl.pathname + newUrl.search, { scroll: false });
+      }, 2000);
+
+      return () => clearTimeout(toastTimer);
+    }
+  }, [searchParams, router]);
+
+  useEffect(() => {
+    if (highlightId) {
+      setHighlightedRow(highlightId);
+      const timer = setTimeout(() => {
+        setHighlightedRow(null);
+        const newUrl = new URL(window.location.href);
+        newUrl.searchParams.delete('highlight');
+        router.replace(newUrl.pathname + newUrl.search, { scroll: false });
+      }, 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [highlightId, router]);
+
+  useEffect(() => {
+    if (!highlightId || properties.length === 0) return;
+    const timer = setTimeout(() => {
+      const el = document.getElementById(`property-${highlightId}`);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [properties, highlightId]);
 
   useEffect(() => {
     fetchProperties();
@@ -111,7 +162,9 @@ export default function PropertiesPage() {
           ls_county(name, state),
           ls_status(name),
           ls_priority(name, color),
-          ls_property_type(name)
+          ls_property_type(name),
+          ls_origem(name),
+          owner_partner:ls_users_metadata!owner_partner_id(full_name)
           ${selectedAmenityType !== 'all' ? ', ls_asset_amenities!inner(*)' : ''}
         `, { count: "exact" })
         .eq("record_type", "PROPERTY");
@@ -480,86 +533,206 @@ export default function PropertiesPage() {
         </div>
       ) : viewMode === "grid" ? (
         <div className="properties-grid">
-          {properties.map((prop) => (
-            <div key={prop.id} className="property-card">
-              <div className="card-top">
-                <div className="card-top-left">
-                  <span className="card-label">{formatPropId(prop.ref_id, prop.id)}</span>
-                </div>
-                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-                  {prop.ls_priority?.name && (
-                    <span 
-                      className="card-priority-badge"
-                      style={{ backgroundColor: prop.ls_priority.color || '#10b981' }}
-                    >
-                      {prop.ls_priority.name}
-                    </span>
+          {properties.map((prop) => {
+            const isHighlighted = highlightedRow === prop.id.toString();
+            return (
+              <div
+                key={prop.id}
+                id={`property-${prop.id}`}
+                className="property-card"
+                style={isHighlighted ? {
+                  boxShadow: '0 0 25px 8px rgba(59, 130, 246, 0.4), 0 0 0 2px #3b82f6',
+                  transform: 'translateY(-4px)',
+                  transition: 'all 0.4s ease-out',
+                  position: 'relative',
+                  zIndex: 10
+                } : { transition: 'all 0.3s ease-in-out' }}
+              >
+              {/* ── HEADER ── */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  <span style={{
+                    fontSize: '0.78rem', fontWeight: 800, color: '#0f172a',
+                    backgroundColor: '#f1f5f9', border: '1px solid #e2e8f0',
+                    padding: '0.2rem 0.55rem', borderRadius: '6px', letterSpacing: '0.04em'
+                  }}>
+                    {formatPropId(prop.ref_id, prop.id)}
+                  </span>
+                  {prop.ls_origem?.name && (
+                    <>
+                      <span style={{ color: '#cbd5e1' }}>•</span>
+                      <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#64748b' }}>{prop.ls_origem.name}</span>
+                    </>
+                  )}
+                  {prop.ls_property_type?.name && (
+                    <>
+                      <span style={{ color: '#cbd5e1' }}>•</span>
+                      <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#94a3b8' }}>{prop.ls_property_type.name}</span>
+                    </>
                   )}
                 </div>
+                {prop.owner_type === 'partner' ? (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', backgroundColor: '#fffbeb', color: '#b45309', border: '1px solid #fde68a', padding: '0.2rem 0.55rem', borderRadius: '999px', fontSize: '0.65rem', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                    <UserCheck className="w-3 h-3" />
+                    {prop.owner_partner?.full_name || 'Partner'}
+                  </span>
+                ) : (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', backgroundColor: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', padding: '0.2rem 0.55rem', borderRadius: '999px', fontSize: '0.65rem', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                    <Building2 className="w-3 h-3" />
+                    IronClad
+                  </span>
+                )}
               </div>
 
-              <h3 className="card-parcel">{prop.ls_county?.name || 'Unknown County'} {prop.ls_county?.state && `(${prop.ls_county.state})`}</h3>
+              {/* ── MAIN BODY: 3 colunas ── */}
+              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1.4fr', gap: '1.75rem', alignItems: 'stretch' }}>
 
-              <div className="card-details-grid">
-                <div className="detail-item">
-                  <MapPin className="w-4 h-4 detail-icon flex-shrink-0" />
-                  <span title={prop.address || 'Address not provided'}>
-                    {truncateText(prop.address || 'Address not provided', 30)}
-                  </span>
+                {/* COLUNA 1 — Detalhes da propriedade */}
+                <div>
+                  <div style={{ marginBottom: '0.75rem' }}>
+                    <div style={{ fontSize: '1.3rem', fontWeight: 800, color: '#ca181a', lineHeight: 1.2 }}>
+                      {prop.owner_type === 'partner'
+                        ? (prop.owner_partner?.full_name || 'Partner')
+                        : 'IronClad'}
+                    </div>
+                    <div style={{ fontSize: '0.85rem', fontWeight: 400, color: '#475569', marginTop: '0.1rem' }}>
+                      {prop.ls_county?.name || 'Unknown County'}{prop.ls_county?.state && `, ${prop.ls_county.state}`}
+                    </div>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem 1rem' }}>
+                    <div className="detail-item">
+                      <MapPin className="w-3.5 h-3.5 detail-icon flex-shrink-0" />
+                      <span style={{ fontSize: '0.78rem' }} title={prop.address || '--'}>{truncateText(prop.address || '--', 28)}</span>
+                    </div>
+                    <div className="detail-item">
+                      <Hash className="w-3.5 h-3.5 detail-icon flex-shrink-0" />
+                      <span style={{ fontSize: '0.78rem' }} title={prop.parcel_number || '--'}>{truncateText(prop.parcel_number || '--', 28)}</span>
+                    </div>
+                    <div className="detail-item">
+                      <Calendar className="w-3.5 h-3.5 detail-icon flex-shrink-0" />
+                      <span style={{ fontSize: '0.78rem' }}>{formatDate(prop.acquisition_date || prop.auction_date)}</span>
+                    </div>
+                    <div className="detail-item">
+                      <Tag className="w-3.5 h-3.5 detail-icon flex-shrink-0" />
+                      <span style={{ fontSize: '0.78rem' }}>{prop.ls_status?.name || 'N/A'}</span>
+                    </div>
+                    <div className="detail-item">
+                      <Maximize className="w-3.5 h-3.5 detail-icon flex-shrink-0" />
+                      <span style={{ fontSize: '0.78rem' }}>{prop.size ? `${prop.size} AC` : 'No Size'}</span>
+                    </div>
+                    <div className="detail-item">
+                      <Layers className="w-3.5 h-3.5 detail-icon flex-shrink-0" />
+                      <span style={{ fontSize: '0.78rem' }}>{prop.ls_status?.name || 'N/A'}</span>
+                    </div>
+                  </div>
                 </div>
-                <div className="detail-item">
-                  <Navigation className="w-4 h-4 detail-icon flex-shrink-0" />
-                  <span title={prop.coordinates || 'No coordinates'}>
-                    {truncateText(prop.coordinates || 'No coordinates', 30)}
-                  </span>
+
+                {/* COLUNA 2 — KPI Metrics */}
+                <div style={{ borderLeft: '1px solid #e2e8f0', borderRight: '1px solid #e2e8f0', padding: '0 1.25rem', display: 'flex', flexDirection: 'column', gap: '0.9rem', justifyContent: 'flex-start' }}>
+
+                  {/* Investment */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <div style={{ width: '36px', height: '36px', borderRadius: '9px', backgroundColor: '#fef3c7', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <Coins className="w-4 h-4" style={{ color: '#d97706' }} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '0.6rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Investment</div>
+                      <div style={{ fontSize: '0.95rem', fontWeight: 800, color: '#0f172a', lineHeight: 1.2 }}>
+                        {formatCurrency(42820)}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Sales Price */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <div style={{ width: '36px', height: '36px', borderRadius: '9px', backgroundColor: '#ecfdf5', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <DollarSign className="w-4 h-4" style={{ color: '#059669' }} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '0.6rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Sales Price</div>
+                      <div style={{ fontSize: '0.95rem', fontWeight: 800, color: '#0f172a', lineHeight: 1.2 }}>
+                        {formatCurrency(87248)}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* ROI */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <div style={{ width: '36px', height: '36px', borderRadius: '9px', backgroundColor: '#ede9fe', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <TrendingUp className="w-4 h-4" style={{ color: '#7c3aed' }} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '0.6rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em' }}>ROI</div>
+                      <div style={{ fontSize: '0.95rem', fontWeight: 800, color: '#7c3aed', lineHeight: 1.2 }}>
+                        {(((87248 - 42820) / 42820) * 100).toFixed(1)}%
+                      </div>
+                    </div>
+                  </div>
+
                 </div>
-                <div className="detail-item">
-                  <Calendar className="w-4 h-4 detail-icon" />
-                  <span title={prop.case_number || 'No Case Number'}>
-                    {prop.case_number || 'No Case Number'}
-                  </span>
+
+                {/* COLUNA 3 — Bar Chart + Ação */}
+                <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+
+                  {/* Chart */}
+                  <div>
+                    <div style={{ fontSize: '0.6rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.6rem' }}>
+                      Profit Projection
+                    </div>
+                    {(() => {
+                      const base = prop.open_bid || 0;
+                      const tiers = [
+                        { label: '+40%', mult: 1.4, fill: 70, color: '#6ee7b7', textColor: '#065f46' },
+                        { label: '+60%', mult: 1.6, fill: 80, color: '#34d399', textColor: '#065f46' },
+                        { label: '+80%', mult: 1.8, fill: 90, color: '#10b981', textColor: '#ffffff' },
+                        { label: '+100%', mult: 2.0, fill: 100, color: '#059669', textColor: '#ffffff' },
+                      ];
+                      return (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                          {tiers.map(t => (
+                            <div key={t.label} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                              <div style={{ width: '32px', fontSize: '0.58rem', fontWeight: 700, color: '#94a3b8', textAlign: 'right', flexShrink: 0 }}>{t.label}</div>
+                              <div style={{ flex: 1, height: '18px', backgroundColor: '#f1f5f9', borderRadius: '4px', overflow: 'hidden', position: 'relative' }}>
+                                <div style={{
+                                  width: `${t.fill}%`,
+                                  height: '100%',
+                                  backgroundColor: t.color,
+                                  borderRadius: '4px',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'flex-end',
+                                  paddingRight: '6px',
+                                  transition: 'width 0.4s ease'
+                                }}>
+                                  {base > 0 && (
+                                    <span style={{ fontSize: '0.58rem', fontWeight: 700, color: t.textColor, whiteSpace: 'nowrap' }}>
+                                      {formatCurrency(base * t.mult)}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                          {base > 0 && (
+                            <div style={{ fontSize: '0.6rem', color: '#94a3b8', marginTop: '2px', paddingLeft: '40px', fontWeight: 500 }}>
+                              Base (Open Bid): {formatCurrency(base)}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </div>
+
+                  {/* Botão */}
+                  <Link href={`/properties/${prop.id}`} className="card-details-btn" style={{ textDecoration: 'none', marginTop: '1rem' }}>
+                    Open Property
+                    <ArrowRight className="w-4 h-4" />
+                  </Link>
                 </div>
-                <div className="detail-item">
-                  <Tag className="w-4 h-4 detail-icon" />
-                  <span title={`Status: ${prop.ls_status?.name || 'N/A'}`}>{prop.ls_status?.name || 'N/A'}</span>
-                </div>
-                <div className="detail-item">
-                  <Layers className="w-4 h-4 detail-icon" />
-                  <span title={`Property: ${prop.ls_property_type?.name || 'N/A'}`}>{prop.ls_property_type?.name || 'N/A'}</span>
-                </div>
-                <div className="detail-item">
-                  <Hash className="w-4 h-4 detail-icon" />
-                  <span title={prop.parcel_number || 'No Parcel Number'}>
-                    {prop.parcel_number || 'No Parcel Number'}
-                  </span>
-                </div>
-                <div className="detail-item link-item">
-                  <ExternalLink className="w-4 h-4 detail-icon link-icon" />
-                  {prop.link_regrid ? (
-                    <a href={prop.link_regrid} target="_blank" rel="noopener noreferrer" className="regrid-link">Regrid</a>
-                  ) : (
-                    <span className="text-muted">No Link</span>
-                  )}
-                </div>
+
               </div>
-
-              <div className="card-financials">
-                <div className="fin-block">
-                  <span className="fin-label">ACQUISITION DATE</span>
-                  <span className="fin-value-large" style={{ fontSize: '1.05rem' }}>{formatDate(prop.acquisition_date || prop.auction_date)}</span>
-                </div>
-                <div className="fin-block align-right">
-                  <span className="fin-label">SIZE</span>
-                  <span className="fin-value-green" style={{ color: '#10b981', fontSize: '1rem' }}>{prop.size ? `${prop.size} AC/SF` : 'No Size'}</span>
-                </div>
-              </div>
-
-              <Link href={`/properties/${prop.id}`} className="card-details-btn" style={{ textDecoration: 'none' }}>
-                Open Property
-                <ArrowRight className="w-4 h-4" />
-              </Link>
             </div>
-          ))}
+          ); })}
         </div>
       ) : (
         <table className="properties-table">
@@ -568,6 +741,7 @@ export default function PropertiesPage() {
               <th>ID</th>
               <th>Parcel #</th>
               <th>County</th>
+              <th>Owner</th>
               <th>Acquisition</th>
               <th>Type</th>
               <th>Mkt Value</th>
@@ -575,19 +749,54 @@ export default function PropertiesPage() {
             </tr>
           </thead>
           <tbody>
-            {properties.map((prop) => (
-              <tr key={prop.id}>
+            {properties.map((prop) => {
+              const isHighlighted = highlightedRow === prop.id.toString();
+              return (
+                <tr 
+                  key={prop.id}
+                  style={isHighlighted ? {
+                    backgroundColor: '#eff6ff',
+                    boxShadow: 'inset 0 0 15px rgba(59, 130, 246, 0.3)',
+                    transition: 'all 0.4s ease-out'
+                  } : { transition: 'all 0.3s ease-in-out' }}
+                >
                 <td>{formatPropId(prop.ref_id, prop.id)}</td>
                 <td style={{ fontWeight: 600 }}>{prop.parcel_number}</td>
                 <td>{prop.ls_county?.name}</td>
+                <td>
+                  {prop.owner_type === 'partner' ? (
+                    <span style={{
+                      display: 'inline-flex', alignItems: 'center', gap: '0.3rem',
+                      backgroundColor: '#fffbeb', color: '#b45309',
+                      border: '1px solid #fde68a',
+                      padding: '0.2rem 0.55rem', borderRadius: '999px',
+                      fontSize: '0.7rem', fontWeight: 700
+                    }}>
+                      <UserCheck className="w-3 h-3" />
+                      {prop.owner_partner?.full_name || 'Partner'}
+                    </span>
+                  ) : (
+                    <span style={{
+                      display: 'inline-flex', alignItems: 'center', gap: '0.3rem',
+                      backgroundColor: '#eff6ff', color: '#1d4ed8',
+                      border: '1px solid #bfdbfe',
+                      padding: '0.2rem 0.55rem', borderRadius: '999px',
+                      fontSize: '0.7rem', fontWeight: 700
+                    }}>
+                      <Building2 className="w-3 h-3" />
+                      IronClad
+                    </span>
+                  )}
+                </td>
                 <td>{formatDate(prop.acquisition_date || prop.auction_date)}</td>
                 <td>{prop.ls_property_type?.name || '--'}</td>
                 <td style={{ fontWeight: 600 }}>{formatCurrency(prop.market_value)}</td>
                 <td>
                   <Link href={`/properties/${prop.id}`} className="primary-btn" style={{ padding: "0.3rem 0.75rem", fontSize: "0.75rem", textDecoration: 'none' }}>Open</Link>
                 </td>
-              </tr>
-            ))}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       )}
@@ -637,6 +846,24 @@ export default function PropertiesPage() {
           >
             <ChevronRight className="w-5 h-5" />
           </button>
+        </div>
+      )}
+
+      {/* Toast Notification */}
+      {toastMsg && (
+        <div style={{
+          position: 'fixed', bottom: '2rem', right: '2rem',
+          backgroundColor: '#10b981', color: 'white',
+          padding: '1rem 1.5rem', borderRadius: '0.75rem',
+          boxShadow: '0 10px 25px -5px rgba(16, 185, 129, 0.5), 0 8px 10px -6px rgba(16, 185, 129, 0.1)',
+          zIndex: 10000, display: 'flex', alignItems: 'flex-start', gap: '0.75rem',
+          animation: 'slideUpFade 0.3s ease-out forwards'
+        }}>
+          <CheckCircle2 className="w-6 h-6 flex-shrink-0" style={{ marginTop: '0.125rem' }} />
+          <div>
+            <h4 style={{ fontWeight: 700, margin: 0, fontSize: '1rem' }}>{toastMsg.title}</h4>
+            <p style={{ margin: 0, fontSize: '0.875rem', opacity: 0.9, marginTop: '0.25rem' }}>{toastMsg.desc}</p>
+          </div>
         </div>
       )}
       </div>

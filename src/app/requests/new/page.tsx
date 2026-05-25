@@ -33,7 +33,7 @@ export default function NewRequestPage() {
   useEffect(() => {
     async function fetchLookups() {
       const [userRes, catRes, priRes, assetRes] = await Promise.all([
-        supabase.from("ls_users_metadata").select("id, full_name").order("full_name"),
+        supabase.from("ls_users_metadata").select("id, full_name").eq("user_type", "employee").order("full_name"),
         supabase.from("ls_request_category").select("id, name").order("name"),
         supabase.from("ls_request_priority").select("id, name, sla_days").order("name"),
         supabase.from("ls_assets").select("id, parcel_number, address").eq("record_type", "PROPERTY").limit(500)

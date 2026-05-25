@@ -19,7 +19,15 @@ import {
   Navigation as NavigationIcon,
   Search,
   X,
-  TrendingUp
+  TrendingUp,
+  ExternalLink,
+  FileText,
+  Coins,
+  Scale,
+  Trees,
+  Lock,
+  CheckSquare,
+  Receipt
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { hasPermission, getCurrentUserPermissions } from "@/lib/permissions";
@@ -27,12 +35,116 @@ import "../../auctions/new/form.css"; // Keep the styles
 import "./details.css"; // Keep the tabs structure styling
 
 const TABS_CONFIG = [
-  { id: 'research', name: 'Research', icon: Search, resource: 'tab:general' },
-  { id: 'financials', name: 'Financials', icon: DollarSign, resource: 'tab:financials' },
-  { id: 'values', name: 'Values', icon: TrendingUp, resource: 'tab:financials' },
-  { id: 'amenities', name: 'Amenities', icon: NavigationIcon, resource: 'tab:amenities' },
-  { id: 'links', name: 'Media & Map', icon: LinkIcon, resource: 'tab:links' },
+  { id: 'research',     name: 'Research',      icon: Search,          resource: 'tab:general' },
+  { id: 'amenities',   name: 'Amenities',      icon: NavigationIcon,  resource: 'tab:amenities' },
+  { id: 'values',      name: 'Values',         icon: TrendingUp,      resource: 'tab:values' },
+  { id: 'acquisition', name: 'Development',    icon: Coins,           resource: 'tab:acquisition' },
+  { id: 'docs',        name: 'Documentation',  icon: FileText,        resource: 'tab:docs' },
+  { id: 'tax',         name: 'Tax',            icon: Receipt,         resource: 'tab:tax' },
+  { id: 'sales',       name: 'Sales',          icon: ShoppingCart,    resource: 'tab:sales' },
+  { id: 'strategy',    name: 'Strategy',       icon: Compass,         resource: 'tab:strategy' },
+  { id: 'links',       name: 'Marketing',      icon: LinkIcon,        resource: 'tab:links' },
 ];
+
+const CurrencyInput = ({ 
+  name, 
+  value, 
+  onChange, 
+  placeholder = "0.00", 
+  disabled = false, 
+  style = {}, 
+  className = "" 
+}: { 
+  name: string; 
+  value: any; 
+  onChange: (e: any) => void; 
+  placeholder?: string; 
+  disabled?: boolean; 
+  style?: React.CSSProperties; 
+  className?: string; 
+}) => {
+  const [isFocused, setIsFocused] = useState(false);
+  const [localValue, setLocalValue] = useState("");
+
+  useEffect(() => {
+    if (!isFocused) {
+      if (value === null || value === undefined || value === "") {
+        setLocalValue("");
+      } else {
+        const num = Number(value);
+        if (isNaN(num)) {
+          setLocalValue("");
+        } else {
+          setLocalValue(new Intl.NumberFormat('en-US', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+          }).format(num));
+        }
+      }
+    } else {
+      setLocalValue(value === null || value === undefined ? "" : String(value));
+    }
+  }, [value, isFocused]);
+
+  const handleFocus = () => {
+    setIsFocused(true);
+    setLocalValue(value === null || value === undefined ? "" : String(value));
+  };
+
+  const handleBlur = () => {
+    setIsFocused(false);
+    if (value === null || value === undefined || value === "") {
+      setLocalValue("");
+    } else {
+      const num = Number(value);
+      if (isNaN(num)) {
+        setLocalValue("");
+      } else {
+        setLocalValue(new Intl.NumberFormat('en-US', {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2
+        }).format(num));
+      }
+    }
+  };
+
+  const handleChangeLocal = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setLocalValue(val);
+    
+    const cleanVal = val.replace(/[^0-9.-]/g, '');
+    onChange({
+      target: {
+        name,
+        value: cleanVal,
+        type: 'number'
+      }
+    } as any);
+  };
+
+  return (
+    <div className="currency-input-wrapper" style={{ width: '100%' }}>
+      <span className="currency-symbol">$</span>
+      <input
+        type={isFocused ? "number" : "text"}
+        step="any"
+        name={name}
+        value={localValue}
+        onFocus={handleFocus}
+        onBlur={handleBlur}
+        onChange={handleChangeLocal}
+        placeholder={placeholder}
+        disabled={disabled}
+        className={className || "input-field currency"}
+        style={{
+          ...style,
+          textAlign: isFocused ? 'left' : 'right',
+          paddingRight: isFocused ? '0.75rem' : '1.25rem'
+        }}
+      />
+    </div>
+  );
+};
 
 export default function PropertyDetailsPage() {
   const params = useParams();
@@ -45,7 +157,14 @@ export default function PropertyDetailsPage() {
   const [property, setProperty] = useState<any>(null);
   const [lookups, setLookups] = useState<Record<string, any[]>>({});
   const [permissions, setPermissions] = useState<any>(null);
+  const [partners, setPartners] = useState<any[]>([]);
   
+  // Tax specific state
+  const [taxes, setTaxes] = useState<any[]>([]);
+  const [taxForm, setTaxForm] = useState<any>({ due_date: '', pay_date: '', received_date: '', perc_iron: '', perc_inv: '', link_proof: '', link_bill: '', link_advalorem: '', value: '', vigency: '', recurrence: '', status: '', type_tax: '' });
+  const [editingTaxId, setEditingTaxId] = useState<string | null>(null);
+  const [showTaxForm, setShowTaxForm] = useState(false);
+
   // Amenities specific state
   const [amenities, setAmenities] = useState<any[]>([]);
   const [amenityCategories, setAmenityCategories] = useState<any[]>([]);
@@ -59,7 +178,12 @@ export default function PropertyDetailsPage() {
 
   const visibleTabs = useMemo(() => {
     if (permissions && Object.keys(permissions).length > 0) {
-      return TABS_CONFIG.filter(tab => hasPermission(permissions, tab.resource, 'view'));
+      return TABS_CONFIG.filter(tab => {
+        const p = permissions[tab.resource];
+        // If no permission entry exists for this resource, default to visible.
+        // Only hide if an entry exists AND can_view is explicitly false.
+        return p === undefined ? true : p.can_view;
+      });
     }
     return TABS_CONFIG;
   }, [permissions]);
@@ -75,15 +199,17 @@ export default function PropertyDetailsPage() {
         "ls_property_access", "ls_road_access", "ls_ref_construction"
       ];
 
-      const [permsResult, propertyResult] = await Promise.all([
+      const [permsResult, propertyResult, partnersResult] = await Promise.all([
         getCurrentUserPermissions(),
         supabase.from('ls_assets').select(`
           *,
           ls_county ( name, state ),
           ls_priority ( name, color ),
           ls_property_type ( name )
-        `).eq('id', id).single()
+        `).eq('id', id).single(),
+        supabase.from('ls_users_metadata').select('id, full_name').eq('user_type', 'partner').order('full_name')
       ]);
+      setPartners(partnersResult.data || []);
 
       setPermissions(permsResult);
 
@@ -91,6 +217,7 @@ export default function PropertyDetailsPage() {
         const formatted = { ...propertyResult.data };
         if (formatted.auction_date) formatted.auction_date = new Date(formatted.auction_date).toISOString().slice(0, 16);
         if (formatted.acquisition_date) formatted.acquisition_date = new Date(formatted.acquisition_date).toISOString().slice(0, 16);
+        if (formatted.tax_pay_dead) formatted.tax_pay_dead = new Date(formatted.tax_pay_dead).toISOString().slice(0, 10);
         
         Object.keys(formatted).forEach(key => {
           if (formatted[key] === null) formatted[key] = "";
@@ -126,6 +253,14 @@ export default function PropertyDetailsPage() {
       setAmenityCategories(catData.data || []);
       setAmenityTypes(typeData.data || []);
 
+      // Load tax records
+      const { data: taxRecordsData } = await supabase
+        .from('ls_asset_tax')
+        .select('*')
+        .eq('asset_id', id)
+        .order('created_at', { ascending: false });
+      setTaxes(taxRecordsData || []);
+
       setLoading(false);
     }
     
@@ -136,6 +271,139 @@ export default function PropertyDetailsPage() {
     const { name, value, type } = e.target;
     const val = type === 'checkbox' ? (e.target as HTMLInputElement).checked : value;
     setProperty((prev: any) => ({ ...prev, [name]: val }));
+  };
+
+  const handleOwnerChange = (value: string) => {
+    if (value === 'ironclad') {
+      setProperty((prev: any) => ({ ...prev, owner_type: 'ironclad', owner_partner_id: '' }));
+    } else {
+      setProperty((prev: any) => ({ ...prev, owner_type: 'partner', owner_partner_id: value }));
+    }
+  };
+
+  const renderLinkInput = (label: string, name: string, value: string, placeholder: string, style?: React.CSSProperties) => {
+    const getHref = (url: string) => {
+      if (!url) return "";
+      if (url.startsWith("http://") || url.startsWith("https://")) return url;
+      return `https://${url}`;
+    };
+
+    return (
+      <div className="input-group" style={style}>
+        <label className="input-label">{label}</label>
+        <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+          <input 
+            type="url" 
+            name={name} 
+            value={value || ""} 
+            onChange={handleChange} 
+            className="input-field" 
+            placeholder={placeholder} 
+            style={{ paddingRight: value ? '2.5rem' : '0.75rem' }} 
+          />
+          {value && (
+            <a 
+              href={getHref(value)} 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              style={{ 
+                position: 'absolute', 
+                right: '0.375rem', 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center', 
+                width: '28px', 
+                height: '28px', 
+                borderRadius: '6px', 
+                color: '#64748b', 
+                backgroundColor: '#f1f5f9',
+                transition: 'all 0.2s ease-in-out',
+                border: '1px solid #e2e8f0',
+                boxSizing: 'border-box'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = '#10b981';
+                e.currentTarget.style.backgroundColor = '#ecfdf5';
+                e.currentTarget.style.borderColor = '#a7f3d0';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = '#64748b';
+                e.currentTarget.style.backgroundColor = '#f1f5f9';
+                e.currentTarget.style.borderColor = '#e2e8f0';
+              }}
+              title={`Open ${label}`}
+            >
+              <ExternalLink className="w-4 h-4" />
+            </a>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const renderCostTableRow = (label: string, desc: string, costName: string, toggleName: string, IconComponent: any) => {
+    return (
+      <div 
+        className="cost-table-row"
+        style={{ 
+          display: 'grid', 
+          gridTemplateColumns: '2fr 1fr 1.5fr', 
+          alignItems: 'center', 
+          padding: '0.875rem 1.25rem', 
+          borderBottom: '1px solid #f1f5f9',
+          transition: 'background-color 0.15s ease'
+        }}
+      >
+        {/* Coluna 1: Nome, Descrição e Ícone */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <div style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center', 
+            width: '32px', 
+            height: '32px', 
+            borderRadius: '8px', 
+            backgroundColor: '#f1f5f9', 
+            color: '#475569' 
+          }}>
+            <IconComponent className="w-4 h-4" />
+          </div>
+          <div>
+            <div style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.9rem' }}>{label}</div>
+            <div style={{ color: '#64748b', fontSize: '0.75rem', marginTop: '0.1rem' }}>{desc}</div>
+          </div>
+        </div>
+
+        {/* Coluna 2: Toggle / Checkbox */}
+        <div style={{ display: 'flex', justifyContent: 'center' }}>
+          <input 
+            type="checkbox" 
+            id={toggleName} 
+            name={toggleName} 
+            checked={!!property[toggleName]} 
+            onChange={handleChange} 
+            className="checkbox-input" 
+            style={{ width: '1.2rem', height: '1.2rem', cursor: 'pointer' }}
+          />
+        </div>
+
+        {/* Coluna 3: Input de Moeda (Sempre editável) */}
+        <div className="input-group" style={{ margin: 0 }}>
+          <CurrencyInput 
+            name={costName} 
+            value={property[costName]} 
+            onChange={handleChange} 
+            placeholder="0.00"
+            style={{
+              backgroundColor: '#ffffff',
+              cursor: 'text',
+              transition: 'all 0.2s',
+              border: '1px solid #cbd5e1'
+            }}
+          />
+        </div>
+      </div>
+    );
   };
 
   const handleSave = async () => {
@@ -159,7 +427,9 @@ export default function PropertyDetailsPage() {
       const numericFields = [
         'ref_id', 'size', 'market_value', 'annual_tax', 'open_bid', 'min_bid', 'max_bid', 
         'max_bid_internal', 'appraisal_min', 'appraisal_avg', 'appraisal_max', 
-        'county_appraisal', 'online_appraisal', 'sqft_price_reference', 'house_price'
+        'county_appraisal', 'online_appraisal', 'sqft_price_reference', 'house_price',
+        'warrantydeedtransfer', 'titleclaim_action', 'surveyor', 'land_clearing', 
+        'fencing_gate', 'preapproval_review', 'investment_total'
       ];
       numericFields.forEach(f => {
         if (payload[f] === "" || payload[f] === undefined) payload[f] = null;
@@ -167,9 +437,10 @@ export default function PropertyDetailsPage() {
       });
 
       const uuidFields = [
-        'origem_id', 'priority_id', 'county_id', 'auction_type_id', 
-        'auction_model_id', 'property_type_id', 'fema_id', 'wetlands_id', 
-        'debit_id', 'gismap_id', 'prop_access_id', 'road_access_id', 'ref_construction_id'
+        'origem_id', 'priority_id', 'county_id', 'auction_type_id',
+        'auction_model_id', 'property_type_id', 'fema_id', 'wetlands_id',
+        'debit_id', 'gismap_id', 'prop_access_id', 'road_access_id', 'ref_construction_id',
+        'owner_partner_id'
       ];
       uuidFields.forEach(f => {
         if (!payload[f]) payload[f] = null;
@@ -177,6 +448,7 @@ export default function PropertyDetailsPage() {
 
       if (!payload.auction_date) payload.auction_date = null;
       if (!payload.acquisition_date) payload.acquisition_date = null;
+      if (!payload.tax_pay_dead) payload.tax_pay_dead = null;
 
       Object.keys(payload).forEach(key => {
         if (payload[key] === "") {
@@ -187,7 +459,7 @@ export default function PropertyDetailsPage() {
       const { error } = await supabase.from('ls_assets').update(payload).eq('id', id);
       if (error) throw error;
       
-      alert("Property updated successfully!");
+      router.push(`/properties?highlight=${id}&action=updated`);
     } catch (err: any) {
       console.error(err);
       alert("Error updating property: " + err.message);
@@ -225,6 +497,72 @@ export default function PropertyDetailsPage() {
     if (!error) {
       setAmenities(amenities.filter(a => a.id !== amenId));
     }
+  };
+
+  const resetTaxForm = () => {
+    setTaxForm({ due_date: '', pay_date: '', received_date: '', perc_iron: '', perc_inv: '', link_proof: '', link_bill: '', link_advalorem: '', value: '', vigency: '', recurrence: '', status: '', type_tax: '' });
+    setEditingTaxId(null);
+    setShowTaxForm(false);
+  };
+
+  const handleTaxFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setTaxForm((prev: any) => ({ ...prev, [name]: value }));
+  };
+
+  const handleSaveTax = async () => {
+    const payload: any = {
+      asset_id: id,
+      due_date: taxForm.due_date || null,
+      pay_date: taxForm.pay_date || null,
+      received_date: taxForm.received_date || null,
+      perc_iron: taxForm.perc_iron !== '' ? Number(taxForm.perc_iron) : null,
+      perc_inv: taxForm.perc_inv !== '' ? Number(taxForm.perc_inv) : null,
+      link_proof: taxForm.link_proof || null,
+      link_bill: taxForm.link_bill || null,
+      link_advalorem: taxForm.link_advalorem || null,
+      value: taxForm.value !== '' ? Number(String(taxForm.value).replace(/[^0-9.-]/g, '')) : null,
+      vigency: taxForm.vigency || null,
+      recurrence: taxForm.recurrence || null,
+      status: taxForm.status || null,
+      type_tax: taxForm.type_tax || null,
+    };
+
+    if (editingTaxId) {
+      const { data, error } = await supabase.from('ls_asset_tax').update(payload).eq('id', editingTaxId).select('*').single();
+      if (!error && data) { setTaxes(taxes.map(t => t.id === editingTaxId ? data : t)); resetTaxForm(); }
+      else if (error) alert('Error updating tax record: ' + error.message);
+    } else {
+      const { data, error } = await supabase.from('ls_asset_tax').insert([payload]).select('*').single();
+      if (!error && data) { setTaxes([data, ...taxes]); resetTaxForm(); }
+      else if (error) alert('Error saving tax record: ' + error.message);
+    }
+  };
+
+  const handleDeleteTax = async (taxId: string) => {
+    if (!confirm('Delete this tax record?')) return;
+    const { error } = await supabase.from('ls_asset_tax').delete().eq('id', taxId);
+    if (!error) setTaxes(taxes.filter(t => t.id !== taxId));
+  };
+
+  const handleEditTax = (tax: any) => {
+    setTaxForm({
+      due_date: tax.due_date || '',
+      pay_date: tax.pay_date || '',
+      received_date: tax.received_date || '',
+      perc_iron: tax.perc_iron ?? '',
+      perc_inv: tax.perc_inv ?? '',
+      link_proof: tax.link_proof || '',
+      link_bill: tax.link_bill || '',
+      link_advalorem: tax.link_advalorem || '',
+      value: tax.value ?? '',
+      vigency: tax.vigency || '',
+      recurrence: tax.recurrence || '',
+      status: tax.status || '',
+      type_tax: tax.type_tax || '',
+    });
+    setEditingTaxId(tax.id);
+    setShowTaxForm(true);
   };
 
   const formatPropId = (ref_id: any) => {
@@ -296,18 +634,18 @@ export default function PropertyDetailsPage() {
                 <div className="form-grid col-3">
                   <div className="input-group">
                     <label className="input-label">Origin</label>
-                    <select name="origem_id" value={property.origem_id} onChange={handleChange} className="input-field">
+                    <select name="origem_id" value={property.origem_id} onChange={handleChange} className="input-field" disabled>
                       <option value="">Select Origin...</option>
                       {lookups.ls_origem?.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
                     </select>
                   </div>
                   <div className="input-group">
                     <label className="input-label">Acquisition Date</label>
-                    <input type="datetime-local" name="acquisition_date" value={property.acquisition_date} onChange={handleChange} className="input-field" />
+                    <input type="datetime-local" name="acquisition_date" value={property.acquisition_date} onChange={handleChange} className="input-field" disabled />
                   </div>
                   <div className="input-group">
                     <label className="input-label">County</label>
-                    <select name="county_id" value={property.county_id} onChange={handleChange} className="input-field">
+                    <select name="county_id" value={property.county_id} onChange={handleChange} className="input-field" disabled>
                       <option value="">Select County...</option>
                       {lookups.ls_county?.map(i => <option key={i.id} value={i.id}>{i.name} ({i.state})</option>)}
                     </select>
@@ -319,7 +657,7 @@ export default function PropertyDetailsPage() {
                   </div>
                   <div className="input-group">
                     <label className="input-label">Coordinates</label>
-                    <input type="text" name="coordinates" value={property.coordinates} onChange={handleChange} className="input-field" />
+                    <input type="text" name="coordinates" value={property.coordinates} onChange={handleChange} className="input-field" readOnly />
                   </div>
 
                   <div className="input-group">
@@ -332,7 +670,7 @@ export default function PropertyDetailsPage() {
                   </div>
                   <div className="input-group">
                     <label className="input-label">Parcel Number</label>
-                    <input type="text" name="parcel_number" value={property.parcel_number} onChange={handleChange} className="input-field" />
+                    <input type="text" name="parcel_number" value={property.parcel_number} onChange={handleChange} className="input-field" readOnly />
                   </div>
 
                   <div className="input-group">
@@ -346,21 +684,21 @@ export default function PropertyDetailsPage() {
 
                   <div className="input-group">
                     <label className="input-label">GIS Map Reference</label>
-                    <select name="gismap_id" value={property.gismap_id} onChange={handleChange} className="input-field">
+                    <select name="gismap_id" value={property.gismap_id} onChange={handleChange} className="input-field" disabled>
                       <option value="">Select Map...</option>
                       {lookups.ls_gismap?.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
                     </select>
                   </div>
                   <div className="input-group">
                     <label className="input-label">Wetlands</label>
-                    <select name="wetlands_id" value={property.wetlands_id} onChange={handleChange} className="input-field">
+                    <select name="wetlands_id" value={property.wetlands_id} onChange={handleChange} className="input-field" disabled>
                       <option value="">Select Wetlands...</option>
                       {lookups.ls_wetlands?.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
                     </select>
                   </div>
                   <div className="input-group">
                     <label className="input-label">FEMA Zone</label>
-                    <select name="fema_id" value={property.fema_id} onChange={handleChange} className="input-field">
+                    <select name="fema_id" value={property.fema_id} onChange={handleChange} className="input-field" disabled>
                       <option value="">Select FEMA...</option>
                       {lookups.ls_fema?.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
                     </select>
@@ -368,21 +706,21 @@ export default function PropertyDetailsPage() {
 
                   <div className="input-group">
                     <label className="input-label">Debit Status</label>
-                    <select name="debit_id" value={property.debit_id} onChange={handleChange} className="input-field">
+                    <select name="debit_id" value={property.debit_id} onChange={handleChange} className="input-field" disabled>
                       <option value="">Select Debit...</option>
                       {lookups.ls_debit?.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
                     </select>
                   </div>
                   <div className="input-group">
                     <label className="input-label">Property Type</label>
-                    <select name="property_type_id" value={property.property_type_id} onChange={handleChange} className="input-field">
+                    <select name="property_type_id" value={property.property_type_id} onChange={handleChange} className="input-field" disabled>
                       <option value="">Select Type...</option>
                       {lookups.ls_property_type?.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
                     </select>
                   </div>
                   <div className="input-group">
                     <label className="input-label">Property Access</label>
-                    <select name="prop_access_id" value={property.prop_access_id} onChange={handleChange} className="input-field">
+                    <select name="prop_access_id" value={property.prop_access_id} onChange={handleChange} className="input-field" disabled>
                       <option value="">Select Access...</option>
                       {lookups.ls_property_access?.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
                     </select>
@@ -404,10 +742,7 @@ export default function PropertyDetailsPage() {
                     <label htmlFor="corner_lot" className="checkbox-label">Corner Lot?</label>
                   </div>
 
-                  <div className="input-group" style={{ gridColumn: 'span 2' }}>
-                    <label className="input-label">Regrid Link</label>
-                    <input type="url" name="link_regrid" value={property.link_regrid} onChange={handleChange} className="input-field" placeholder="https://regrid.com/..." />
-                  </div>
+                  {renderLinkInput("Regrid Link", "link_regrid", property.link_regrid, "https://regrid.com/...", { gridColumn: 'span 2' })}
                   <div className="input-group"></div>
 
                   <div className="input-group" style={{ gridColumn: 'span 3' }}>
@@ -416,79 +751,31 @@ export default function PropertyDetailsPage() {
                   </div>
                 </div>
               </div>
-            </div>
-          )}
 
-          {/* FINANCIALS TAB */}
-          {activeTab === 'financials' && (
-            <div className="form-tab">
-              <div className="tab-section-header">
-                <h2 className="section-title">Appraisals & Financials</h2>
-                <p className="section-desc">Valuation history, tax records, and debt status.</p>
-              </div>
-              <div className="form-grid col-3" style={{ padding: '0 1rem' }}>
-                <div className="input-group">
-                  <label className="input-label">Market Value ($)</label>
-                  <div className="currency-input-wrapper">
-                    <span className="currency-symbol">$</span>
-                    <input type="number" step="any" name="market_value" value={property.market_value} onChange={handleChange} className="input-field currency" />
+              {/* Ownership */}
+              <div style={{ margin: '0 1rem 1rem 1rem' }}>
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', marginBottom: '1.25rem' }}>Ownership</h3>
+                <div className="form-grid col-3">
+                  <div className="input-group">
+                    <label className="input-label">Property Owner</label>
+                    <select
+                      value={property.owner_type === 'partner' ? (property.owner_partner_id || '') : 'ironclad'}
+                      onChange={(e) => handleOwnerChange(e.target.value)}
+                      className="input-field"
+                    >
+                      <option value="ironclad">IronClad</option>
+                      {partners.map(p => (
+                        <option key={p.id} value={p.id}>{p.full_name}</option>
+                      ))}
+                    </select>
                   </div>
-                </div>
-                <div className="input-group">
-                  <label className="input-label">Annual Tax ($)</label>
-                  <div className="currency-input-wrapper">
-                    <span className="currency-symbol">$</span>
-                    <input type="number" step="any" name="annual_tax" value={property.annual_tax} onChange={handleChange} className="input-field currency" />
-                  </div>
-                </div>
-                <div className="input-group">
-                  <label className="input-label">SqFt Price Ref ($)</label>
-                  <div className="currency-input-wrapper">
-                    <span className="currency-symbol">$</span>
-                    <input type="number" step="any" name="sqft_price_reference" value={property.sqft_price_reference} onChange={handleChange} className="input-field currency" />
-                  </div>
-                </div>
-                <div className="input-group">
-                  <label className="input-label">Appraisal Min ($)</label>
-                  <div className="currency-input-wrapper">
-                    <span className="currency-symbol">$</span>
-                    <input type="number" step="any" name="appraisal_min" value={property.appraisal_min} onChange={handleChange} className="input-field currency" />
-                  </div>
-                </div>
-                <div className="input-group">
-                  <label className="input-label">Appraisal Avg ($)</label>
-                  <div className="currency-input-wrapper">
-                    <span className="currency-symbol">$</span>
-                    <input type="number" step="any" name="appraisal_avg" value={property.appraisal_avg} onChange={handleChange} className="input-field currency" />
-                  </div>
-                </div>
-                <div className="input-group">
-                  <label className="input-label">Appraisal Max ($)</label>
-                  <div className="currency-input-wrapper">
-                    <span className="currency-symbol">$</span>
-                    <input type="number" step="any" name="appraisal_max" value={property.appraisal_max} onChange={handleChange} className="input-field currency" />
-                  </div>
-                </div>
-                <div className="input-group">
-                  <label className="input-label">County Appraisal ($)</label>
-                  <div className="currency-input-wrapper">
-                    <span className="currency-symbol">$</span>
-                    <input type="number" step="any" name="county_appraisal" value={property.county_appraisal} onChange={handleChange} className="input-field currency" />
-                  </div>
-                </div>
-                <div className="input-group">
-                  <label className="input-label">Online Appraisal ($)</label>
-                  <div className="currency-input-wrapper">
-                    <span className="currency-symbol">$</span>
-                    <input type="number" step="any" name="online_appraisal" value={property.online_appraisal} onChange={handleChange} className="input-field currency" />
-                  </div>
-                </div>
-                <div className="input-group">
-                  <label className="input-label">House Price ($)</label>
-                  <div className="currency-input-wrapper">
-                    <span className="currency-symbol">$</span>
-                    <input type="number" step="any" name="house_price" value={property.house_price} onChange={handleChange} className="input-field currency" />
-                  </div>
+                  {property.owner_type === 'partner' && (
+                    <div className="input-group" style={{ display: 'flex', alignItems: 'flex-end' }}>
+                      <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#f59e0b', backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderRadius: '0.5rem', padding: '0.5rem 0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+                        Assigned to Partner
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -610,10 +897,7 @@ export default function PropertyDetailsPage() {
                 <div className="form-grid col-3">
                   <div className="input-group">
                     <label className="input-label">County Appraisal ($)</label>
-                    <div className="currency-input-wrapper">
-                      <span className="currency-symbol">$</span>
-                      <input type="number" step="any" name="county_appraisal" value={property.county_appraisal} onChange={handleChange} className="input-field currency" placeholder="0.00" />
-                    </div>
+                    <CurrencyInput name="county_appraisal" value={property.county_appraisal} onChange={handleChange} />
                   </div>
                   <div className="input-group">
                     <label className="input-label">Size (Acres/SqFt)</label>
@@ -621,59 +905,35 @@ export default function PropertyDetailsPage() {
                   </div>
                   <div className="input-group">
                     <label className="input-label">Appraisal Min ($)</label>
-                    <div className="currency-input-wrapper">
-                      <span className="currency-symbol">$</span>
-                      <input type="number" step="any" name="appraisal_min" value={property.appraisal_min} onChange={handleChange} className="input-field currency" placeholder="0.00" />
-                    </div>
+                    <CurrencyInput name="appraisal_min" value={property.appraisal_min} onChange={handleChange} />
                   </div>
                   <div className="input-group">
                     <label className="input-label">Appraisal Avg ($)</label>
-                    <div className="currency-input-wrapper">
-                      <span className="currency-symbol">$</span>
-                      <input type="number" step="any" name="appraisal_avg" value={property.appraisal_avg} onChange={handleChange} className="input-field currency" placeholder="0.00" />
-                    </div>
+                    <CurrencyInput name="appraisal_avg" value={property.appraisal_avg} onChange={handleChange} />
                   </div>
                   <div className="input-group">
                     <label className="input-label">Appraisal Max ($)</label>
-                    <div className="currency-input-wrapper">
-                      <span className="currency-symbol">$</span>
-                      <input type="number" step="any" name="appraisal_max" value={property.appraisal_max} onChange={handleChange} className="input-field currency" placeholder="0.00" />
-                    </div>
+                    <CurrencyInput name="appraisal_max" value={property.appraisal_max} onChange={handleChange} />
                   </div>
                   <div className="input-group">
                     <label className="input-label">House Price ($)</label>
-                    <div className="currency-input-wrapper">
-                      <span className="currency-symbol">$</span>
-                      <input type="number" step="any" name="house_price" value={property.house_price} onChange={handleChange} className="input-field currency" placeholder="0.00" />
-                    </div>
+                    <CurrencyInput name="house_price" value={property.house_price} onChange={handleChange} />
                   </div>
                   <div className="input-group">
                     <label className="input-label">SqFt Price Ref ($)</label>
-                    <div className="currency-input-wrapper">
-                      <span className="currency-symbol">$</span>
-                      <input type="number" step="any" name="sqft_price_reference" value={property.sqft_price_reference} onChange={handleChange} className="input-field currency" placeholder="0.00" />
-                    </div>
+                    <CurrencyInput name="sqft_price_reference" value={property.sqft_price_reference} onChange={handleChange} />
                   </div>
                   <div className="input-group">
                     <label className="input-label">Min Bid ($)</label>
-                    <div className="currency-input-wrapper">
-                      <span className="currency-symbol">$</span>
-                      <input type="number" step="any" name="min_bid" value={property.min_bid} onChange={handleChange} className="input-field currency" placeholder="0.00" />
-                    </div>
+                    <CurrencyInput name="min_bid" value={property.min_bid} onChange={handleChange} />
                   </div>
                   <div className="input-group">
                     <label className="input-label">Max Bid ($)</label>
-                    <div className="currency-input-wrapper">
-                      <span className="currency-symbol">$</span>
-                      <input type="number" step="any" name="max_bid" value={property.max_bid} onChange={handleChange} className="input-field currency" placeholder="0.00" />
-                    </div>
+                    <CurrencyInput name="max_bid" value={property.max_bid} onChange={handleChange} />
                   </div>
                   <div className="input-group">
                     <label className="input-label">Max Bid Internal ($)</label>
-                    <div className="currency-input-wrapper">
-                      <span className="currency-symbol">$</span>
-                      <input type="number" step="any" name="max_bid_internal" value={property.max_bid_internal} onChange={handleChange} className="input-field currency" placeholder="0.00" />
-                    </div>
+                    <CurrencyInput name="max_bid_internal" value={property.max_bid_internal} onChange={handleChange} />
                   </div>
                 </div>
               </div>
@@ -682,61 +942,401 @@ export default function PropertyDetailsPage() {
               <div style={{ margin: '0 1rem 1rem 1rem' }}>
                 <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', marginBottom: '1.25rem' }}>References</h3>
                 <div className="form-grid col-2">
-                  <div className="input-group">
-                    <label className="input-label">Source Link</label>
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                      <input type="url" name="link_sources" value={property.link_sources} onChange={handleChange} className="input-field" placeholder="https://..." style={{ flex: 1 }} />
-                      {property.link_sources && (
-                        <a href={property.link_sources} target="_blank" rel="noopener noreferrer" className="btn-secondary" style={{ padding: '0.6rem', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '38px', boxSizing: 'border-box' }} title="Access Web Link">
-                          <LinkIcon className="w-4 h-4" />
-                        </a>
-                      )}
-                    </div>
+                  {renderLinkInput("Source Link", "link_sources", property.link_sources, "https://...")}
+                  {renderLinkInput("House Source Link", "link_house_sources", property.link_house_sources, "https://...")}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* SALES TAB */}
+          {activeTab === 'sales' && (
+            <div className="form-tab">
+              <div className="tab-section-header">
+                <h2 className="section-title">Sales</h2>
+                <p className="section-desc">Sales information and records for this property.</p>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '4rem 1rem', color: '#94a3b8' }}>
+                <ShoppingCart className="w-12 h-12" style={{ opacity: 0.3, marginBottom: '1rem' }} />
+                <p style={{ fontWeight: 600, fontSize: '1rem', marginBottom: '0.25rem' }}>Coming Soon</p>
+                <p style={{ fontSize: '0.85rem' }}>Sales content will be added here.</p>
+              </div>
+            </div>
+          )}
+
+          {/* STRATEGY TAB */}
+          {activeTab === 'strategy' && (
+            <div className="form-tab">
+              <div className="tab-section-header">
+                <h2 className="section-title">Strategy</h2>
+                <p className="section-desc">Strategic planning and notes for this property.</p>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '4rem 1rem', color: '#94a3b8' }}>
+                <Compass className="w-12 h-12" style={{ opacity: 0.3, marginBottom: '1rem' }} />
+                <p style={{ fontWeight: 600, fontSize: '1rem', marginBottom: '0.25rem' }}>Coming Soon</p>
+                <p style={{ fontSize: '0.85rem' }}>Strategy content will be added here.</p>
+              </div>
+            </div>
+          )}
+
+          {/* MARKETING TAB */}
+          {activeTab === 'links' && (
+            <div className="form-tab">
+              <div className="tab-section-header">
+                <h2 className="section-title">Marketing</h2>
+                <p className="section-desc">External data sources, research links, and property observations.</p>
+              </div>
+              <div className="form-grid col-2" style={{ padding: '0 1rem' }}>
+                {renderLinkInput("Google Earth Link", "link_earth", property.link_earth, "https://earth.google.com/...", { gridColumn: 'span 2' })}
+                {renderLinkInput("Other Sources Link", "link_sources", property.link_sources, "https://...")}
+                {renderLinkInput("House Sources Link", "link_house_sources", property.link_house_sources, "https://zillow.com/...")}
+                {renderLinkInput("Video Link", "link_video", property.link_video, "https://youtube.com/...")}
+                <div className="input-group" style={{ gridColumn: 'span 2' }}>
+                  <label className="input-label">Surrounds Notes</label>
+                  <textarea name="surrounds" value={property.surrounds} onChange={handleChange} className="input-field" rows={4} style={{ resize: 'vertical' }} />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ACQUISITION & DEVELOPMENT TAB */}
+          {activeTab === 'acquisition' && (
+            <div className="form-tab">
+              <div className="tab-section-header">
+                <h2 className="section-title">Acquisition & Development</h2>
+                <p className="section-desc">Manage property development costs, acquisition toggles, sales statuses, improvements, and modular options.</p>
+              </div>
+
+              <div style={{ margin: '0 1rem 2.5rem 1rem' }}>
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', marginBottom: '1.25rem' }}>Cost Estimates & Clearances</h3>
+                
+                <div style={{ 
+                  backgroundColor: '#ffffff', 
+                  border: '1px solid #e2e8f0', 
+                  borderRadius: '12px', 
+                  overflow: 'hidden',
+                  boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05)'
+                }}>
+                  {/* Table Header */}
+                  <div style={{ 
+                    display: 'grid', 
+                    gridTemplateColumns: '2fr 1fr 1.5fr', 
+                    backgroundColor: '#f8fafc', 
+                    padding: '0.75rem 1.25rem', 
+                    borderBottom: '2px solid #e2e8f0',
+                    fontWeight: 700,
+                    fontSize: '0.75rem',
+                    color: '#475569',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.05em'
+                  }}>
+                    <div>Item / Service</div>
+                    <div style={{ textAlign: 'center' }}>Required / Check</div>
+                    <div style={{ textAlign: 'right', paddingRight: '1rem' }}>Estimated Cost ($)</div>
                   </div>
+
+                  {/* Table Rows */}
+                  {renderCostTableRow("Warranty Deed Transfer", "Deed preparation and recording fees", "warrantydeedtransfer", "tg_warrantydeedtransfer", FileText)}
+                  {renderCostTableRow("Title Claim Action", "Clearing title or legal fees", "titleclaim_action", "tg_titleclaim_action", Scale)}
+                  {renderCostTableRow("Surveyor Cost", "Boundary mapping and layout marking", "surveyor", "tg_surveyor", Compass)}
+                  {renderCostTableRow("Land Clearing", "Tree removal and grading", "land_clearing", "tg_land_clearing", Trees)}
+                  {renderCostTableRow("Fencing & Gate", "Perimeter fence and security gate", "fencing_gate", "tg_fencing_gate", Lock)}
+                  {renderCostTableRow("Preapproval Review", "Zoning review and compliance", "preapproval_review", "tg_preapproval_review", CheckSquare)}
+                </div>
+              </div>
+
+              <div style={{ margin: '0 1rem 1rem 1rem' }}>
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', marginBottom: '1.25rem' }}>Development Details & Total Investment</h3>
+                <div className="form-grid col-2">
                   <div className="input-group">
-                    <label className="input-label">House Source Link</label>
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                      <input type="url" name="link_house_sources" value={property.link_house_sources} onChange={handleChange} className="input-field" placeholder="https://..." style={{ flex: 1 }} />
-                      {property.link_house_sources && (
-                        <a href={property.link_house_sources} target="_blank" rel="noopener noreferrer" className="btn-secondary" style={{ padding: '0.6rem', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '38px', boxSizing: 'border-box' }} title="Access Web Link">
-                          <LinkIcon className="w-4 h-4" />
-                        </a>
-                      )}
-                    </div>
+                    <label className="input-label">Total Investment ($)</label>
+                    <CurrencyInput name="investment_total" value={property.investment_total} onChange={handleChange} />
+                  </div>
+
+                  <div className="input-group">
+                    <label className="input-label">Sale Status</label>
+                    <select name="sale_status" value={property.sale_status || ""} onChange={handleChange} className="input-field">
+                      <option value="">Select Status...</option>
+                      <option value="Pending">Pending</option>
+                      <option value="Listed">Listed</option>
+                      <option value="Awaiting Purchase">Awaiting Purchase</option>
+                    </select>
+                  </div>
+
+                  <div className="input-group">
+                    <label className="input-label">Improvements</label>
+                    <select name="improvements" value={property.improvements || ""} onChange={handleChange} className="input-field">
+                      <option value="">Select Improvements...</option>
+                      <option value="No Improvements">No Improvements</option>
+                      <option value="Well only">Well only</option>
+                      <option value="Septic only">Septic only</option>
+                      <option value="Well & Septic">Well & Septic</option>
+                    </select>
+                  </div>
+
+                  <div className="input-group">
+                    <label className="input-label">Mobile Home Allowed</label>
+                    <select name="mh_allowed" value={property.mh_allowed || ""} onChange={handleChange} className="input-field">
+                      <option value="">Select Option...</option>
+                      <option value="Yes">Yes</option>
+                      <option value="No">No</option>
+                      <option value="Modular Only">Modular Only</option>
+                    </select>
+                  </div>
+
+                  <div className="input-group" style={{ gridColumn: 'span 2' }}>
+                    <label className="input-label">Utilities Notes</label>
+                    <textarea 
+                      name="utilities" 
+                      value={property.utilities || ""} 
+                      onChange={handleChange} 
+                      className="input-field" 
+                      rows={3} 
+                      style={{ resize: 'vertical' }} 
+                      placeholder="Describe electrical, gas, sewer connection notes..."
+                    />
                   </div>
                 </div>
               </div>
             </div>
           )}
 
-          {/* MEDIA & MAP TAB */}
-          {activeTab === 'links' && (
+          {/* DOCUMENTATION TAB */}
+          {activeTab === 'docs' && (
             <div className="form-tab">
               <div className="tab-section-header">
-                <h2 className="section-title">Media & Map Links</h2>
-                <p className="section-desc">External data sources, research links, and property observations.</p>
+                <h2 className="section-title">Documentation</h2>
+                <p className="section-desc">Manage essential property deeds, surveys, planning designs, and tax deadlines.</p>
               </div>
-              <div className="form-grid col-2" style={{ padding: '0 1rem' }}>
-                <div className="input-group" style={{ gridColumn: 'span 2' }}>
-                  <label className="input-label">Google Earth Link</label>
-                  <input type="url" name="link_earth" value={property.link_earth} onChange={handleChange} className="input-field" placeholder="https://earth.google.com/..." />
+              
+              <div style={{ margin: '0 1rem 1rem 1rem' }}>
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', marginBottom: '1.25rem' }}>Deeds, Surveys and Plans</h3>
+                <div className="form-grid col-2">
+                  {renderLinkInput("Tax Deed Link", "tax_deed", property.tax_deed, "https://...")}
+                  {renderLinkInput("Warranty Deed Link", "warranty_deed", property.warranty_deed, "https://...")}
+                  {renderLinkInput("Survey Link", "survey", property.survey, "https://...")}
+                  {renderLinkInput("Site Plan Link", "site_plan", property.site_plan, "https://...")}
+                  
+                  <div className="input-group">
+                    <label className="input-label">Tax Payment Deadline</label>
+                    <input 
+                      type="date" 
+                      name="tax_pay_dead" 
+                      value={property.tax_pay_dead} 
+                      onChange={handleChange} 
+                      className="input-field" 
+                    />
+                  </div>
                 </div>
-                <div className="input-group">
-                  <label className="input-label">Other Sources Link</label>
-                  <input type="url" name="link_sources" value={property.link_sources} onChange={handleChange} className="input-field" placeholder="https://..." />
+              </div>
+            </div>
+          )}
+
+          {/* TAX TAB */}
+          {activeTab === 'tax' && (
+            <div className="form-tab">
+              <div className="tab-section-header" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+                <div>
+                  <h2 className="section-title">Tax Records</h2>
+                  <p className="section-desc">Manage tax, fees and HOA/POA records associated with this property.</p>
                 </div>
-                <div className="input-group">
-                  <label className="input-label">House Sources Link</label>
-                  <input type="url" name="link_house_sources" value={property.link_house_sources} onChange={handleChange} className="input-field" placeholder="https://zillow.com/..." />
-                </div>
-                <div className="input-group">
-                  <label className="input-label">Video Link</label>
-                  <input type="url" name="link_video" value={property.link_video} onChange={handleChange} className="input-field" placeholder="https://youtube.com/..." />
-                </div>
-                <div className="input-group" style={{ gridColumn: 'span 2' }}>
-                  <label className="input-label">Surrounds Notes</label>
-                  <textarea name="surrounds" value={property.surrounds} onChange={handleChange} className="input-field" rows={4} style={{ resize: 'vertical' }} />
-                </div>
+                {!showTaxForm && (
+                  <button
+                    onClick={() => { resetTaxForm(); setShowTaxForm(true); }}
+                    className="save-btn"
+                    style={{ marginTop: '0.25rem', display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.5rem 1rem', backgroundColor: 'var(--primary)', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                  >
+                    <Plus className="w-4 h-4" /> Add Record
+                  </button>
+                )}
+              </div>
+
+              <div style={{ margin: '0 1rem 1rem 1rem' }}>
+
+                {/* ── Add / Edit Form ── */}
+                {showTaxForm && (
+                  <div style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '1.5rem', marginBottom: '2rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
+                      <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: '#0f172a' }}>
+                        {editingTaxId ? 'Edit Tax Record' : 'New Tax Record'}
+                      </h4>
+                      <button onClick={resetTaxForm} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', display: 'flex', alignItems: 'center' }}>
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
+
+                    {/* Row 1 – Classification */}
+                    <div className="form-grid col-4" style={{ marginBottom: '0.75rem' }}>
+                      <div className="input-group" style={{ margin: 0 }}>
+                        <label className="input-label">Type</label>
+                        <select name="type_tax" value={taxForm.type_tax} onChange={handleTaxFormChange} className="input-field">
+                          <option value="">Select...</option>
+                          <option value="Annual Tax">Annual Tax</option>
+                          <option value="Fees">Fees</option>
+                          <option value="HOA/POA">HOA/POA</option>
+                        </select>
+                      </div>
+                      <div className="input-group" style={{ margin: 0 }}>
+                        <label className="input-label">Vigency</label>
+                        <select name="vigency" value={taxForm.vigency} onChange={handleTaxFormChange} className="input-field">
+                          <option value="">Select...</option>
+                          <option value="2025">2025</option>
+                          <option value="2026">2026</option>
+                          <option value="2027">2027</option>
+                          <option value="2028">2028</option>
+                          <option value="2029">2029</option>
+                          <option value="2030">2030</option>
+                        </select>
+                      </div>
+                      <div className="input-group" style={{ margin: 0 }}>
+                        <label className="input-label">Recurrence</label>
+                        <select name="recurrence" value={taxForm.recurrence} onChange={handleTaxFormChange} className="input-field">
+                          <option value="">Select...</option>
+                          <option value="Annual">Annual</option>
+                          <option value="Single">Single</option>
+                        </select>
+                      </div>
+                      <div className="input-group" style={{ margin: 0 }}>
+                        <label className="input-label">Status</label>
+                        <select name="status" value={taxForm.status} onChange={handleTaxFormChange} className="input-field">
+                          <option value="">Select...</option>
+                          <option value="On Time">On Time</option>
+                          <option value="Over Due">Over Due</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Row 2 – Dates */}
+                    <div className="form-grid col-3" style={{ marginBottom: '0.75rem' }}>
+                      <div className="input-group" style={{ margin: 0 }}>
+                        <label className="input-label">Due Date</label>
+                        <input type="date" name="due_date" value={taxForm.due_date} onChange={handleTaxFormChange} className="input-field" />
+                      </div>
+                      <div className="input-group" style={{ margin: 0 }}>
+                        <label className="input-label">Pay Date</label>
+                        <input type="date" name="pay_date" value={taxForm.pay_date} onChange={handleTaxFormChange} className="input-field" />
+                      </div>
+                      <div className="input-group" style={{ margin: 0 }}>
+                        <label className="input-label">Received Date</label>
+                        <input type="date" name="received_date" value={taxForm.received_date} onChange={handleTaxFormChange} className="input-field" />
+                      </div>
+                    </div>
+
+                    {/* Row 3 – Value & Percentages */}
+                    <div className="form-grid col-3" style={{ marginBottom: '0.75rem' }}>
+                      <div className="input-group" style={{ margin: 0 }}>
+                        <label className="input-label">Value ($)</label>
+                        <CurrencyInput name="value" value={taxForm.value} onChange={(e: any) => setTaxForm((p: any) => ({ ...p, value: e.target.value }))} />
+                      </div>
+                      <div className="input-group" style={{ margin: 0 }}>
+                        <label className="input-label">% Ironclad</label>
+                        <input type="number" step="any" name="perc_iron" value={taxForm.perc_iron} onChange={handleTaxFormChange} className="input-field" placeholder="0.00" />
+                      </div>
+                      <div className="input-group" style={{ margin: 0 }}>
+                        <label className="input-label">% Investor</label>
+                        <input type="number" step="any" name="perc_inv" value={taxForm.perc_inv} onChange={handleTaxFormChange} className="input-field" placeholder="0.00" />
+                      </div>
+                    </div>
+
+                    {/* Row 4 – Links */}
+                    <div className="form-grid col-3" style={{ marginBottom: '1.25rem' }}>
+                      {(['link_bill', 'link_proof', 'link_advalorem'] as const).map((field) => {
+                        const labels: Record<string, string> = { link_bill: 'Bill Link', link_proof: 'Proof Link', link_advalorem: 'Ad Valorem Link' };
+                        const val = taxForm[field] || '';
+                        const getHref = (u: string) => u.startsWith('http') ? u : `https://${u}`;
+                        return (
+                          <div className="input-group" key={field} style={{ margin: 0 }}>
+                            <label className="input-label">{labels[field]}</label>
+                            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                              <input type="url" name={field} value={val} onChange={handleTaxFormChange} className="input-field" placeholder="https://..." style={{ paddingRight: val ? '2.5rem' : '0.75rem' }} />
+                              {val && (
+                                <a href={getHref(val)} target="_blank" rel="noopener noreferrer" style={{ position: 'absolute', right: '0.375rem', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '28px', height: '28px', borderRadius: '6px', color: '#64748b', backgroundColor: '#f1f5f9', border: '1px solid #e2e8f0' }}>
+                                  <ExternalLink className="w-4 h-4" />
+                                </a>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Form Actions */}
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+                      <button onClick={resetTaxForm} className="btn-secondary" style={{ padding: '0.5rem 1.25rem' }}>Cancel</button>
+                      <button onClick={handleSaveTax} className="primary-btn" style={{ padding: '0.5rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                        <Save className="w-4 h-4" /> {editingTaxId ? 'Update Record' : 'Save Record'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* ── Records Table ── */}
+                {taxes.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '3rem 1rem', color: '#94a3b8' }}>
+                    <Receipt className="w-10 h-10" style={{ margin: '0 auto 0.75rem', opacity: 0.4 }} />
+                    <p style={{ fontWeight: 600 }}>No tax records yet.</p>
+                    <p style={{ fontSize: '0.85rem' }}>Click "Add Record" to register the first entry.</p>
+                  </div>
+                ) : (
+                  <div style={{ overflowX: 'auto', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                      <thead>
+                        <tr style={{ backgroundColor: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
+                          {['Type', 'Vigency', 'Status', 'Value', 'Due Date', 'Pay Date', 'Rec. Date', '% Iron', '% Inv', 'Links', ''].map((h, i) => (
+                            <th key={i} style={{ padding: '0.75rem 1rem', textAlign: i >= 7 && i <= 8 ? 'right' : i === 9 ? 'center' : 'left', fontWeight: 700, fontSize: '0.7rem', color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {taxes.map((tax, idx) => {
+                          const statusName = tax.status || '';
+                          const statusColor = statusName === 'Over Due' ? { bg: '#fef2f2', text: '#dc2626', border: '#fecaca' } : statusName === 'On Time' ? { bg: '#f0fdf4', text: '#16a34a', border: '#bbf7d0' } : { bg: '#f1f5f9', text: '#475569', border: '#e2e8f0' };
+                          const fmtDate = (d: string) => d ? new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }) : '—';
+                          const fmtMoney = (v: any) => v != null && v !== '' ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(v)) : '—';
+                          return (
+                            <tr key={tax.id} style={{ borderBottom: idx < taxes.length - 1 ? '1px solid #f1f5f9' : 'none', backgroundColor: editingTaxId === tax.id ? '#fffbeb' : 'white' }}>
+                              <td style={{ padding: '0.875rem 1rem', fontWeight: 600, color: '#0f172a', whiteSpace: 'nowrap' }}>{tax.type_tax || '—'}</td>
+                              <td style={{ padding: '0.875rem 1rem', color: '#475569', whiteSpace: 'nowrap' }}>{tax.vigency || '—'}</td>
+                              <td style={{ padding: '0.875rem 1rem', whiteSpace: 'nowrap' }}>
+                                {statusName ? (
+                                  <span style={{ padding: '0.2rem 0.6rem', borderRadius: '20px', fontSize: '0.72rem', fontWeight: 700, backgroundColor: statusColor.bg, color: statusColor.text, border: `1px solid ${statusColor.border}` }}>{statusName}</span>
+                                ) : '—'}
+                              </td>
+                              <td style={{ padding: '0.875rem 1rem', color: '#0f172a', fontWeight: 600, whiteSpace: 'nowrap' }}>{fmtMoney(tax.value)}</td>
+                              <td style={{ padding: '0.875rem 1rem', color: '#475569', whiteSpace: 'nowrap' }}>{fmtDate(tax.due_date)}</td>
+                              <td style={{ padding: '0.875rem 1rem', color: '#475569', whiteSpace: 'nowrap' }}>{fmtDate(tax.pay_date)}</td>
+                              <td style={{ padding: '0.875rem 1rem', color: '#475569', whiteSpace: 'nowrap' }}>{fmtDate(tax.received_date)}</td>
+                              <td style={{ padding: '0.875rem 1rem', color: '#475569', textAlign: 'right', whiteSpace: 'nowrap' }}>{tax.perc_iron != null ? `${tax.perc_iron}%` : '—'}</td>
+                              <td style={{ padding: '0.875rem 1rem', color: '#475569', textAlign: 'right', whiteSpace: 'nowrap' }}>{tax.perc_inv != null ? `${tax.perc_inv}%` : '—'}</td>
+                              <td style={{ padding: '0.875rem 1rem', textAlign: 'center' }}>
+                                <div style={{ display: 'flex', gap: '0.35rem', justifyContent: 'center' }}>
+                                  {[{ url: tax.link_bill, label: 'Bill' }, { url: tax.link_proof, label: 'Proof' }, { url: tax.link_advalorem, label: 'Ad Val.' }].map(({ url, label }) =>
+                                    url ? (
+                                      <a key={label} href={url.startsWith('http') ? url : `https://${url}`} target="_blank" rel="noopener noreferrer" title={label}
+                                        style={{ fontSize: '0.65rem', fontWeight: 700, padding: '0.15rem 0.45rem', borderRadius: '4px', backgroundColor: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', whiteSpace: 'nowrap', textDecoration: 'none' }}>
+                                        {label}
+                                      </a>
+                                    ) : null
+                                  )}
+                                </div>
+                              </td>
+                              <td style={{ padding: '0.875rem 1rem', whiteSpace: 'nowrap' }}>
+                                <div style={{ display: 'flex', gap: '0.25rem', justifyContent: 'flex-end' }}>
+                                  <button onClick={() => handleEditTax(tax)} title="Edit" style={{ background: 'none', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '0.3rem', cursor: 'pointer', color: '#64748b', display: 'flex', alignItems: 'center' }}>
+                                    <FileText className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button onClick={() => handleDeleteTax(tax.id)} title="Delete" style={{ background: 'none', border: '1px solid #fecaca', borderRadius: '6px', padding: '0.3rem', cursor: 'pointer', color: '#dc2626', display: 'flex', alignItems: 'center' }}>
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             </div>
           )}

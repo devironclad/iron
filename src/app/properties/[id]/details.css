@@ -167,9 +167,10 @@
   padding: 2rem 0;
   background-color: white;
   border-right: 2px solid rgba(16, 185, 129, 0.1); /* Opaque green line */
-  /* Changed to visible to allow tooltips to overflow */
-  overflow: visible; 
+  overflow: visible;
   border-bottom-left-radius: 20px; /* Match container */
+  position: relative;
+  z-index: 10;
 }
 
 /* Sidebar Section Title hidden for minimalist icon look */
@@ -256,7 +257,7 @@
 
 /* Content Area */
 .tab-content {
-  padding: 3rem 4rem;
+  padding: 3rem 4rem 8rem 4rem;
   overflow-y: auto;
   background-color: #f8fafc;
 }
@@ -587,3 +588,23 @@
   color: #ef4444;
   transform: scale(1.1);
 }
+
+/* Readonly & Disabled Fields Styling */
+.input-field:disabled,
+.input-field[readonly] {
+  background-color: #f1f5f9;
+  color: #64748b;
+  cursor: not-allowed;
+  border-color: #e2e8f0;
+}
+
+.input-field:disabled:focus,
+.input-field[readonly]:focus {
+  border-color: #e2e8f0;
+  box-shadow: none;
+}
+
+.cost-table-row:hover {
+  background-color: #f8fafc;
+}
+

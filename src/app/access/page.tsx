@@ -30,13 +30,15 @@ const RESOURCES = [
   { id: "page:manager", label: "Manager Page", category: "Pages" },
   { id: "page:access", label: "Access Control Page", category: "Pages" },
   { id: "page:settings", label: "Settings Page", category: "Pages" },
-  { id: "tab:general", label: "Property: General Tab", category: "Property Tabs" },
-  { id: "tab:location", label: "Property: Location Tab", category: "Property Tabs" },
-  { id: "tab:attributes", label: "Property: Attributes Tab", category: "Property Tabs" },
-  { id: "tab:financials", label: "Property: Financials Tab", category: "Property Tabs" },
-  { id: "tab:acquisition", label: "Property: Acquisition Tab", category: "Property Tabs" },
-  { id: "tab:amenities", label: "Property: Amenities Tab", category: "Property Tabs" },
-  { id: "tab:links", label: "Property: Links Tab", category: "Property Tabs" },
+  { id: "tab:general",      label: "Property: Research Tab",       category: "Property Tabs" },
+  { id: "tab:amenities",   label: "Property: Amenities Tab",      category: "Property Tabs" },
+  { id: "tab:values",      label: "Property: Values Tab",         category: "Property Tabs" },
+  { id: "tab:acquisition", label: "Property: Development Tab",    category: "Property Tabs" },
+  { id: "tab:docs",        label: "Property: Documentation Tab",  category: "Property Tabs" },
+  { id: "tab:tax",         label: "Property: Tax Tab",            category: "Property Tabs" },
+  { id: "tab:sales",       label: "Property: Sales Tab",          category: "Property Tabs" },
+  { id: "tab:strategy",    label: "Property: Strategy Tab",       category: "Property Tabs" },
+  { id: "tab:links",       label: "Property: Marketing Tab",      category: "Property Tabs" },
   // Manager Tables
   { id: "table:ls_origem", label: "Manager: Origem", category: "Manager Tables" },
   { id: "table:ls_status", label: "Manager: Status", category: "Manager Tables" },
@@ -90,7 +92,7 @@ export default function AccessPage() {
       const { data: userData, error: userError } = await supabase
         .from("ls_users_metadata")
         .select(`
-          *,
+          id, email, full_name, avatar_url, user_type,
           ls_user_profiles(profile_id)
         `);
       
@@ -156,6 +158,24 @@ export default function AccessPage() {
       setMessage({ type: 'error', text: "Error saving permissions: " + err.message });
     } finally {
       setSaving(false);
+      setTimeout(() => setMessage(null), 3000);
+    }
+  }
+
+  async function updateUserType(userId: string, userType: string) {
+    try {
+      const { error } = await supabase
+        .from("ls_users_metadata")
+        .update({ user_type: userType })
+        .eq("id", userId);
+
+      if (error) throw error;
+
+      setUsers((prev: any[]) => prev.map(u => u.id === userId ? { ...u, user_type: userType } : u));
+      setMessage({ type: 'success', text: "User type updated!" });
+    } catch (err: any) {
+      setMessage({ type: 'error', text: "Error updating user type: " + err.message });
+    } finally {
       setTimeout(() => setMessage(null), 3000);
     }
   }
@@ -449,6 +469,7 @@ export default function AccessPage() {
                   <tr>
                     <th>User Information</th>
                     <th>Email</th>
+                    <th>Type</th>
                     <th>Assigned Profile</th>
                     <th className="center">Actions</th>
                   </tr>
@@ -479,7 +500,17 @@ export default function AccessPage() {
                           </div>
                         </td>
                         <td>
-                          <select 
+                          <select
+                            className="profile-select"
+                            value={u.user_type || "employee"}
+                            onChange={(e) => updateUserType(u.id, e.target.value)}
+                          >
+                            <option value="employee">Employee</option>
+                            <option value="partner">Partner</option>
+                          </select>
+                        </td>
+                        <td>
+                          <select
                             className="profile-select"
                             value={u.ls_user_profiles?.profile_id || ""}
                             onChange={(e) => updateUserProfile(u.id, e.target.value)}
