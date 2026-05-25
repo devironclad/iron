@@ -128,13 +128,25 @@ export default function AuctionsPage() {
   }, []);
 
   useEffect(() => {
-    if (!highlightId || auctions.length === 0) return;
+    if (!highlightId || auctions.length === 0 || loading) return;
     const timer = setTimeout(() => {
       const el = document.getElementById(`auction-${highlightId}`);
-      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }, 100);
+      if (!el) return;
+      // Scroll the page-content container explicitly (scrollIntoView is unreliable with custom scroll containers)
+      const container = document.querySelector('.page-content') as HTMLElement | null;
+      if (container) {
+        const containerRect = container.getBoundingClientRect();
+        const elRect = el.getBoundingClientRect();
+        container.scrollTo({
+          top: container.scrollTop + elRect.top - containerRect.top - containerRect.height / 2 + elRect.height / 2,
+          behavior: 'smooth',
+        });
+      } else {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 250);
     return () => clearTimeout(timer);
-  }, [auctions, highlightId]);
+  }, [auctions, highlightId, loading]);
 
   const handleViewModeChange = (mode: "grid" | "list") => {
     setViewMode(mode);

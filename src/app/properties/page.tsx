@@ -22,7 +22,7 @@ export default function PropertiesPage() {
 
   const searchParams = useSearchParams();
   const router = useRouter();
-  const highlightId = searchParams.get('highlight');
+  const [highlightId, setHighlightId] = useState<string | null>(null);
   const [highlightedRow, setHighlightedRow] = useState<string | null>(null);
   const [toastMsg, setToastMsg] = useState<{ title: string, desc: string } | null>(null);
   
@@ -92,45 +92,56 @@ export default function PropertiesPage() {
     }
   }, [searchParams, router]);
 
+  // Read highlight ID from sessionStorage on mount (avoids Next.js router cache issues)
   useEffect(() => {
-    if (!highlightId) return;
+    const stored = sessionStorage.getItem('highlightId');
+    if (!stored) return;
+    sessionStorage.removeItem('highlightId');
 
-    setHighlightedRow(highlightId);
+    setHighlightId(stored);
+    setHighlightedRow(stored);
+
     const timer = setTimeout(() => {
       setHighlightedRow(null);
-      const newUrl = new URL(window.location.href);
-      newUrl.searchParams.delete('highlight');
-      router.replace(newUrl.pathname + newUrl.search, { scroll: false });
+      setHighlightId(null);
     }, 4000);
 
-    // Find which page contains this property and jump to it.
-    // The list is ordered by id DESC, so we count records with id > highlightId
-    // to determine its rank, then derive the page number.
-    async function jumpToPage() {
+    // Jump to the correct page, then scroll to the card
+    async function jumpToPageAndScroll() {
       const { count } = await supabase
         .from('ls_assets')
         .select('id', { count: 'exact', head: true })
         .eq('record_type', 'PROPERTY')
-        .gt('id', Number(highlightId));
+        .gt('id', Number(stored));
 
-      if (count !== null) {
-        const targetPage = Math.ceil((count + 1) / ITEMS_PER_PAGE);
-        setCurrentPage(targetPage);
-      }
+      const targetPage = count !== null ? Math.ceil((count + 1) / ITEMS_PER_PAGE) : 1;
+      setCurrentPage(targetPage);
     }
-    jumpToPage();
+    jumpToPageAndScroll();
 
     return () => clearTimeout(timer);
-  }, [highlightId, router]);
+  }, []); // mount only — sessionStorage is read once
 
   useEffect(() => {
-    if (!highlightId || properties.length === 0) return;
+    if (!highlightId || properties.length === 0 || loading) return;
     const timer = setTimeout(() => {
       const el = document.getElementById(`property-${highlightId}`);
-      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }, 100);
+      if (!el) return;
+      // Scroll the page-content container explicitly (scrollIntoView is unreliable with custom scroll containers)
+      const container = document.querySelector('.page-content') as HTMLElement | null;
+      if (container) {
+        const containerRect = container.getBoundingClientRect();
+        const elRect = el.getBoundingClientRect();
+        container.scrollTo({
+          top: container.scrollTop + elRect.top - containerRect.top - containerRect.height / 2 + elRect.height / 2,
+          behavior: 'smooth',
+        });
+      } else {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 250);
     return () => clearTimeout(timer);
-  }, [properties, highlightId]);
+  }, [properties, highlightId, loading]);
 
   useEffect(() => {
     fetchProperties();
