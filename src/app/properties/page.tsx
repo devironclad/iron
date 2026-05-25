@@ -87,18 +87,11 @@ export default function PropertiesPage() {
     return () => clearTimeout(timer);
   }, []);
 
-  // Highlight + scroll: find the card updated in the last 30s — no URL params needed
+  // Scroll to card when recentCardId is set (fires after DOM is updated with new state)
   useEffect(() => {
-    if (loading || properties.length === 0) return;
-    const RECENT_MS = 30_000;
-    const recent = properties.find(
-      p => p.updated_at && Date.now() - new Date(p.updated_at).getTime() < RECENT_MS
-    );
-    if (!recent) return;
-    setRecentCardId(recent.id);
-    // Scroll to it
+    if (!recentCardId) return;
     const timer = setTimeout(() => {
-      const el = document.getElementById(`property-${recent.id}`);
+      const el = document.getElementById(`property-${recentCardId}`);
       if (!el) return;
       const container = document.querySelector('.page-content') as HTMLElement | null;
       if (container) {
@@ -111,11 +104,9 @@ export default function PropertiesPage() {
       } else {
         el.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
-    }, 250);
-    // Clear highlight after 30s
-    const clearTimer = setTimeout(() => setRecentCardId(null), RECENT_MS);
-    return () => { clearTimeout(timer); clearTimeout(clearTimer); };
-  }, [properties, loading]);
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [recentCardId]);
 
   useEffect(() => {
     fetchProperties();
@@ -245,6 +236,18 @@ export default function PropertiesPage() {
       if (error) throw error;
       setProperties(data || []);
       setTotalCount(count || 0);
+
+      // Check localStorage for a pending highlight (set by the edit page before redirecting)
+      // Reading here guarantees data is available and the card exists in current results
+      const pendingId = localStorage.getItem('pendingHighlightId');
+      if (pendingId) {
+        const numId = Number(pendingId);
+        if ((data || []).some((p: any) => p.id === numId)) {
+          localStorage.removeItem('pendingHighlightId');
+          setRecentCardId(numId);
+          setTimeout(() => setRecentCardId(null), 30_000);
+        }
+      }
     } catch (err) {
       console.error("Error fetching properties:", err);
     } finally {

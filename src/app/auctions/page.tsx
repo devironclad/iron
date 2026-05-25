@@ -100,18 +100,11 @@ export default function AuctionsPage() {
     return () => clearTimeout(timer);
   }, []);
 
-  // Highlight + scroll: find the card updated in the last 30s — no URL params needed
+  // Scroll to card when recentCardId is set (fires after DOM is updated)
   useEffect(() => {
-    if (loading || auctions.length === 0) return;
-    const RECENT_MS = 30_000;
-    const recent = auctions.find(
-      a => a.updated_at && Date.now() - new Date(a.updated_at).getTime() < RECENT_MS
-    );
-    if (!recent) return;
-    setRecentCardId(recent.id);
-    // Scroll to it
+    if (!recentCardId) return;
     const timer = setTimeout(() => {
-      const el = document.getElementById(`auction-${recent.id}`);
+      const el = document.getElementById(`auction-${recentCardId}`);
       if (!el) return;
       const container = document.querySelector('.page-content') as HTMLElement | null;
       if (container) {
@@ -124,11 +117,9 @@ export default function AuctionsPage() {
       } else {
         el.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
-    }, 250);
-    // Clear highlight after 30s
-    const clearTimer = setTimeout(() => setRecentCardId(null), RECENT_MS);
-    return () => { clearTimeout(timer); clearTimeout(clearTimer); };
-  }, [auctions, loading]);
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [recentCardId]);
 
   const handleViewModeChange = (mode: "grid" | "list") => {
     setViewMode(mode);
@@ -232,6 +223,17 @@ export default function AuctionsPage() {
       }
       setAuctions(data || []);
       setTotalCount(count || 0);
+
+      // Check localStorage for a pending highlight (set by the edit page before redirecting)
+      const pendingId = localStorage.getItem('pendingHighlightId');
+      if (pendingId) {
+        const numId = Number(pendingId);
+        if ((data || []).some((a: any) => a.id === numId)) {
+          localStorage.removeItem('pendingHighlightId');
+          setRecentCardId(numId);
+          setTimeout(() => setRecentCardId(null), 30_000);
+        }
+      }
     } catch (err: any) {
       console.error("Error fetching auctions:", err.message || err);
     } finally {

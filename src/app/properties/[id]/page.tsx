@@ -459,6 +459,7 @@ export default function PropertyDetailsPage() {
       const { error } = await supabase.from('ls_assets').update(payload).eq('id', id);
       if (error) throw error;
       
+      localStorage.setItem('pendingHighlightId', String(id));
       window.location.href = `/properties?action=updated`;
     } catch (err: any) {
       console.error(err);
