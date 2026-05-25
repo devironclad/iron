@@ -22,8 +22,7 @@ export default function PropertiesPage() {
 
   const searchParams = useSearchParams();
   const router = useRouter();
-  // highlight comes directly from URL — reliable because window.location.href forces a full reload
-  const highlightId = searchParams.get('highlight');
+  const [highlightId, setHighlightId] = useState<string | null>(null);
   const [highlightedRow, setHighlightedRow] = useState<string | null>(null);
   const [toastMsg, setToastMsg] = useState<{ title: string, desc: string } | null>(null);
   
@@ -72,9 +71,13 @@ export default function PropertiesPage() {
     fetchLookups();
   }, []);
 
+  // Mount-only — reads window.location.search directly, bypassing useSearchParams()
+  // which can be empty during SSR/hydration on static pages in production.
+  // Safe because window.location.href (used on save) always forces a full reload.
   useEffect(() => {
-    const action = searchParams.get('action');
-    if (!action) return;
+    const params = new URLSearchParams(window.location.search);
+    const highlight = params.get('highlight');
+    const action = params.get('action');
 
     if (action === 'updated') {
       setToastMsg({ title: "Successfully Updated", desc: "The property record was successfully updated." });
@@ -82,24 +85,21 @@ export default function PropertiesPage() {
       setToastMsg({ title: "Successfully Created", desc: "A new property record was successfully registered." });
     }
 
-    const toastTimer = setTimeout(() => {
-      setToastMsg(null);
-      const newUrl = new URL(window.location.href);
-      newUrl.searchParams.delete('action');
-      newUrl.searchParams.delete('highlight');
-      router.replace(newUrl.pathname + newUrl.search, { scroll: false });
-    }, 4000);
+    if (highlight) {
+      setHighlightId(highlight);
+      setHighlightedRow(highlight);
+    }
 
-    return () => clearTimeout(toastTimer);
-  }, [searchParams, router]);
-
-  // Activate highlight badge when highlightId arrives in URL
-  useEffect(() => {
-    if (!highlightId) return;
-    setHighlightedRow(highlightId);
-    const timer = setTimeout(() => setHighlightedRow(null), 4000);
-    return () => clearTimeout(timer);
-  }, [highlightId]);
+    if (action || highlight) {
+      const timer = setTimeout(() => {
+        setToastMsg(null);
+        setHighlightedRow(null);
+        setHighlightId(null);
+        window.history.replaceState(null, '', window.location.pathname);
+      }, 4000);
+      return () => clearTimeout(timer);
+    }
+  }, []);
 
   // Scroll to highlighted card once data is loaded and cards are rendered
   useEffect(() => {
