@@ -23,7 +23,7 @@ export default function AuctionsPage() {
 
   const searchParams = useSearchParams();
   const router = useRouter();
-  const highlightId = searchParams.get('highlight');
+  const [highlightId, setHighlightId] = useState<string | null>(null);
   const [highlightedRow, setHighlightedRow] = useState<string | null>(null);
   const [totalCount, setTotalCount] = useState(0);
   const [auctionToDelete, setAuctionToDelete] = useState<{id: number, parcel: string} | null>(null);
@@ -103,15 +103,38 @@ export default function AuctionsPage() {
     }
   }, [searchParams, router]);
 
+  // Mount-only: read sessionStorage for post-save highlight (works in production with Next.js router cache)
   useEffect(() => {
-    if (highlightId) {
-      setHighlightedRow(highlightId);
-      const timer = setTimeout(() => {
-        setHighlightedRow(null);
-      }, 3000);
-      return () => clearTimeout(timer);
+    const stored = sessionStorage.getItem('highlightId');
+    if (!stored) return;
+    sessionStorage.removeItem('highlightId');
+    setHighlightId(stored);
+    setHighlightedRow(stored);
+    const timer = setTimeout(() => {
+      setHighlightedRow(null);
+      setHighlightId(null);
+    }, 4000);
+    async function jumpToPageAndScroll() {
+      const { count } = await supabase
+        .from('ls_assets')
+        .select('id', { count: 'exact', head: true })
+        .eq('record_type', 'AUCTION')
+        .gt('id', Number(stored));
+      const targetPage = count !== null ? Math.ceil((count + 1) / ITEMS_PER_PAGE) : 1;
+      setCurrentPage(targetPage);
     }
-  }, [highlightId]);
+    jumpToPageAndScroll();
+    return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    if (!highlightId || auctions.length === 0) return;
+    const timer = setTimeout(() => {
+      const el = document.getElementById(`auction-${highlightId}`);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [auctions, highlightId]);
 
   const handleViewModeChange = (mode: "grid" | "list") => {
     setViewMode(mode);
@@ -616,6 +639,7 @@ export default function AuctionsPage() {
             return (
               <div
                 key={auction.id}
+                id={`auction-${auction.id}`}
                 className="auction-card"
                 style={isHighlighted ? {
                   boxShadow: '0 0 25px 8px rgba(59, 130, 246, 0.4), 0 0 0 2px #3b82f6',
@@ -744,6 +768,7 @@ export default function AuctionsPage() {
               return (
                 <tr
                   key={auction.id}
+                  id={`auction-${auction.id}`}
                   style={isHighlighted ? {
                     backgroundColor: '#eff6ff',
                     boxShadow: 'inset 0 0 15px rgba(59, 130, 246, 0.3)',
