@@ -73,54 +73,48 @@ export default function PropertiesPage() {
 
   useEffect(() => {
     const action = searchParams.get('action');
+    if (!action) return;
+
+    // Toast
     if (action === 'updated') {
       setToastMsg({ title: "Successfully Updated", desc: "The property record was successfully updated." });
     } else if (action === 'created') {
       setToastMsg({ title: "Successfully Created", desc: "A new property record was successfully registered." });
     }
 
-    if (action) {
-      const toastTimer = setTimeout(() => {
-        setToastMsg(null);
-        // Clean up the URL using Next.js router
-        const newUrl = new URL(window.location.href);
-        newUrl.searchParams.delete('action');
-        router.replace(newUrl.pathname + newUrl.search, { scroll: false });
-      }, 2000);
-
-      return () => clearTimeout(toastTimer);
-    }
-  }, [searchParams, router]);
-
-  // Read highlight ID from sessionStorage on mount (avoids Next.js router cache issues)
-  useEffect(() => {
+    // Highlight — tied to searchParams so it fires reliably even when
+    // Next.js router cache reuses the component instance (mount-only effects don't fire in that case)
     const stored = sessionStorage.getItem('highlightId');
-    if (!stored) return;
-    sessionStorage.removeItem('highlightId');
-
-    setHighlightId(stored);
-    setHighlightedRow(stored);
-
-    const timer = setTimeout(() => {
-      setHighlightedRow(null);
-      setHighlightId(null);
-    }, 4000);
-
-    // Jump to the correct page, then scroll to the card
-    async function jumpToPageAndScroll() {
-      const { count } = await supabase
-        .from('ls_assets')
-        .select('id', { count: 'exact', head: true })
-        .eq('record_type', 'PROPERTY')
-        .gt('id', Number(stored));
-
-      const targetPage = count !== null ? Math.ceil((count + 1) / ITEMS_PER_PAGE) : 1;
-      setCurrentPage(targetPage);
+    if (stored) {
+      sessionStorage.removeItem('highlightId');
+      setHighlightId(stored);
+      setHighlightedRow(stored);
+      setTimeout(() => {
+        setHighlightedRow(null);
+        setHighlightId(null);
+      }, 4000);
+      // Jump to the correct pagination page
+      (async () => {
+        const { count } = await supabase
+          .from('ls_assets')
+          .select('id', { count: 'exact', head: true })
+          .eq('record_type', 'PROPERTY')
+          .gt('id', Number(stored));
+        const targetPage = count !== null ? Math.ceil((count + 1) / ITEMS_PER_PAGE) : 1;
+        setCurrentPage(targetPage);
+      })();
     }
-    jumpToPageAndScroll();
 
-    return () => clearTimeout(timer);
-  }, []); // mount only — sessionStorage is read once
+    // Clean up URL after toast
+    const toastTimer = setTimeout(() => {
+      setToastMsg(null);
+      const newUrl = new URL(window.location.href);
+      newUrl.searchParams.delete('action');
+      router.replace(newUrl.pathname + newUrl.search, { scroll: false });
+    }, 2000);
+
+    return () => clearTimeout(toastTimer);
+  }, [searchParams, router]);
 
   useEffect(() => {
     if (!highlightId || properties.length === 0 || loading) return;
