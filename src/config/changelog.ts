@@ -6,9 +6,27 @@ export interface ChangelogItem {
   changes: string[];
 }
 
-export const CURRENT_VERSION = "1.2.0";
+export const CURRENT_VERSION = "1.3.0";
 
 export const CHANGELOG: ChangelogItem[] = [
+  {
+    version: "1.3.0",
+    date: "2026-05-27",
+    title: "Property Photos, Requests UX & Bug Fixes",
+    type: "minor",
+    changes: [
+      "Property cards now display a lateral photo thumbnail with Next.js Image optimization.",
+      "Photo upload added to property edit page (max 1 MB, stored in Supabase Storage).",
+      "New request form: fields reordered and property selector unlocked via toggle 'Relate property?'.",
+      "Property dropdown in requests now displays in PRP-XXXX format.",
+      "Assignees see an in-page banner reminding them to move Open requests to In Progress.",
+      "Open and In Progress statuses hidden from the request status change dropdown.",
+      "Fixed auth lock race condition in NotificationBell (getUser → getSession).",
+      "Fixed silent no-op bug in 'Mark as In Progress' action.",
+      "Fixed photo URL cache-buster being permanently stored in the database.",
+      "Extracted formatPropId to shared utility — removed 4 duplicate implementations."
+    ]
+  },
   {
     version: "1.2.0",
     date: "2026-05-18",
