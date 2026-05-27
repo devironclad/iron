@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
+import NextImage from "next/image";
+import { formatPropId } from "@/lib/utils";
 import { 
   ArrowLeft, 
   Save, 
@@ -156,6 +158,8 @@ export default function PropertyDetailsPage() {
   const [saving, setSaving] = useState(false);
   const [savedOk, setSavedOk] = useState(false);
   const [property, setProperty] = useState<any>(null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const photoInputRef = useRef<HTMLInputElement>(null);
   const [lookups, setLookups] = useState<Record<string, any[]>>({});
   const [permissions, setPermissions] = useState<any>(null);
   const [partners, setPartners] = useState<any[]>([]);
@@ -568,12 +572,6 @@ export default function PropertyDetailsPage() {
     setShowTaxForm(true);
   };
 
-  const formatPropId = (ref_id: any) => {
-    if (ref_id && !isNaN(Number(ref_id))) {
-      return `PRP-${Number(ref_id).toString().padStart(4, '0')}`;
-    }
-    return "Not Assigned";
-  };
 
   if (loading) {
     return (
@@ -583,6 +581,50 @@ export default function PropertyDetailsPage() {
       </div>
     );
   }
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 1 * 1024 * 1024) {
+      alert("Photo must be 1 MB or smaller.");
+      e.target.value = "";
+      return;
+    }
+
+    setUploadingPhoto(true);
+    try {
+      const ext = file.name.split('.').pop();
+      const path = `${id}/photo.${ext}`;
+
+      const { error: upErr } = await supabase.storage
+        .from("property-photos")
+        .upload(path, file, { upsert: true });
+
+      if (upErr) throw upErr;
+
+      const { data: urlData } = supabase.storage
+        .from("property-photos")
+        .getPublicUrl(path);
+
+      const cleanUrl = urlData.publicUrl;
+
+      const { error: dbErr } = await supabase
+        .from("ls_assets")
+        .update({ photo_url: cleanUrl })
+        .eq("id", id);
+
+      if (dbErr) throw dbErr;
+
+      // Cache-bust only in local state so the new image loads immediately
+      setProperty((prev: any) => ({ ...prev, photo_url: `${cleanUrl}?t=${Date.now()}` }));
+    } catch (err: any) {
+      alert("Upload failed: " + err.message);
+    } finally {
+      setUploadingPhoto(false);
+      e.target.value = "";
+    }
+  };
 
   const businessId = formatPropId(property?.ref_id);
 
@@ -634,6 +676,7 @@ export default function PropertyDetailsPage() {
               
               <div style={{ margin: '0 1rem 1rem 1rem' }}>
                 <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', marginBottom: '1.25rem' }}>ID and Qualities</h3>
+
                 <div className="form-grid col-3">
                   <div className="input-group">
                     <label className="input-label">Origin</label>
@@ -751,6 +794,43 @@ export default function PropertyDetailsPage() {
                   <div className="input-group" style={{ gridColumn: 'span 3' }}>
                     <label className="input-label">Observations</label>
                     <textarea name="observation" value={property.observation} onChange={handleChange} className="input-field" rows={3} style={{ resize: 'vertical' }} />
+                  </div>
+                </div>
+
+                {/* ── PHOTO UPLOAD ── */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', marginTop: '1.25rem', padding: '1rem', backgroundColor: '#f8fafc', borderRadius: '0.75rem', border: '1px solid #e2e8f0' }}>
+                  <div style={{ width: '120px', height: '80px', borderRadius: '0.5rem', overflow: 'hidden', flexShrink: 0, backgroundColor: '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    {property.photo_url ? (
+                      <NextImage
+                        src={property.photo_url}
+                        alt="Property photo"
+                        width={120}
+                        height={80}
+                        style={{ objectFit: 'cover', width: '100%', height: '100%' }}
+                      />
+                    ) : (
+                      <span style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 600, textAlign: 'center', padding: '0.5rem' }}>No photo</span>
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                    <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#0f172a' }}>Property Photo</span>
+                    <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Max 1 MB · JPG, PNG or WebP</span>
+                    <input
+                      ref={photoInputRef}
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      style={{ display: 'none' }}
+                      onChange={handlePhotoUpload}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => photoInputRef.current?.click()}
+                      disabled={uploadingPhoto}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.4rem 0.9rem', backgroundColor: 'white', border: '1.5px solid #cbd5e1', borderRadius: '0.5rem', fontSize: '0.8rem', fontWeight: 600, color: '#334155', cursor: 'pointer' }}
+                    >
+                      {uploadingPhoto ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                      {uploadingPhoto ? 'Uploading...' : property.photo_url ? 'Change Photo' : 'Upload Photo'}
+                    </button>
                   </div>
                 </div>
               </div>

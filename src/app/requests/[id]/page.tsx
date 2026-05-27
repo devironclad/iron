@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useRef, use } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Send, MessageSquareText, Info, Loader2, Save, Trash2 } from "lucide-react";
+import { ArrowLeft, Send, MessageSquareText, Info, Loader2, Save, Trash2, AlertTriangle } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { formatPropId } from "@/lib/utils";
 import { PermissionGuard } from "@/components/auth/PermissionGuard";
 import "../../auctions/new/form.css";
 import "../../properties/[id]/details.css";
@@ -60,7 +61,7 @@ export default function RequestDetailPage(props: { params: Promise<{ id: string 
       setSelectedStatus(reqData.status_id);
 
       // 3. Fetch Statuses for dropdown
-      const { data: statData } = await supabase.from("ls_request_status").select("*").order("name");
+      const { data: statData } = await supabase.from("ls_request_status").select("*").not("name", "in", '("Open","In Progress")').order("name");
       setStatuses(statData || []);
 
       // 4. Fetch Comments
@@ -124,6 +125,33 @@ export default function RequestDetailPage(props: { params: Promise<{ id: string 
     }
   };
 
+  const handleMarkInProgress = async () => {
+    if (!currentUser) return;
+    setSaving(true);
+    try {
+      const { data: statusRow } = await supabase
+        .from("ls_request_status")
+        .select("id, name")
+        .eq("name", "In Progress")
+        .single();
+
+      if (!statusRow) throw new Error("Status 'In Progress' not found.");
+
+      await supabase.from("ls_requests").update({ status_id: statusRow.id }).eq("id", params.id);
+      await supabase.from("ls_request_comments").insert({
+        request_id: params.id,
+        author_id: currentUser.id,
+        content: `Status changed to: ${statusRow.name}`,
+        is_system: true
+      });
+      fetchData();
+    } catch (err: any) {
+      console.error("Error updating status:", err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleStatusChange = async () => {
     if (selectedStatus === request.status_id || !currentUser) return;
     
@@ -176,28 +204,24 @@ export default function RequestDetailPage(props: { params: Promise<{ id: string 
     return new Date(dateStr).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
   };
   
-  const formatPropId = (ref_id: any, id: any) => {
-    if (ref_id && !isNaN(Number(ref_id))) {
-      return `PRP-${Number(ref_id).toString().padStart(4, '0')}`;
-    }
-    return `ID: ${id}`;
-  };
 
   return (
     <PermissionGuard resource="page:requests">
       <div className="requests-container" style={{ paddingBottom: '6rem' }}>
         
-        <div className="details-header" style={{ marginBottom: '1rem', padding: '0' }}>
+        <div className="details-header" style={{ marginBottom: '1rem', height: '90px', padding: '0 2.5rem' }}>
           <div className="header-left">
             <button onClick={() => router.push('/requests')} className="back-btn">
               <ArrowLeft className="w-5 h-5" />
             </button>
             <div className="header-title-area">
-              <div className="id-badge" style={{ backgroundColor: '#f1f5f9', color: '#475569', fontWeight: 700 }}>
-                REQ-{request.id}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div className="id-badge" style={{ backgroundColor: '#f1f5f9', color: '#475569', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                  REQ-{request.id}
+                </div>
+                <h1 className="header-title" style={{ fontSize: '1.5rem', margin: 0 }}>{request.title}</h1>
               </div>
-              <h1 className="header-title" style={{ fontSize: '1.5rem' }}>{request.title}</h1>
-              <div className="header-subtitle" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '0.25rem' }}>
+              <div className="header-subtitle" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '0.4rem' }}>
                 <span className="badge" style={{ backgroundColor: request.status?.color ? `${request.status.color}20` : '#f1f5f9', color: request.status?.color || '#475569', padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}>
                   {request.status?.name}
                 </span>
@@ -209,6 +233,38 @@ export default function RequestDetailPage(props: { params: Promise<{ id: string 
             </div>
           </div>
         </div>
+
+        {request.assignee_id === currentUser?.id && request.status?.name === "Open" && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: '1rem',
+            backgroundColor: '#fffbeb', border: '1.5px solid #f59e0b',
+            borderRadius: '0.75rem', padding: '0.875rem 1.25rem', marginBottom: '1rem',
+            flexWrap: 'wrap'
+          }}>
+            <AlertTriangle className="w-5 h-5" style={{ color: '#d97706', flexShrink: 0 }} />
+            <div style={{ flex: 1, minWidth: '200px' }}>
+              <span style={{ fontWeight: 700, color: '#92400e', fontSize: '0.9rem' }}>
+                This request is assigned to you and still open.
+              </span>
+              <span style={{ color: '#b45309', fontSize: '0.85rem', marginLeft: '0.4rem' }}>
+                Have you started working on it? Update the status to keep the team informed.
+              </span>
+            </div>
+            <button
+              onClick={handleMarkInProgress}
+              disabled={saving}
+              style={{
+                backgroundColor: '#f59e0b', color: 'white', border: 'none',
+                borderRadius: '0.5rem', padding: '0.5rem 1rem',
+                fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0
+              }}
+            >
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+              Mark as In Progress
+            </button>
+          </div>
+        )}
 
         <div className="request-detail-layout">
           

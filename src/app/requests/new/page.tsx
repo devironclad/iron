@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { X, Save, Loader2, ArrowLeft } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { formatPropId } from "@/lib/utils";
 import { PermissionGuard } from "@/components/auth/PermissionGuard";
 
 // We can reuse the form.css from auctions if it matches the global style, 
@@ -21,6 +22,8 @@ export default function NewRequestPage() {
     assets: []
   });
 
+  const [relateProperty, setRelateProperty] = useState(false);
+
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -36,7 +39,7 @@ export default function NewRequestPage() {
         supabase.from("ls_users_metadata").select("id, full_name").eq("user_type", "employee").order("full_name"),
         supabase.from("ls_request_category").select("id, name").order("name"),
         supabase.from("ls_request_priority").select("id, name, sla_days").order("name"),
-        supabase.from("ls_assets").select("id, parcel_number, address").eq("record_type", "PROPERTY").limit(500)
+        supabase.from("ls_assets").select("id, ref_id, parcel_number").eq("record_type", "PROPERTY").limit(500)
       ]);
       
       setLookups({
@@ -108,33 +111,33 @@ export default function NewRequestPage() {
           <div className="form-grid col-2">
             <div className="input-group" style={{ gridColumn: 'span 2' }}>
               <label className="input-label">Title <span className="required-star">*</span></label>
-              <input 
-                type="text" 
-                name="title" 
-                value={formData.title} 
-                onChange={handleChange} 
-                className="input-field" 
-                placeholder="Brief summary of the request" 
+              <input
+                type="text"
+                name="title"
+                value={formData.title}
+                onChange={handleChange}
+                className="input-field"
+                placeholder="Brief summary of the request"
               />
             </div>
 
             <div className="input-group" style={{ gridColumn: 'span 2' }}>
               <label className="input-label">Description</label>
-              <textarea 
-                name="description" 
-                value={formData.description} 
-                onChange={handleChange} 
-                className="input-field" 
-                rows={5} 
+              <textarea
+                name="description"
+                value={formData.description}
+                onChange={handleChange}
+                className="input-field"
+                rows={5}
                 placeholder="Detailed explanation..."
               />
             </div>
 
             <div className="input-group">
-              <label className="input-label">Category <span className="required-star">*</span></label>
-              <select name="category_id" value={formData.category_id} onChange={handleChange} className="input-field">
-                <option value="">Select Category...</option>
-                {lookups.categories.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              <label className="input-label">Assignee</label>
+              <select name="assignee_id" value={formData.assignee_id} onChange={handleChange} className="input-field">
+                <option value="">Unassigned (Leave open)</option>
+                {lookups.users.map((u: any) => <option key={u.id} value={u.id}>{u.full_name}</option>)}
               </select>
             </div>
 
@@ -151,19 +154,57 @@ export default function NewRequestPage() {
             </div>
 
             <div className="input-group">
-              <label className="input-label">Assignee</label>
-              <select name="assignee_id" value={formData.assignee_id} onChange={handleChange} className="input-field">
-                <option value="">Unassigned (Leave open)</option>
-                {lookups.users.map((u: any) => <option key={u.id} value={u.id}>{u.full_name}</option>)}
+              <label className="input-label">Category <span className="required-star">*</span></label>
+              <select name="category_id" value={formData.category_id} onChange={handleChange} className="input-field">
+                <option value="">Select Category...</option>
+                {lookups.categories.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             </div>
 
-            <div className="input-group">
-              <label className="input-label">Link to Property (Optional)</label>
-              <select name="asset_id" value={formData.asset_id} onChange={handleChange} className="input-field">
-                <option value="">None</option>
+            <div className="input-group" style={{ gridColumn: 'span 2' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
+                <label className="input-label" style={{ margin: 0 }}>Link to Property</label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = !relateProperty;
+                    setRelateProperty(next);
+                    if (!next) setFormData(prev => ({ ...prev, asset_id: "" }));
+                  }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '0.4rem',
+                    padding: '0.25rem 0.75rem', borderRadius: '999px', fontSize: '0.78rem', fontWeight: 600,
+                    border: '1.5px solid', cursor: 'pointer', transition: 'all 0.15s',
+                    backgroundColor: relateProperty ? '#0f172a' : 'white',
+                    borderColor: relateProperty ? '#0f172a' : '#cbd5e1',
+                    color: relateProperty ? 'white' : '#64748b',
+                  }}
+                >
+                  <span style={{
+                    width: '28px', height: '16px', borderRadius: '999px', display: 'inline-flex', alignItems: 'center',
+                    backgroundColor: relateProperty ? '#22c55e' : '#cbd5e1', transition: 'background 0.15s',
+                    padding: '2px', flexShrink: 0,
+                  }}>
+                    <span style={{
+                      width: '12px', height: '12px', borderRadius: '50%', backgroundColor: 'white',
+                      transform: relateProperty ? 'translateX(12px)' : 'translateX(0)', transition: 'transform 0.15s',
+                      display: 'block',
+                    }} />
+                  </span>
+                  Relate property?
+                </button>
+              </div>
+              <select
+                name="asset_id"
+                value={formData.asset_id}
+                onChange={handleChange}
+                disabled={!relateProperty}
+                className="input-field"
+                style={{ opacity: relateProperty ? 1 : 0.45, cursor: relateProperty ? 'pointer' : 'not-allowed' }}
+              >
+                <option value="">Select a property...</option>
                 {lookups.assets.map((a: any) => (
-                  <option key={a.id} value={a.id}>{a.parcel_number} {a.address ? `- ${a.address}` : ''}</option>
+                  <option key={a.id} value={a.id}>{formatPropId(a.ref_id)} - {a.parcel_number}</option>
                 ))}
               </select>
             </div>

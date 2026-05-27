@@ -10,6 +10,7 @@ export function NotificationBell() {
   const [notifications, setNotifications] = useState<any[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
@@ -18,8 +19,10 @@ export function NotificationBell() {
     let isMounted = true;
 
     const init = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { session } } = await supabase.auth.getSession();
+      const user = session?.user;
       if (!user || !isMounted) return;
+      setUserId(user.id);
 
       // Fetch initial data
       const { data, error } = await supabase
@@ -75,19 +78,17 @@ export function NotificationBell() {
   }, []);
 
   const fetchNotifications = async () => {
+    if (!userId) return;
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
       const { data, error } = await supabase
         .from("ls_notifications")
         .select("*")
-        .eq("user_id", user.id)
+        .eq("user_id", userId)
         .order("created_at", { ascending: false })
         .limit(10);
 
       if (error) throw error;
-      
+
       setNotifications(data || []);
       setUnreadCount((data || []).filter(n => !n.is_read).length);
     } catch (err) {
@@ -113,16 +114,14 @@ export function NotificationBell() {
   };
 
   const markAllAsRead = async () => {
+    if (!userId) return;
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
       await supabase
         .from("ls_notifications")
         .update({ is_read: true })
-        .eq("user_id", user.id)
+        .eq("user_id", userId)
         .eq("is_read", false);
-        
+
       fetchNotifications();
     } catch (err) {
       console.error("Error marking all as read:", err);

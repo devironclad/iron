@@ -3,11 +3,13 @@
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import NextImage from "next/image";
+import { formatPropId } from "@/lib/utils";
 import {
   Plus, Search, Grid, List, MapPin, Calendar, ExternalLink,
   ArrowRight, Tag, Loader2, Navigation, ChevronLeft, ChevronRight,
   Filter, Layers, Maximize, Hash, CheckCircle2, Building2, UserCheck,
-  Coins, DollarSign, TrendingUp
+  Coins, DollarSign, TrendingUp, ImageOff
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { PermissionGuard } from "@/components/auth/PermissionGuard";
@@ -319,12 +321,6 @@ export default function PropertiesPage() {
 
   const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE);
 
-  const formatPropId = (ref_id: any, id: any) => {
-    if (ref_id && !isNaN(Number(ref_id))) {
-      return `PRP-${Number(ref_id).toString().padStart(4, '0')}`;
-    }
-    return `ID: ${id}`;
-  };
 
   return (
     <PermissionGuard resource="page:properties">
@@ -594,6 +590,31 @@ export default function PropertiesPage() {
                   zIndex: 10
                 } : { transition: 'all 0.3s ease-in-out' }}
               >
+              {/* ── LAYOUT: foto lateral + conteúdo ── */}
+              <div style={{ display: 'flex', gap: '1.25rem', margin: '-1.25rem', padding: '0' }}>
+
+                {/* Foto lateral */}
+                <div style={{ width: '160px', flexShrink: 0, overflow: 'hidden', borderRadius: '0.75rem 0 0 0.75rem', backgroundColor: '#f1f5f9', alignSelf: 'stretch', position: 'relative', minHeight: '180px' }}>
+                  {prop.photo_url ? (
+                    <NextImage
+                      src={prop.photo_url}
+                      alt="Property photo"
+                      fill
+                      quality={90}
+                      style={{ objectFit: 'cover' }}
+                      sizes="320px"
+                    />
+                  ) : (
+                    <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', color: '#94a3b8' }}>
+                      <ImageOff className="w-8 h-8" />
+                      <span style={{ fontSize: '0.65rem', fontWeight: 600, textAlign: 'center', padding: '0 0.5rem' }}>No photo</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Conteúdo do card */}
+                <div style={{ flex: 1, padding: '1.25rem 1.25rem 1.25rem 0' }}>
+
               {/* ── HEADER ── */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -775,7 +796,9 @@ export default function PropertiesPage() {
                     <ArrowRight className="w-4 h-4" />
                   </Link>
                 </div>
+              </div>
 
+                </div>
               </div>
             </div>
           ); })}

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Save, X, Info, Gavel, MapPin, FileText, Key, DollarSign, Link as LinkIcon, Loader2, ShoppingCart, AlertCircle, Trash2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { formatPropId } from "@/lib/utils";
 import "./form.css";
 
 const SECTIONS = [
@@ -474,12 +475,6 @@ export default function NewAuctionForm() {
 
   const isBuyPriority = lookups.ls_priority?.find(p => p.id?.toString() === formData.priority_id?.toString())?.name.trim().toLowerCase() === 'acquired property';
 
-  const formatPropId = (ref_id: any) => {
-    if (ref_id && !isNaN(Number(ref_id))) {
-      return `PRP-${Number(ref_id).toString().padStart(4, '0')}`;
-    }
-    return "";
-  };
 
   const isProperty = formData.record_type === 'PROPERTY';
   const businessId = isProperty ? formatPropId(formData.ref_id) : "";
