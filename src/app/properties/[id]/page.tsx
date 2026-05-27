@@ -36,6 +36,18 @@ import { hasPermission, getCurrentUserPermissions } from "@/lib/permissions";
 import "../../auctions/new/form.css"; // Keep the styles
 import "./details.css"; // Keep the tabs structure styling
 
+const MARKETING_FIELDS = [
+  'marketing_report', 'library', 'website_video_copy', 'video_3d_copy',
+  'short_form_copy', 'before_video', 'after_video', 'product_page',
+  'zillow_listing', 'facebook_listing', 'edited_photos', 'website_video',
+  'short_form_videos',
+] as const;
+
+const BLOCKED_DECIMAL_KEYS = new Set(['.', ',', 'e', 'E', '+', '-']);
+const handleBlockDecimal = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  if (BLOCKED_DECIMAL_KEYS.has(e.key)) e.preventDefault();
+};
+
 const TABS_CONFIG = [
   { id: 'research',     name: 'Research',      icon: Search,          resource: 'tab:general' },
   { id: 'amenities',   name: 'Amenities',      icon: NavigationIcon,  resource: 'tab:amenities' },
@@ -169,6 +181,15 @@ export default function PropertyDetailsPage() {
   const [taxForm, setTaxForm] = useState<any>({ due_date: '', pay_date: '', received_date: '', perc_iron: '', perc_inv: '', link_proof: '', link_bill: '', link_advalorem: '', value: '', vigency: '', recurrence: '', status: '', type_tax: '' });
   const [editingTaxId, setEditingTaxId] = useState<string | null>(null);
   const [showTaxForm, setShowTaxForm] = useState(false);
+  const [taxSavedOk, setTaxSavedOk] = useState(false);
+
+  // Marketing 1:1 record state
+  const [marketing, setMarketing] = useState<any>({
+    marketing_report: '', library: '', website_video_copy: '', video_3d_copy: '',
+    short_form_copy: '', before_video: '', after_video: '', product_page: '',
+    zillow_listing: '', facebook_listing: '', edited_photos: '', website_video: '',
+    short_form_videos: ''
+  });
 
   // Amenities specific state
   const [amenities, setAmenities] = useState<any[]>([]);
@@ -258,13 +279,17 @@ export default function PropertyDetailsPage() {
       setAmenityCategories(catData.data || []);
       setAmenityTypes(typeData.data || []);
 
-      // Load tax records
-      const { data: taxRecordsData } = await supabase
-        .from('ls_asset_tax')
-        .select('*')
-        .eq('asset_id', id)
-        .order('created_at', { ascending: false });
-      setTaxes(taxRecordsData || []);
+      // Load tax records + marketing record in parallel (independent queries)
+      const [taxResult, mktResult] = await Promise.all([
+        supabase.from('ls_asset_tax').select('*').eq('asset_id', id).order('created_at', { ascending: false }),
+        supabase.from('ls_asset_marketing').select('*').eq('asset_id', id).maybeSingle(),
+      ]);
+      setTaxes(taxResult.data || []);
+      if (mktResult.data) {
+        const mktFormatted: any = {};
+        MARKETING_FIELDS.forEach(f => { mktFormatted[f] = mktResult.data[f] ?? ''; });
+        setMarketing(mktFormatted);
+      }
 
       setLoading(false);
     }
@@ -278,6 +303,11 @@ export default function PropertyDetailsPage() {
     setProperty((prev: any) => ({ ...prev, [name]: val }));
   };
 
+  const handleMarketingChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setMarketing((prev: any) => ({ ...prev, [name]: value }));
+  };
+
   const handleOwnerChange = (value: string) => {
     if (value === 'ironclad') {
       setProperty((prev: any) => ({ ...prev, owner_type: 'ironclad', owner_partner_id: '' }));
@@ -286,7 +316,7 @@ export default function PropertyDetailsPage() {
     }
   };
 
-  const renderLinkInput = (label: string, name: string, value: string, placeholder: string, style?: React.CSSProperties) => {
+  const renderLinkInput = (label: string, name: string, value: string, placeholder: string, style?: React.CSSProperties, onChangeFn?: React.ChangeEventHandler<HTMLInputElement>) => {
     const getHref = (url: string) => {
       if (!url) return "";
       if (url.startsWith("http://") || url.startsWith("https://")) return url;
@@ -297,11 +327,11 @@ export default function PropertyDetailsPage() {
       <div className="input-group" style={style}>
         <label className="input-label">{label}</label>
         <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-          <input 
-            type="url" 
-            name={name} 
-            value={value || ""} 
-            onChange={handleChange} 
+          <input
+            type="url"
+            name={name}
+            value={value || ""}
+            onChange={onChangeFn ?? handleChange}
             className="input-field" 
             placeholder={placeholder} 
             style={{ paddingRight: value ? '2.5rem' : '0.75rem' }} 
@@ -345,6 +375,25 @@ export default function PropertyDetailsPage() {
       </div>
     );
   };
+
+  const renderCostTableHeader = () => (
+    <div style={{
+      display: 'grid',
+      gridTemplateColumns: '2fr 1fr 1.5fr',
+      backgroundColor: '#f8fafc',
+      padding: '0.75rem 1.25rem',
+      borderBottom: '2px solid #e2e8f0',
+      fontWeight: 700,
+      fontSize: '0.75rem',
+      color: '#475569',
+      textTransform: 'uppercase' as const,
+      letterSpacing: '0.05em'
+    }}>
+      <div>Item / Service</div>
+      <div style={{ textAlign: 'center' }}>Required / Check</div>
+      <div style={{ textAlign: 'right', paddingRight: '1rem' }}>Estimated Cost ($)</div>
+    </div>
+  );
 
   const renderCostTableRow = (label: string, desc: string, costName: string, toggleName: string, IconComponent: any) => {
     return (
@@ -461,8 +510,17 @@ export default function PropertyDetailsPage() {
         }
       });
 
-      const { error } = await supabase.from('ls_assets').update(payload).eq('id', id);
-      if (error) throw error;
+      // Build marketing payload
+      const mktPayload: any = { asset_id: id };
+      Object.entries(marketing).forEach(([k, v]) => { mktPayload[k] = (v === '' ? null : v); });
+
+      // Save ls_assets + ls_asset_marketing in parallel
+      const [assetsResult, mktResult] = await Promise.all([
+        supabase.from('ls_assets').update(payload).eq('id', id),
+        supabase.from('ls_asset_marketing').upsert(mktPayload, { onConflict: 'asset_id' }),
+      ]);
+      if (assetsResult.error) throw assetsResult.error;
+      if (mktResult.error) throw mktResult.error;
 
       setSavedOk(true);
       // Navigate back via client-side router (proven to work with highlight)
@@ -510,6 +568,7 @@ export default function PropertyDetailsPage() {
     setTaxForm({ due_date: '', pay_date: '', received_date: '', perc_iron: '', perc_inv: '', link_proof: '', link_bill: '', link_advalorem: '', value: '', vigency: '', recurrence: '', status: '', type_tax: '' });
     setEditingTaxId(null);
     setShowTaxForm(false);
+    setTaxSavedOk(false);
   };
 
   const handleTaxFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -518,13 +577,40 @@ export default function PropertyDetailsPage() {
   };
 
   const handleSaveTax = async () => {
+    // Required field validation
+    const requiredFields: Record<string, any> = {
+      'Received Date': taxForm.received_date,
+      'Type': taxForm.type_tax,
+      'Recurrence': taxForm.recurrence,
+      'Vigency': taxForm.vigency,
+      'Due Date': taxForm.due_date,
+      'Value': taxForm.value,
+    };
+    const missing = Object.entries(requiredFields)
+      .filter(([, v]) => v === '' || v === null || v === undefined)
+      .map(([k]) => k);
+    if (missing.length > 0) {
+      alert(`Please fill in all required fields: ${missing.join(', ')}`);
+      return;
+    }
+    // % sum validation — applies when at least one field is filled
+    const ironRaw = taxForm.perc_iron !== '' ? parseInt(taxForm.perc_iron, 10) : null;
+    const invRaw = taxForm.perc_inv !== '' ? parseInt(taxForm.perc_inv, 10) : null;
+    if (ironRaw !== null || invRaw !== null) {
+      const sum = (ironRaw ?? 0) + (invRaw ?? 0);
+      if (isNaN(sum) || sum !== 100) {
+        alert(`% Ironclad + % Investor must equal exactly 100%. Current total: ${sum}%`);
+        return;
+      }
+    }
+
     const payload: any = {
       asset_id: id,
       due_date: taxForm.due_date || null,
       pay_date: taxForm.pay_date || null,
       received_date: taxForm.received_date || null,
-      perc_iron: taxForm.perc_iron !== '' ? Number(taxForm.perc_iron) : null,
-      perc_inv: taxForm.perc_inv !== '' ? Number(taxForm.perc_inv) : null,
+      perc_iron: ironRaw,
+      perc_inv: invRaw,
       link_proof: taxForm.link_proof || null,
       link_bill: taxForm.link_bill || null,
       link_advalorem: taxForm.link_advalorem || null,
@@ -537,12 +623,18 @@ export default function PropertyDetailsPage() {
 
     if (editingTaxId) {
       const { data, error } = await supabase.from('ls_asset_tax').update(payload).eq('id', editingTaxId).select('*').single();
-      if (!error && data) { setTaxes(taxes.map(t => t.id === editingTaxId ? data : t)); resetTaxForm(); }
-      else if (error) alert('Error updating tax record: ' + error.message);
+      if (!error && data) {
+        setTaxes(taxes.map(t => t.id === editingTaxId ? data : t));
+        setTaxSavedOk(true);
+        setTimeout(() => resetTaxForm(), 1400);
+      } else if (error) alert('Error updating tax record: ' + error.message);
     } else {
       const { data, error } = await supabase.from('ls_asset_tax').insert([payload]).select('*').single();
-      if (!error && data) { setTaxes([data, ...taxes]); resetTaxForm(); }
-      else if (error) alert('Error saving tax record: ' + error.message);
+      if (!error && data) {
+        setTaxes([data, ...taxes]);
+        setTaxSavedOk(true);
+        setTimeout(() => resetTaxForm(), 1400);
+      } else if (error) alert('Error saving tax record: ' + error.message);
     }
   };
 
@@ -1003,8 +1095,8 @@ export default function PropertyDetailsPage() {
                     <CurrencyInput name="house_price" value={property.house_price} onChange={handleChange} />
                   </div>
                   <div className="input-group">
-                    <label className="input-label">SqFt Price Ref ($)</label>
-                    <CurrencyInput name="sqft_price_reference" value={property.sqft_price_reference} onChange={handleChange} />
+                    <label className="input-label">SqFt Price Reference</label>
+                    <input type="number" step="any" name="sqft_price_reference" value={property.sqft_price_reference} onChange={handleChange} className="input-field" placeholder="0.00" />
                   </div>
                   <div className="input-group">
                     <label className="input-label">Min Bid ($)</label>
@@ -1052,12 +1144,29 @@ export default function PropertyDetailsPage() {
             <div className="form-tab">
               <div className="tab-section-header">
                 <h2 className="section-title">Strategy</h2>
-                <p className="section-desc">Strategic planning and notes for this property.</p>
+                <p className="section-desc">Projected costs and strategic approvals for the property development plan.</p>
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '4rem 1rem', color: '#94a3b8' }}>
-                <Compass className="w-12 h-12" style={{ opacity: 0.3, marginBottom: '1rem' }} />
-                <p style={{ fontWeight: 600, fontSize: '1rem', marginBottom: '0.25rem' }}>Coming Soon</p>
-                <p style={{ fontSize: '0.85rem' }}>Strategy content will be added here.</p>
+
+              <div style={{ margin: '0 1rem 2.5rem 1rem' }}>
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', marginBottom: '1.25rem' }}>Strategic Cost Estimates & Clearances</h3>
+
+                <div style={{
+                  backgroundColor: '#ffffff',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '12px',
+                  overflow: 'hidden',
+                  boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05)'
+                }}>
+                  {renderCostTableHeader()}
+
+                  {/* Table Rows */}
+                  {renderCostTableRow("Warranty Deed Transfer", "Deed preparation and recording fees", "warrantydeedtransfer_stg", "tg_warrantydeedtransfer_stg", FileText)}
+                  {renderCostTableRow("Title Claim Action", "Clearing title or legal fees", "titleclaim_action_stg", "tg_titleclaim_action_stg", Scale)}
+                  {renderCostTableRow("Surveyor Cost", "Boundary mapping and layout marking", "surveyor_stg", "tg_surveyor_stg", Compass)}
+                  {renderCostTableRow("Land Clearing", "Tree removal and grading", "land_clearing_stg", "tg_land_clearing_stg", Trees)}
+                  {renderCostTableRow("Fencing & Gate", "Perimeter fence and security gate", "fencing_gate_stg", "tg_fencing_gate_stg", Lock)}
+                  {renderCostTableRow("Preapproval Review", "Zoning review and compliance", "preapproval_review_stg", "tg_preapproval_review_stg", CheckSquare)}
+                </div>
               </div>
             </div>
           )}
@@ -1067,16 +1176,33 @@ export default function PropertyDetailsPage() {
             <div className="form-tab">
               <div className="tab-section-header">
                 <h2 className="section-title">Marketing</h2>
-                <p className="section-desc">External data sources, research links, and property observations.</p>
+                <p className="section-desc">Production materials and published listings for this property.</p>
               </div>
-              <div className="form-grid col-2" style={{ padding: '0 1rem' }}>
-                {renderLinkInput("Google Earth Link", "link_earth", property.link_earth, "https://earth.google.com/...", { gridColumn: 'span 2' })}
-                {renderLinkInput("Other Sources Link", "link_sources", property.link_sources, "https://...")}
-                {renderLinkInput("House Sources Link", "link_house_sources", property.link_house_sources, "https://zillow.com/...")}
-                {renderLinkInput("Video Link", "link_video", property.link_video, "https://youtube.com/...")}
-                <div className="input-group" style={{ gridColumn: 'span 2' }}>
-                  <label className="input-label">Surrounds Notes</label>
-                  <textarea name="surrounds" value={property.surrounds} onChange={handleChange} className="input-field" rows={4} style={{ resize: 'vertical' }} />
+
+              {/* ── Material ── */}
+              <div style={{ margin: '0 1rem 2rem 1rem' }}>
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', marginBottom: '1.25rem' }}>Material</h3>
+                <div className="form-grid col-2">
+                  {renderLinkInput("Marketing Report",   "marketing_report",   marketing.marketing_report,   "https://...", undefined, handleMarketingChange)}
+                  {renderLinkInput("Library",            "library",            marketing.library,            "https://...", undefined, handleMarketingChange)}
+                  {renderLinkInput("Website Video Copy", "website_video_copy", marketing.website_video_copy, "https://...", undefined, handleMarketingChange)}
+                  {renderLinkInput("Short Form Copy",    "short_form_copy",    marketing.short_form_copy,    "https://...", undefined, handleMarketingChange)}
+                  {renderLinkInput("Before Video",       "before_video",       marketing.before_video,       "https://...", undefined, handleMarketingChange)}
+                  {renderLinkInput("After Video",        "after_video",        marketing.after_video,        "https://...", undefined, handleMarketingChange)}
+                </div>
+              </div>
+
+              {/* ── Done ── */}
+              <div style={{ margin: '0 1rem 1rem 1rem' }}>
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', marginBottom: '1.25rem' }}>Done</h3>
+                <div className="form-grid col-2">
+                  {renderLinkInput("Product Page",     "product_page",     marketing.product_page,     "https://...", undefined, handleMarketingChange)}
+                  {renderLinkInput("Zillow Listing",   "zillow_listing",   marketing.zillow_listing,   "https://zillow.com/...", undefined, handleMarketingChange)}
+                  {renderLinkInput("Facebook Listing", "facebook_listing", marketing.facebook_listing, "https://facebook.com/...", undefined, handleMarketingChange)}
+                  {renderLinkInput("Edited Photos",    "edited_photos",    marketing.edited_photos,    "https://...", undefined, handleMarketingChange)}
+                  {renderLinkInput("Website Video",    "website_video",    marketing.website_video,    "https://...", undefined, handleMarketingChange)}
+                  {renderLinkInput("3D Video Copy",    "video_3d_copy",    marketing.video_3d_copy,    "https://...", undefined, handleMarketingChange)}
+                  {renderLinkInput("Short Form Videos","short_form_videos", marketing.short_form_videos,"https://...", undefined, handleMarketingChange)}
                 </div>
               </div>
             </div>
@@ -1100,23 +1226,7 @@ export default function PropertyDetailsPage() {
                   overflow: 'hidden',
                   boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05)'
                 }}>
-                  {/* Table Header */}
-                  <div style={{ 
-                    display: 'grid', 
-                    gridTemplateColumns: '2fr 1fr 1.5fr', 
-                    backgroundColor: '#f8fafc', 
-                    padding: '0.75rem 1.25rem', 
-                    borderBottom: '2px solid #e2e8f0',
-                    fontWeight: 700,
-                    fontSize: '0.75rem',
-                    color: '#475569',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.05em'
-                  }}>
-                    <div>Item / Service</div>
-                    <div style={{ textAlign: 'center' }}>Required / Check</div>
-                    <div style={{ textAlign: 'right', paddingRight: '1rem' }}>Estimated Cost ($)</div>
-                  </div>
+                  {renderCostTableHeader()}
 
                   {/* Table Rows */}
                   {renderCostTableRow("Warranty Deed Transfer", "Deed preparation and recording fees", "warrantydeedtransfer", "tg_warrantydeedtransfer", FileText)}
@@ -1248,10 +1358,14 @@ export default function PropertyDetailsPage() {
                       </button>
                     </div>
 
-                    {/* Row 1 – Classification */}
+                    {/* Row 1 – Date + Classification */}
                     <div className="form-grid col-4" style={{ marginBottom: '0.75rem' }}>
                       <div className="input-group" style={{ margin: 0 }}>
-                        <label className="input-label">Type</label>
+                        <label className="input-label">Received Date <span style={{ color: '#ef4444' }}>*</span></label>
+                        <input type="date" name="received_date" value={taxForm.received_date} onChange={handleTaxFormChange} className="input-field" />
+                      </div>
+                      <div className="input-group" style={{ margin: 0 }}>
+                        <label className="input-label">Type <span style={{ color: '#ef4444' }}>*</span></label>
                         <select name="type_tax" value={taxForm.type_tax} onChange={handleTaxFormChange} className="input-field">
                           <option value="">Select...</option>
                           <option value="Annual Tax">Annual Tax</option>
@@ -1260,7 +1374,15 @@ export default function PropertyDetailsPage() {
                         </select>
                       </div>
                       <div className="input-group" style={{ margin: 0 }}>
-                        <label className="input-label">Vigency</label>
+                        <label className="input-label">Recurrence <span style={{ color: '#ef4444' }}>*</span></label>
+                        <select name="recurrence" value={taxForm.recurrence} onChange={handleTaxFormChange} className="input-field">
+                          <option value="">Select...</option>
+                          <option value="Annual">Annual</option>
+                          <option value="Single">Single</option>
+                        </select>
+                      </div>
+                      <div className="input-group" style={{ margin: 0 }}>
+                        <label className="input-label">Vigency <span style={{ color: '#ef4444' }}>*</span></label>
                         <select name="vigency" value={taxForm.vigency} onChange={handleTaxFormChange} className="input-field">
                           <option value="">Select...</option>
                           <option value="2025">2025</option>
@@ -1271,60 +1393,32 @@ export default function PropertyDetailsPage() {
                           <option value="2030">2030</option>
                         </select>
                       </div>
-                      <div className="input-group" style={{ margin: 0 }}>
-                        <label className="input-label">Recurrence</label>
-                        <select name="recurrence" value={taxForm.recurrence} onChange={handleTaxFormChange} className="input-field">
-                          <option value="">Select...</option>
-                          <option value="Annual">Annual</option>
-                          <option value="Single">Single</option>
-                        </select>
-                      </div>
-                      <div className="input-group" style={{ margin: 0 }}>
-                        <label className="input-label">Status</label>
-                        <select name="status" value={taxForm.status} onChange={handleTaxFormChange} className="input-field">
-                          <option value="">Select...</option>
-                          <option value="On Time">On Time</option>
-                          <option value="Over Due">Over Due</option>
-                        </select>
-                      </div>
                     </div>
 
-                    {/* Row 2 – Dates */}
-                    <div className="form-grid col-3" style={{ marginBottom: '0.75rem' }}>
+                    {/* Row 2 – Due Date, Value, Percentages */}
+                    <div className="form-grid col-4" style={{ marginBottom: '0.75rem' }}>
                       <div className="input-group" style={{ margin: 0 }}>
-                        <label className="input-label">Due Date</label>
+                        <label className="input-label">Due Date <span style={{ color: '#ef4444' }}>*</span></label>
                         <input type="date" name="due_date" value={taxForm.due_date} onChange={handleTaxFormChange} className="input-field" />
                       </div>
                       <div className="input-group" style={{ margin: 0 }}>
-                        <label className="input-label">Pay Date</label>
-                        <input type="date" name="pay_date" value={taxForm.pay_date} onChange={handleTaxFormChange} className="input-field" />
-                      </div>
-                      <div className="input-group" style={{ margin: 0 }}>
-                        <label className="input-label">Received Date</label>
-                        <input type="date" name="received_date" value={taxForm.received_date} onChange={handleTaxFormChange} className="input-field" />
-                      </div>
-                    </div>
-
-                    {/* Row 3 – Value & Percentages */}
-                    <div className="form-grid col-3" style={{ marginBottom: '0.75rem' }}>
-                      <div className="input-group" style={{ margin: 0 }}>
-                        <label className="input-label">Value ($)</label>
+                        <label className="input-label">Value ($) <span style={{ color: '#ef4444' }}>*</span></label>
                         <CurrencyInput name="value" value={taxForm.value} onChange={(e: any) => setTaxForm((p: any) => ({ ...p, value: e.target.value }))} />
                       </div>
                       <div className="input-group" style={{ margin: 0 }}>
                         <label className="input-label">% Ironclad</label>
-                        <input type="number" step="any" name="perc_iron" value={taxForm.perc_iron} onChange={handleTaxFormChange} className="input-field" placeholder="0.00" />
+                        <input type="number" step="1" min="0" max="100" name="perc_iron" value={taxForm.perc_iron} onChange={handleTaxFormChange} className="input-field" placeholder="0" onKeyDown={handleBlockDecimal} />
                       </div>
                       <div className="input-group" style={{ margin: 0 }}>
                         <label className="input-label">% Investor</label>
-                        <input type="number" step="any" name="perc_inv" value={taxForm.perc_inv} onChange={handleTaxFormChange} className="input-field" placeholder="0.00" />
+                        <input type="number" step="1" min="0" max="100" name="perc_inv" value={taxForm.perc_inv} onChange={handleTaxFormChange} className="input-field" placeholder="0" onKeyDown={handleBlockDecimal} />
                       </div>
                     </div>
 
-                    {/* Row 4 – Links */}
-                    <div className="form-grid col-3" style={{ marginBottom: '1.25rem' }}>
+                    {/* Row 3 – Links + Pay On */}
+                    <div className="form-grid col-4" style={{ marginBottom: '1.25rem' }}>
                       {(['link_bill', 'link_proof', 'link_advalorem'] as const).map((field) => {
-                        const labels: Record<string, string> = { link_bill: 'Bill Link', link_proof: 'Proof Link', link_advalorem: 'Ad Valorem Link' };
+                        const labels: Record<string, string> = { link_bill: 'Bill Link', link_proof: 'Payment Proof Link', link_advalorem: 'Ad Valorem Link' };
                         const val = taxForm[field] || '';
                         const getHref = (u: string) => u.startsWith('http') ? u : `https://${u}`;
                         return (
@@ -1341,13 +1435,31 @@ export default function PropertyDetailsPage() {
                           </div>
                         );
                       })}
+                      <div className="input-group" style={{ margin: 0 }}>
+                        <label className="input-label">Pay On</label>
+                        <input type="date" name="pay_date" value={taxForm.pay_date} onChange={handleTaxFormChange} className="input-field" />
+                      </div>
                     </div>
 
                     {/* Form Actions */}
                     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
-                      <button onClick={resetTaxForm} className="btn-secondary" style={{ padding: '0.5rem 1.25rem' }}>Cancel</button>
-                      <button onClick={handleSaveTax} className="primary-btn" style={{ padding: '0.5rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                        <Save className="w-4 h-4" /> {editingTaxId ? 'Update Record' : 'Save Record'}
+                      <button onClick={resetTaxForm} className="btn-secondary" style={{ padding: '0.5rem 1.25rem' }} disabled={taxSavedOk}>Cancel</button>
+                      <button
+                        onClick={handleSaveTax}
+                        className="primary-btn"
+                        disabled={taxSavedOk}
+                        style={{
+                          padding: '0.5rem 1.25rem',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.4rem',
+                          ...(taxSavedOk ? { backgroundColor: '#10b981', cursor: 'default' } : {})
+                        }}
+                      >
+                        {taxSavedOk
+                          ? <><CheckSquare className="w-4 h-4" /> Saved!</>
+                          : <><Save className="w-4 h-4" /> {editingTaxId ? 'Update Record' : 'Save Record'}</>
+                        }
                       </button>
                     </div>
                   </div>

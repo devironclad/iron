@@ -908,11 +908,8 @@ export default function NewAuctionForm() {
               </div>
             </div>
             <div className="input-group">
-              <label className="input-label">SqFt Price Reference ($)</label>
-              <div className="currency-input-wrapper">
-                <span className="currency-symbol">$</span>
-                <input type="number" step="any" name="sqft_price_reference" value={formData.sqft_price_reference} onChange={handleChange} className="input-field currency" placeholder="0.00" />
-              </div>
+              <label className="input-label">SqFt Price Reference</label>
+              <input type="number" step="any" name="sqft_price_reference" value={formData.sqft_price_reference} onChange={handleChange} className="input-field" placeholder="0.00" />
             </div>
             <div className="input-group">
               <label className="input-label">Internal Max Bid ($)</label>

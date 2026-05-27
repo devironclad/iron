@@ -34,11 +34,11 @@ export default function RequestsPage() {
 
   useEffect(() => {
     fetchLookups();
-    async function getUser() {
-      const { data: { user } } = await supabase.auth.getUser();
-      setCurrentUser(user);
+    async function initCurrentUser() {
+      const { data: { session } } = await supabase.auth.getSession();
+      setCurrentUser(session?.user ?? null);
     }
-    getUser();
+    initCurrentUser();
   }, []);
 
   useEffect(() => {
