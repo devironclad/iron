@@ -38,9 +38,9 @@ import "./details.css"; // Keep the tabs structure styling
 
 const MARKETING_FIELDS = [
   'marketing_report', 'library', 'website_video_copy', 'video_3d_copy',
-  'short_form_copy', 'before_video', 'after_video', 'product_page',
-  'zillow_listing', 'facebook_listing', 'edited_photos', 'website_video',
-  'short_form_videos',
+  'short_form_copy', 'before_video', 'after_video', 'video_3d',
+  'product_page', 'zillow_listing', 'facebook_listing', 'edited_photos',
+  'website_video', 'short_form_videos',
 ] as const;
 
 const BLOCKED_DECIMAL_KEYS = new Set(['.', ',', 'e', 'E', '+', '-']);
@@ -189,9 +189,9 @@ export default function PropertyDetailsPage() {
   // Marketing 1:1 record state
   const [marketing, setMarketing] = useState<any>({
     marketing_report: '', library: '', website_video_copy: '', video_3d_copy: '',
-    short_form_copy: '', before_video: '', after_video: '', product_page: '',
-    zillow_listing: '', facebook_listing: '', edited_photos: '', website_video: '',
-    short_form_videos: ''
+    short_form_copy: '', before_video: '', after_video: '', video_3d: '',
+    product_page: '', zillow_listing: '', facebook_listing: '', edited_photos: '',
+    website_video: '', short_form_videos: ''
   });
 
   // Amenities specific state
@@ -1303,6 +1303,7 @@ export default function PropertyDetailsPage() {
                   {renderLinkInput("Short Form Copy",    "short_form_copy",    marketing.short_form_copy,    "https://...", undefined, handleMarketingChange)}
                   {renderLinkInput("Before Video",       "before_video",       marketing.before_video,       "https://...", undefined, handleMarketingChange)}
                   {renderLinkInput("After Video",        "after_video",        marketing.after_video,        "https://...", undefined, handleMarketingChange)}
+                  {renderLinkInput("3D Video",           "video_3d",           marketing.video_3d,           "https://...", undefined, handleMarketingChange)}
                 </div>
               </div>
 
