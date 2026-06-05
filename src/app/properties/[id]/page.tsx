@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo, useRef } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import NextImage from "next/image";
 import { formatPropId } from "@/lib/utils";
 import { 
@@ -163,7 +163,10 @@ const CurrencyInput = ({
 export default function PropertyDetailsPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const id = params.id;
+  const source = searchParams.get('source');
+  const backUrl = `/properties${source ? `?source=${source}` : ''}`;
 
   const [activeTab, setActiveTab] = useState('research');
   const [loading, setLoading] = useState(true);
@@ -376,6 +379,62 @@ export default function PropertyDetailsPage() {
     );
   };
 
+  // Auto-calculate investment_total = paid_bid + active cost toggles + doc_fees
+  useEffect(() => {
+    if (!property) return;
+    const costItems = [
+      { cost: 'warrantydeedtransfer', toggle: 'tg_warrantydeedtransfer' },
+      { cost: 'titleclaim_action',    toggle: 'tg_titleclaim_action' },
+      { cost: 'surveyor',             toggle: 'tg_surveyor' },
+      { cost: 'land_clearing',        toggle: 'tg_land_clearing' },
+      { cost: 'fencing_gate',         toggle: 'tg_fencing_gate' },
+      { cost: 'preapproval_review',   toggle: 'tg_preapproval_review' },
+    ];
+    const toggleSum = costItems.reduce((acc, { cost, toggle }) =>
+      acc + (property[toggle] ? (Number(property[cost]) || 0) : 0), 0);
+    const total = (Number(property.paid_bid) || 0) + toggleSum + (Number(property.doc_fees) || 0);
+    setProperty((prev: any) => ({ ...prev, investment_total: total }));
+  }, [
+    property?.paid_bid, property?.doc_fees,
+    property?.warrantydeedtransfer, property?.tg_warrantydeedtransfer,
+    property?.titleclaim_action,    property?.tg_titleclaim_action,
+    property?.surveyor,             property?.tg_surveyor,
+    property?.land_clearing,        property?.tg_land_clearing,
+    property?.fencing_gate,         property?.tg_fencing_gate,
+    property?.preapproval_review,   property?.tg_preapproval_review,
+  ]);
+
+  // Auto-calculate sale_price based on state (FL/GA vs others) + active cost toggles with markup
+  useEffect(() => {
+    if (!property) return;
+    const state = property.ls_county?.state;
+    const isFlGa = state === 'FL' || state === 'GA';
+
+    const markups = isFlGa
+      ? { surveyor: 1.05, land_clearing: 1.10, fencing_gate: 1.05, preapproval_review: 1.08 }
+      : { surveyor: 1.035, land_clearing: 1.075, fencing_gate: 1.035, preapproval_review: 1.08 };
+
+    const costItems = [
+      { cost: 'surveyor',           toggle: 'tg_surveyor',           markup: markups.surveyor },
+      { cost: 'land_clearing',      toggle: 'tg_land_clearing',      markup: markups.land_clearing },
+      { cost: 'fencing_gate',       toggle: 'tg_fencing_gate',       markup: markups.fencing_gate },
+      { cost: 'preapproval_review', toggle: 'tg_preapproval_review', markup: markups.preapproval_review },
+    ];
+
+    const costsWithMarkup = costItems.reduce((acc, { cost, toggle, markup }) =>
+      acc + (property[toggle] ? (Number(property[cost]) || 0) * markup : 0), 0);
+
+    const salePrice = (Number(property.appraisal_avg) || 0) + costsWithMarkup;
+    setProperty((prev: any) => ({ ...prev, sale_price: salePrice }));
+  }, [
+    property?.ls_county?.state,
+    property?.appraisal_avg,
+    property?.surveyor,             property?.tg_surveyor,
+    property?.land_clearing,        property?.tg_land_clearing,
+    property?.fencing_gate,         property?.tg_fencing_gate,
+    property?.preapproval_review,   property?.tg_preapproval_review,
+  ]);
+
   const renderCostTableHeader = () => (
     <div style={{
       display: 'grid',
@@ -483,7 +542,8 @@ export default function PropertyDetailsPage() {
         'max_bid_internal', 'appraisal_min', 'appraisal_avg', 'appraisal_max', 
         'county_appraisal', 'online_appraisal', 'sqft_price_reference', 'house_price',
         'warrantydeedtransfer', 'titleclaim_action', 'surveyor', 'land_clearing', 
-        'fencing_gate', 'preapproval_review', 'investment_total'
+        'fencing_gate', 'preapproval_review', 'investment_total', 'paid_bid',
+        'sale_price', 'doc_fees', 'paid_bid_inv', 'investment_total_inv', 'doc_fees_inv', 'closing_fess_inv'
       ];
       numericFields.forEach(f => {
         if (payload[f] === "" || payload[f] === undefined) payload[f] = null;
@@ -524,7 +584,7 @@ export default function PropertyDetailsPage() {
 
       setSavedOk(true);
       // Navigate back via client-side router (proven to work with highlight)
-      setTimeout(() => router.push(`/properties?action=updated&highlight=${id}`), 1200);
+      setTimeout(() => router.push(`/properties?action=updated&highlight=${id}${source ? `&source=${source}` : ''}`), 1200);
     } catch (err: any) {
       console.error(err);
       alert("Error updating property: " + err.message);
@@ -573,7 +633,13 @@ export default function PropertyDetailsPage() {
 
   const handleTaxFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setTaxForm((prev: any) => ({ ...prev, [name]: value }));
+    if (name === 'type_tax' && value === 'Closing Fees') {
+      setTaxForm((prev: any) => ({ ...prev, type_tax: value, perc_iron: 0, perc_inv: 100 }));
+    } else if (name === 'type_tax' && value !== 'Closing Fees') {
+      setTaxForm((prev: any) => ({ ...prev, type_tax: value, perc_iron: '', perc_inv: '' }));
+    } else {
+      setTaxForm((prev: any) => ({ ...prev, [name]: value }));
+    }
   };
 
   const handleSaveTax = async () => {
@@ -621,10 +687,38 @@ export default function PropertyDetailsPage() {
       type_tax: taxForm.type_tax || null,
     };
 
+    const applyAssetAccumulation = async () => {
+      const { data: allTaxes } = await supabase
+        .from('ls_asset_tax')
+        .select('type_tax, pay_date, value, perc_iron, perc_inv')
+        .eq('asset_id', id);
+
+      if (!allTaxes) return;
+
+      const eligible = allTaxes.filter(t => t.pay_date && t.value !== null);
+
+      const doc_fees = eligible
+        .filter(t => t.type_tax !== 'Closing Fees' && t.perc_iron !== null)
+        .reduce((acc, t) => acc + (Number(t.value) * (Number(t.perc_iron) / 100)), 0);
+
+      const doc_fees_inv = eligible
+        .filter(t => t.type_tax !== 'Closing Fees' && t.perc_inv !== null)
+        .reduce((acc, t) => acc + (Number(t.value) * (Number(t.perc_inv) / 100)), 0);
+
+      const closing_fess_inv = eligible
+        .filter(t => t.type_tax === 'Closing Fees' && t.perc_inv !== null)
+        .reduce((acc, t) => acc + (Number(t.value) * (Number(t.perc_inv) / 100)), 0);
+
+      const updates = { doc_fees, doc_fees_inv, closing_fess_inv };
+      await supabase.from('ls_assets').update(updates).eq('id', id);
+      setProperty((prev: any) => ({ ...prev, ...updates }));
+    };
+
     if (editingTaxId) {
       const { data, error } = await supabase.from('ls_asset_tax').update(payload).eq('id', editingTaxId).select('*').single();
       if (!error && data) {
         setTaxes(taxes.map(t => t.id === editingTaxId ? data : t));
+        await applyAssetAccumulation();
         setTaxSavedOk(true);
         setTimeout(() => resetTaxForm(), 1400);
       } else if (error) alert('Error updating tax record: ' + error.message);
@@ -632,6 +726,7 @@ export default function PropertyDetailsPage() {
       const { data, error } = await supabase.from('ls_asset_tax').insert([payload]).select('*').single();
       if (!error && data) {
         setTaxes([data, ...taxes]);
+        await applyAssetAccumulation();
         setTaxSavedOk(true);
         setTimeout(() => resetTaxForm(), 1400);
       } else if (error) alert('Error saving tax record: ' + error.message);
@@ -724,7 +819,7 @@ export default function PropertyDetailsPage() {
     <div className="property-details-container">
       <div className="details-header">
         <div className="header-left">
-          <button onClick={() => router.push('/properties')} className="back-btn">
+          <button onClick={() => router.push(backUrl)} className="back-btn">
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div className="header-title-area">
@@ -998,25 +1093,25 @@ export default function PropertyDetailsPage() {
                   <div className="input-group">
                     <div style={{ display: 'flex', gap: '1rem' }}>
                       <div style={{ flex: 1 }}>
-                        <label className="input-label">Distance (mi)</label>
-                        <input 
-                          type="number" 
-                          step="0.1" 
-                          value={newAmenity.distance} 
+                        <label className="input-label">Time (min)</label>
+                        <input
+                          type="number"
+                          value={newAmenity.time}
                           onChange={(e) => {
-                            const dist = e.target.value;
-                            const calcTime = dist ? Math.round(parseFloat(dist) * 2) : '';
-                            setNewAmenity({...newAmenity, distance: dist, time: calcTime.toString()});
+                            const time = e.target.value;
+                            const calcDist = time ? (parseFloat(time) / 1.6).toFixed(1) : '';
+                            setNewAmenity({...newAmenity, time, distance: calcDist.toString()});
                           }}
                           className="input-field"
                         />
                       </div>
                       <div style={{ flex: 1 }}>
-                        <label className="input-label">Time (min)</label>
-                        <input 
-                          type="number" 
-                          value={newAmenity.time} 
-                          onChange={(e) => setNewAmenity({...newAmenity, time: e.target.value})}
+                        <label className="input-label">Distance (mi)</label>
+                        <input
+                          type="number"
+                          step="0.1"
+                          value={newAmenity.distance}
+                          onChange={(e) => setNewAmenity({...newAmenity, distance: e.target.value})}
                           className="input-field"
                         />
                       </div>
@@ -1131,10 +1226,29 @@ export default function PropertyDetailsPage() {
                 <h2 className="section-title">Sales</h2>
                 <p className="section-desc">Sales information and records for this property.</p>
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '4rem 1rem', color: '#94a3b8' }}>
-                <ShoppingCart className="w-12 h-12" style={{ opacity: 0.3, marginBottom: '1rem' }} />
-                <p style={{ fontWeight: 600, fontSize: '1rem', marginBottom: '0.25rem' }}>Coming Soon</p>
-                <p style={{ fontSize: '0.85rem' }}>Sales content will be added here.</p>
+              <div style={{ margin: '0 1rem 1rem 1rem' }}>
+                <div className="form-grid col-2">
+                  <div className="input-group">
+                    <label className="input-label">Sale Price ($) <span style={{ fontSize: '0.7rem', fontWeight: 600, color: '#94a3b8', marginLeft: '0.4rem' }}>auto-calculated</span></label>
+                    <CurrencyInput name="sale_price" value={property.sale_price} onChange={handleChange} disabled />
+                  </div>
+                  <div className="input-group">
+                    <label className="input-label">Paid Bid Investor ($)</label>
+                    <CurrencyInput name="paid_bid_inv" value={property.paid_bid_inv} onChange={handleChange} />
+                  </div>
+                  <div className="input-group">
+                    <label className="input-label">Total Investment Investor ($)</label>
+                    <CurrencyInput name="investment_total_inv" value={property.investment_total_inv} onChange={handleChange} />
+                  </div>
+                  <div className="input-group">
+                    <label className="input-label">Doc Fees Investor ($)</label>
+                    <CurrencyInput name="doc_fees_inv" value={property.doc_fees_inv} onChange={handleChange} />
+                  </div>
+                  <div className="input-group">
+                    <label className="input-label">Closing Fees Investor ($)</label>
+                    <CurrencyInput name="closing_fess_inv" value={property.closing_fess_inv} onChange={handleChange} />
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -1242,8 +1356,18 @@ export default function PropertyDetailsPage() {
                 <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', marginBottom: '1.25rem' }}>Development Details & Total Investment</h3>
                 <div className="form-grid col-2">
                   <div className="input-group">
+                    <label className="input-label">Paid Bid ($)</label>
+                    <CurrencyInput name="paid_bid" value={property.paid_bid} onChange={handleChange} />
+                  </div>
+
+                  <div className="input-group">
+                    <label className="input-label">Doc Fees ($)</label>
+                    <CurrencyInput name="doc_fees" value={property.doc_fees} onChange={handleChange} disabled />
+                  </div>
+
+                  <div className="input-group">
                     <label className="input-label">Total Investment ($)</label>
-                    <CurrencyInput name="investment_total" value={property.investment_total} onChange={handleChange} />
+                    <CurrencyInput name="investment_total" value={property.investment_total} onChange={handleChange} disabled />
                   </div>
 
                   <div className="input-group">
@@ -1371,6 +1495,7 @@ export default function PropertyDetailsPage() {
                           <option value="Annual Tax">Annual Tax</option>
                           <option value="Fees">Fees</option>
                           <option value="HOA/POA">HOA/POA</option>
+                          <option value="Closing Fees">Closing Fees</option>
                         </select>
                       </div>
                       <div className="input-group" style={{ margin: 0 }}>
@@ -1407,11 +1532,11 @@ export default function PropertyDetailsPage() {
                       </div>
                       <div className="input-group" style={{ margin: 0 }}>
                         <label className="input-label">% Ironclad</label>
-                        <input type="number" step="1" min="0" max="100" name="perc_iron" value={taxForm.perc_iron} onChange={handleTaxFormChange} className="input-field" placeholder="0" onKeyDown={handleBlockDecimal} />
+                        <input type="number" step="1" min="0" max="100" name="perc_iron" value={taxForm.perc_iron} onChange={handleTaxFormChange} className={`input-field${taxForm.type_tax === 'Closing Fees' ? ' locked' : ''}`} placeholder="0" onKeyDown={handleBlockDecimal} disabled={taxForm.type_tax === 'Closing Fees'} />
                       </div>
                       <div className="input-group" style={{ margin: 0 }}>
                         <label className="input-label">% Investor</label>
-                        <input type="number" step="1" min="0" max="100" name="perc_inv" value={taxForm.perc_inv} onChange={handleTaxFormChange} className="input-field" placeholder="0" onKeyDown={handleBlockDecimal} />
+                        <input type="number" step="1" min="0" max="100" name="perc_inv" value={taxForm.perc_inv} onChange={handleTaxFormChange} className={`input-field${taxForm.type_tax === 'Closing Fees' ? ' locked' : ''}`} placeholder="0" onKeyDown={handleBlockDecimal} disabled={taxForm.type_tax === 'Closing Fees'} />
                       </div>
                     </div>
 
@@ -1541,7 +1666,7 @@ export default function PropertyDetailsPage() {
       </div>
 
       <div className="form-actions-bar">
-        <button className="btn-secondary" onClick={() => router.push('/properties')}>
+        <button className="btn-secondary" onClick={() => router.push(backUrl)}>
           <X className="w-4 h-4" />
           Cancel
         </button>

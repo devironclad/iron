@@ -2,18 +2,19 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { 
-  Gavel, 
-  Building2, 
-  Users, 
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import {
+  Gavel,
+  Building2,
+  Users,
   Settings,
   LayoutDashboard,
   Database,
   LogOut,
   UserCircle,
   ClipboardList,
-  Sparkles
+  Sparkles,
+  ChevronDown
 } from "lucide-react";
 import { CURRENT_VERSION, CHANGELOG } from "@/config/changelog";
 import { hasPermission, getCurrentUserPermissions } from "@/lib/permissions";
@@ -21,10 +22,22 @@ import { supabase } from "@/lib/supabase";
 import { NotificationBell } from "./NotificationBell";
 import "./layout.css";
 
-const NAV_ITEMS = [
+type NavChild = { name: string; href: string; resource: string };
+type NavItem =
+  | { name: string; href: string; icon: React.ComponentType<any>; resource: string; children?: never }
+  | { name: string; icon: React.ComponentType<any>; resource?: never; href?: never; children: NavChild[] };
+
+const NAV_ITEMS: NavItem[] = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard, resource: "page:dashboard" },
   { name: "Auctions", href: "/auctions", icon: Gavel, resource: "page:auctions" },
-  { name: "Properties", href: "/properties", icon: Building2, resource: "page:properties" },
+  {
+    name: "Properties",
+    icon: Building2,
+    children: [
+      { name: "Ironclad", href: "/properties?source=ironclad", resource: "page:properties:ironclad" },
+      { name: "Broker", href: "/properties?source=broker", resource: "page:properties:broker" },
+    ],
+  },
   { name: "Requests", href: "/requests", icon: ClipboardList, resource: "page:requests" },
   { name: "Manager", href: "/manager", icon: Database, resource: "page:manager" },
   { name: "Access", href: "/access", icon: Users, resource: "page:access" },
@@ -33,10 +46,12 @@ const NAV_ITEMS = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const router = useRouter();
   const [permissions, setPermissions] = useState<any>(null);
   const [user, setUser] = useState<any>(null);
   const [showChangelog, setShowChangelog] = useState(false);
+  const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     async function initUser() {
@@ -75,11 +90,41 @@ export function Sidebar() {
     router.refresh();
   };
 
-  // Security logic: only show items if the user has explicit permission.
-  // If permissions are empty, it means the user has no profile assigned yet.
-  const visibleItems = permissions 
-    ? NAV_ITEMS.filter(item => hasPermission(permissions, item.resource, 'view'))
-    : []; 
+  const isChildActive = (href: string) => {
+    const [path, query] = href.split('?');
+    const childSource = new URLSearchParams(query || '').get('source');
+    return pathname === path && searchParams.get('source') === childSource;
+  };
+
+  const toggleExpand = (name: string) => {
+    setExpandedItems(prev => {
+      const next = new Set(prev);
+      next.has(name) ? next.delete(name) : next.add(name);
+      return next;
+    });
+  };
+
+  // Auto-expand parent when a child route is active
+  useEffect(() => {
+    NAV_ITEMS.forEach(item => {
+      if (item.children) {
+        const anyChildActive = item.children.some(c => isChildActive(c.href));
+        if (anyChildActive) {
+          setExpandedItems(prev => new Set(prev).add(item.name));
+        }
+      }
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname, searchParams]);
+
+  const visibleItems = permissions
+    ? NAV_ITEMS.filter(item => {
+        if (item.children) {
+          return item.children.some(c => hasPermission(permissions, c.resource, 'view'));
+        }
+        return hasPermission(permissions, item.resource!, 'view');
+      })
+    : [];
 
   return (
     <aside className="sidebar">
@@ -91,12 +136,47 @@ export function Sidebar() {
       <nav className="sidebar-nav">
         {visibleItems.map((item) => {
           const Icon = item.icon;
-          const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
-          
+
+          if (item.children) {
+            const visibleChildren = item.children.filter(c =>
+              hasPermission(permissions, c.resource, 'view')
+            );
+            const isOpen = expandedItems.has(item.name);
+            const anyActive = visibleChildren.some(c => isChildActive(c.href));
+
+            return (
+              <div key={item.name}>
+                <button
+                  className={`nav-parent ${anyActive ? "parent-active" : ""}`}
+                  onClick={() => toggleExpand(item.name)}
+                >
+                  <Icon className="nav-icon" />
+                  <span>{item.name}</span>
+                  <ChevronDown className={`nav-chevron ${isOpen ? "open" : ""}`} />
+                </button>
+                {isOpen && (
+                  <div className="nav-subitems">
+                    {visibleChildren.map(child => (
+                      <Link
+                        key={child.href}
+                        href={child.href}
+                        className={`nav-subitem ${isChildActive(child.href) ? "active" : ""}`}
+                      >
+                        <span className="nav-subitem-dot" />
+                        {child.name}
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          }
+
+          const isActive = pathname === item.href || (item.href !== "/" && pathname.startsWith(`${item.href}/`));
           return (
-            <Link 
-              key={item.href} 
-              href={item.href}
+            <Link
+              key={item.href}
+              href={item.href!}
               className={`nav-item ${isActive ? "active" : ""}`}
             >
               <Icon className="nav-icon" />

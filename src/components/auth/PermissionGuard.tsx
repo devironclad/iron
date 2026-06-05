@@ -6,11 +6,12 @@ import { ShieldCheck, Loader2 } from "lucide-react";
 import Link from "next/link";
 
 interface PermissionGuardProps {
-  resource: string;
+  resource?: string;
+  anyOf?: string[];
   children: React.ReactNode;
 }
 
-export function PermissionGuard({ resource, children }: PermissionGuardProps) {
+export function PermissionGuard({ resource, anyOf, children }: PermissionGuardProps) {
   const [permissions, setPermissions] = useState<Record<string, Permission> | null>(null);
 
   useEffect(() => {
@@ -29,7 +30,13 @@ export function PermissionGuard({ resource, children }: PermissionGuardProps) {
     );
   }
 
-  if (!hasPermission(permissions, resource)) {
+  const allowed = anyOf
+    ? anyOf.some(r => hasPermission(permissions, r))
+    : resource
+    ? hasPermission(permissions, resource)
+    : false;
+
+  if (!allowed) {
     return (
       <div className="empty-state" style={{ 
         height: '80vh', 

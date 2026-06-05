@@ -28,6 +28,7 @@ export default function NewAuctionForm() {
   const [fetchingData, setFetchingData] = useState(true);
   const [showBuyConfirm, setShowBuyConfirm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [paidBidInput, setPaidBidInput] = useState("");
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [lookups, setLookups] = useState<Record<string, any[]>>({});
   
@@ -79,7 +80,14 @@ export default function NewAuctionForm() {
     link_video: "",
     link_earth: "",
     house_price: "",
-    upset_date: ""
+    upset_date: "",
+    paid_bid: "",
+    sale_price: "",
+    doc_fees: "",
+    paid_bid_inv: "",
+    investment_total_inv: "",
+    doc_fees_inv: "",
+    closing_fess_inv: ""
   });
 
   const [formSelectedState, setFormSelectedState] = useState("");
@@ -298,10 +306,11 @@ export default function NewAuctionForm() {
       delete payload.updated_by;
       
       const numericFields = [
-        'ref_id', 'open_bid', 'min_bid', 'max_bid', 'max_bid_internal', 'size', 
-        'market_value', 'annual_tax', 'sqft_price_reference', 
-        'appraisal_min', 'appraisal_avg', 'appraisal_max', 
-        'county_appraisal', 'online_appraisal', 'house_price'
+        'ref_id', 'open_bid', 'min_bid', 'max_bid', 'max_bid_internal', 'size',
+        'market_value', 'annual_tax', 'sqft_price_reference',
+        'appraisal_min', 'appraisal_avg', 'appraisal_max',
+        'county_appraisal', 'online_appraisal', 'house_price', 'paid_bid',
+        'sale_price', 'doc_fees', 'paid_bid_inv', 'investment_total_inv', 'doc_fees_inv', 'closing_fess_inv'
       ];
       
       numericFields.forEach(field => {
@@ -388,6 +397,7 @@ export default function NewAuctionForm() {
   };
 
   const handleBuyProperty = async () => {
+    if (!paidBidInput || isNaN(Number(paidBidInput)) || Number(paidBidInput) <= 0) return;
     setShowBuyConfirm(false);
     setLoading(true);
     try {
@@ -408,7 +418,8 @@ export default function NewAuctionForm() {
         }
       }
 
-      const payload: any = { ...formData, record_type: 'PROPERTY', ref_id: nextNumber };
+      const paidBid = Number(paidBidInput);
+      const payload: any = { ...formData, record_type: 'PROPERTY', ref_id: nextNumber, paid_bid: paidBid, paid_bid_inv: paidBid * 1.5 };
       
       delete payload.id;
       delete payload.created_at;
@@ -430,10 +441,11 @@ export default function NewAuctionForm() {
       });
 
       const numericFields = [
-        'open_bid', 'min_bid', 'max_bid', 'max_bid_internal', 'size', 
-        'market_value', 'annual_tax', 'sqft_price_reference', 
-        'appraisal_min', 'appraisal_avg', 'appraisal_max', 
-        'county_appraisal', 'online_appraisal', 'house_price'
+        'open_bid', 'min_bid', 'max_bid', 'max_bid_internal', 'size',
+        'market_value', 'annual_tax', 'sqft_price_reference',
+        'appraisal_min', 'appraisal_avg', 'appraisal_max',
+        'county_appraisal', 'online_appraisal', 'house_price', 'paid_bid',
+        'sale_price', 'doc_fees', 'paid_bid_inv', 'investment_total_inv', 'doc_fees_inv', 'closing_fess_inv'
       ];
       for (const field of numericFields) {
         if (payload[field] === "" || payload[field] === undefined) {
@@ -498,27 +510,59 @@ export default function NewAuctionForm() {
           display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100
         }}>
           <div style={{
-            backgroundColor: 'white', borderRadius: '1rem', width: '100%', maxWidth: '400px',
+            backgroundColor: 'white', borderRadius: '1rem', width: '100%', maxWidth: '420px',
             padding: '2rem', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-            display: 'flex', flexDirection: 'column', gap: '1rem'
+            display: 'flex', flexDirection: 'column', gap: '1.25rem'
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', color: '#10b981' }}>
-              <ShoppingCart className="w-6 h-6" />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <ShoppingCart className="w-6 h-6" style={{ color: '#10b981' }} />
               <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: '#0f172a' }}>Confirm Purchase</h2>
             </div>
             <p style={{ color: '#475569', fontSize: '0.95rem', margin: 0, lineHeight: 1.5 }}>
-              Are you sure you want to purchase this asset? It will be converted into a Property in the system and removed from the Auctions list.
+              This asset will be converted into a Property and removed from the Auctions list. Inform the amount effectively paid to complete the purchase.
             </p>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1rem' }}>
-              <button 
-                onClick={() => setShowBuyConfirm(false)}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
+              <label style={{ fontSize: '0.8rem', fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Paid Bid <span style={{ color: '#ef4444' }}>*</span>
+              </label>
+              <div className="currency-input-wrapper" style={{ borderColor: paidBidInput === "" || Number(paidBidInput) <= 0 ? '#ef4444' : '#d1fae5' }}>
+                <span className="currency-symbol">$</span>
+                <input
+                  type="number"
+                  step="any"
+                  min="0.01"
+                  autoFocus
+                  className="input-field currency"
+                  placeholder="0.00"
+                  value={paidBidInput}
+                  onChange={e => setPaidBidInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && paidBidInput && Number(paidBidInput) > 0) handleBuyProperty(); }}
+                  style={{ outline: 'none' }}
+                />
+              </div>
+              {(!paidBidInput || Number(paidBidInput) <= 0) && (
+                <span style={{ fontSize: '0.78rem', color: '#ef4444', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                  <AlertCircle className="w-3 h-3" /> This field is required to confirm the purchase.
+                </span>
+              )}
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.25rem' }}>
+              <button
+                onClick={() => { setShowBuyConfirm(false); setPaidBidInput(""); }}
                 style={{ padding: '0.5rem 1rem', borderRadius: '0.5rem', border: '1px solid #e2e8f0', backgroundColor: 'white', color: '#475569', fontWeight: 600, cursor: 'pointer' }}
               >
                 Cancel
               </button>
-              <button 
+              <button
                 onClick={handleBuyProperty}
-                style={{ padding: '0.5rem 1rem', borderRadius: '0.5rem', border: 'none', backgroundColor: '#10b981', color: 'white', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                disabled={!paidBidInput || Number(paidBidInput) <= 0}
+                style={{
+                  padding: '0.5rem 1rem', borderRadius: '0.5rem', border: 'none',
+                  backgroundColor: (!paidBidInput || Number(paidBidInput) <= 0) ? '#9ca3af' : '#10b981',
+                  color: 'white', fontWeight: 600,
+                  cursor: (!paidBidInput || Number(paidBidInput) <= 0) ? 'not-allowed' : 'pointer',
+                  display: 'flex', alignItems: 'center', gap: '0.5rem'
+                }}
               >
                 <ShoppingCart className="w-4 h-4" />
                 Confirm Purchase
@@ -1047,7 +1091,7 @@ export default function NewAuctionForm() {
         <div style={{ flex: 1 }}></div>
 
         {isEditing && isBuyPriority && (
-          <button className="primary-btn" onClick={() => setShowBuyConfirm(true)} disabled={loading || fetchingData} style={{ backgroundColor: '#10b981', borderColor: '#10b981' }}>
+          <button className="primary-btn" onClick={() => { setPaidBidInput(""); setShowBuyConfirm(true); }} disabled={loading || fetchingData} style={{ backgroundColor: '#10b981', borderColor: '#10b981' }}>
             <ShoppingCart className="w-4 h-4" />
             Buy
           </button>

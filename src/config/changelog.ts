@@ -6,9 +6,24 @@ export interface ChangelogItem {
   changes: string[];
 }
 
-export const CURRENT_VERSION = "1.3.0";
+export const CURRENT_VERSION = "1.4.0";
 
 export const CHANGELOG: ChangelogItem[] = [
+  {
+    version: "1.4.0",
+    date: "2026-06-05",
+    title: "Login Redesign, Properties Split & Auction Buy Flow",
+    type: "minor",
+    changes: [
+      "Login and Set-Password pages redesigned with a split-screen layout: dark branded left panel with feature highlights and a clean form on the right.",
+      "Properties nav item split into 'Ironclad' and 'Broker' sub-items with collapsible sidebar navigation.",
+      "Access Control updated with separate permissions for 'Properties: Ironclad' and 'Properties: Broker'.",
+      "PermissionGuard now supports anyOf prop for OR-based permission checks.",
+      "Auction 'Buy' flow now requires entering the paid bid amount before confirming the purchase.",
+      "New financial fields added to auctions: paid_bid, sale_price, doc_fees, paid_bid_inv, investment_total_inv, doc_fees_inv, closing_fess_inv.",
+      "paid_bid_inv auto-calculated as 1.5× the paid bid amount on purchase confirmation."
+    ]
+  },
   {
     version: "1.3.0",
     date: "2026-05-27",

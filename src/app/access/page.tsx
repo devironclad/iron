@@ -25,7 +25,8 @@ import "./access.css";
 const RESOURCES = [
   { id: "page:dashboard", label: "Dashboard Page", category: "Pages" },
   { id: "page:auctions", label: "Auctions Page", category: "Pages" },
-  { id: "page:properties", label: "Properties Page", category: "Pages" },
+  { id: "page:properties:ironclad", label: "Properties: Ironclad", category: "Pages" },
+  { id: "page:properties:broker", label: "Properties: Broker", category: "Pages" },
   { id: "page:requests", label: "Requests Page", category: "Pages" },
   { id: "page:manager", label: "Manager Page", category: "Pages" },
   { id: "page:access", label: "Access Control Page", category: "Pages" },

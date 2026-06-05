@@ -23,6 +23,7 @@ export default function PropertiesPage() {
   const [totalCount, setTotalCount] = useState(0);
 
   const searchParams = useSearchParams();
+  const source = searchParams.get('source') as 'ironclad' | 'broker' | null;
   const router = useRouter();
   const [recentCardId, setRecentCardId] = useState<number | null>(null);
   const [highlightId, setHighlightId] = useState<number | null>(null);
@@ -85,7 +86,12 @@ export default function PropertiesPage() {
     }
     const timer = setTimeout(() => {
       setToastMsg(null);
-      window.history.replaceState(null, '', window.location.pathname);
+      const cleanParams = new URLSearchParams();
+      if (source) cleanParams.set('source', source);
+      const cleanUrl = cleanParams.toString()
+        ? `${window.location.pathname}?${cleanParams.toString()}`
+        : window.location.pathname;
+      window.history.replaceState(null, '', cleanUrl);
     }, 3000);
     return () => clearTimeout(timer);
   }, []);
@@ -151,11 +157,11 @@ export default function PropertiesPage() {
 
   useEffect(() => {
     fetchProperties();
-  }, [selectedCounty, selectedState, selectedPropertyType, selectedPriority, selectedOrigin, selectedAuctionType, selectedAcquisitionDate, selectedAmenityCategory, selectedAmenityType, maxDistance, maxTime, currentPage, searchTerm]);
+  }, [source, selectedCounty, selectedState, selectedPropertyType, selectedPriority, selectedOrigin, selectedAuctionType, selectedAcquisitionDate, selectedAmenityCategory, selectedAmenityType, maxDistance, maxTime, currentPage, searchTerm]);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, selectedCounty, selectedState, selectedPropertyType, selectedPriority, selectedOrigin, selectedAuctionType, selectedAcquisitionDate, selectedAmenityCategory, selectedAmenityType, maxDistance, maxTime]);
+  }, [source, searchTerm, selectedCounty, selectedState, selectedPropertyType, selectedPriority, selectedOrigin, selectedAuctionType, selectedAcquisitionDate, selectedAmenityCategory, selectedAmenityType, maxDistance, maxTime]);
 
   async function fetchCounties() {
     const { data } = await supabase.from("ls_county").select("id, name, state").order("name");
@@ -216,6 +222,12 @@ export default function PropertiesPage() {
           ${selectedAmenityType !== 'all' ? ', ls_asset_amenities!inner(*)' : ''}
         `, { count: "exact" })
         .eq("record_type", "PROPERTY");
+
+      if (source === 'ironclad') {
+        query = query.or('owner_type.is.null,owner_type.neq.partner');
+      } else if (source === 'broker') {
+        query = query.eq('owner_type', 'partner');
+      }
 
       if (selectedCounty && selectedCounty !== "all") {
         query = query.eq("county_id", selectedCounty);
@@ -322,14 +334,24 @@ export default function PropertiesPage() {
   const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE);
 
 
+  const pageTitle = source === 'ironclad'
+    ? 'Ironclad Properties'
+    : source === 'broker'
+    ? 'Broker Properties'
+    : 'My Properties';
+
+  const pageSubtitle = source === 'broker'
+    ? 'Properties managed by partner brokers.'
+    : 'Manage acquired assets, financials, and detailed characteristics.';
+
   return (
-    <PermissionGuard resource="page:properties">
+    <PermissionGuard anyOf={["page:properties:ironclad", "page:properties:broker"]}>
       <div className="properties-container">
       {/* Header */}
       <div className="page-header">
         <div className="page-header-text">
-          <h1 className="page-title">My Properties<span className="dot">.</span></h1>
-          <p className="page-subtitle">Manage acquired assets, financials, and detailed characteristics.</p>
+          <h1 className="page-title">{pageTitle}<span className="dot">.</span></h1>
+          <p className="page-subtitle">{pageSubtitle}</p>
         </div>
       </div>
 
@@ -791,7 +813,7 @@ export default function PropertiesPage() {
                   </div>
 
                   {/* Botão */}
-                  <Link href={`/properties/${prop.id}`} className="card-details-btn" style={{ textDecoration: 'none', marginTop: '1rem' }}>
+                  <Link href={`/properties/${prop.id}${source ? `?source=${source}` : ''}`} className="card-details-btn" style={{ textDecoration: 'none', marginTop: '1rem' }}>
                     Open Property
                     <ArrowRight className="w-4 h-4" />
                   </Link>
@@ -861,7 +883,7 @@ export default function PropertiesPage() {
                 <td>{prop.ls_property_type?.name || '--'}</td>
                 <td style={{ fontWeight: 600 }}>{formatCurrency(prop.market_value)}</td>
                 <td>
-                  <Link href={`/properties/${prop.id}`} className="primary-btn" style={{ padding: "0.3rem 0.75rem", fontSize: "0.75rem", textDecoration: 'none' }}>Open</Link>
+                  <Link href={`/properties/${prop.id}${source ? `?source=${source}` : ''}`} className="primary-btn" style={{ padding: "0.3rem 0.75rem", fontSize: "0.75rem", textDecoration: 'none' }}>Open</Link>
                 </td>
                 </tr>
               );
