@@ -1166,6 +1166,10 @@ export default function PropertyDetailsPage() {
                 <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', marginBottom: '1.25rem' }}>Evolution</h3>
                 <div className="form-grid col-3">
                   <div className="input-group">
+                    <label className="input-label">Open Bid ($)</label>
+                    <CurrencyInput name="open_bid" value={property.open_bid} onChange={handleChange} />
+                  </div>
+                  <div className="input-group">
                     <label className="input-label">County Appraisal ($)</label>
                     <CurrencyInput name="county_appraisal" value={property.county_appraisal} onChange={handleChange} />
                   </div>
@@ -1188,6 +1192,10 @@ export default function PropertyDetailsPage() {
                   <div className="input-group">
                     <label className="input-label">House Price ($)</label>
                     <CurrencyInput name="house_price" value={property.house_price} onChange={handleChange} />
+                  </div>
+                  <div className="input-group">
+                    <label className="input-label">Market Value ($)</label>
+                    <CurrencyInput name="market_value" value={property.market_value} onChange={handleChange} />
                   </div>
                   <div className="input-group">
                     <label className="input-label">SqFt Price Reference</label>
