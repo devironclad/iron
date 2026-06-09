@@ -1245,16 +1245,21 @@ export default function PropertyDetailsPage() {
                     <CurrencyInput name="paid_bid_inv" value={property.paid_bid_inv} onChange={handleChange} />
                   </div>
                   <div className="input-group">
-                    <label className="input-label">Total Investment Investor ($)</label>
-                    <CurrencyInput name="investment_total_inv" value={property.investment_total_inv} onChange={handleChange} />
-                  </div>
-                  <div className="input-group">
                     <label className="input-label">Doc Fees Investor ($)</label>
                     <CurrencyInput name="doc_fees_inv" value={property.doc_fees_inv} onChange={handleChange} />
                   </div>
                   <div className="input-group">
                     <label className="input-label">Closing Fees Investor ($)</label>
                     <CurrencyInput name="closing_fess_inv" value={property.closing_fess_inv} onChange={handleChange} />
+                  </div>
+                  <div style={{ gridColumn: '1 / -1', background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)', borderRadius: '12px', padding: '1.25rem 1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: '0 4px 16px rgba(26,26,46,0.25)', border: '2px solid #7c3aed' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                      <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: 'rgba(124,58,237,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.1rem', color: '#ffffff' }}>$</div>
+                      <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#c4b5fd', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Total Investment Investor</span>
+                    </div>
+                    <span style={{ fontSize: '1.75rem', fontWeight: 800, color: '#ffffff', letterSpacing: '-0.01em', fontVariantNumeric: 'tabular-nums' }}>
+                      {property.investment_total_inv != null ? `$${Number(property.investment_total_inv).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -1374,9 +1379,14 @@ export default function PropertyDetailsPage() {
                     <CurrencyInput name="doc_fees" value={property.doc_fees} onChange={handleChange} disabled />
                   </div>
 
-                  <div className="input-group">
-                    <label className="input-label">Total Investment ($)</label>
-                    <CurrencyInput name="investment_total" value={property.investment_total} onChange={handleChange} disabled />
+                  <div style={{ gridColumn: '1 / -1', background: 'linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%)', borderRadius: '12px', padding: '1.25rem 1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: '0 4px 16px rgba(15,23,42,0.25)', border: '2px solid #3b82f6' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                      <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: 'rgba(59,130,246,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.1rem', color: '#ffffff' }}>$</div>
+                      <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#93c5fd', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Total Investment</span>
+                    </div>
+                    <span style={{ fontSize: '1.75rem', fontWeight: 800, color: '#ffffff', letterSpacing: '-0.01em', fontVariantNumeric: 'tabular-nums' }}>
+                      {property.investment_total != null ? `$${Number(property.investment_total).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
+                    </span>
                   </div>
 
                   <div className="input-group">

@@ -727,7 +727,7 @@ export default function PropertiesPage() {
                     <div>
                       <div style={{ fontSize: '0.6rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Investment</div>
                       <div style={{ fontSize: '0.95rem', fontWeight: 800, color: '#0f172a', lineHeight: 1.2 }}>
-                        {formatCurrency(42820)}
+                        {prop.investment_total != null ? formatCurrency(prop.investment_total) : '—'}
                       </div>
                     </div>
                   </div>
@@ -740,23 +740,30 @@ export default function PropertiesPage() {
                     <div>
                       <div style={{ fontSize: '0.6rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Sales Price</div>
                       <div style={{ fontSize: '0.95rem', fontWeight: 800, color: '#0f172a', lineHeight: 1.2 }}>
-                        {formatCurrency(87248)}
+                        {prop.sale_price != null ? formatCurrency(prop.sale_price) : '—'}
                       </div>
                     </div>
                   </div>
 
                   {/* ROI */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                    <div style={{ width: '36px', height: '36px', borderRadius: '9px', backgroundColor: '#ede9fe', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <TrendingUp className="w-4 h-4" style={{ color: '#7c3aed' }} />
-                    </div>
-                    <div>
-                      <div style={{ fontSize: '0.6rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em' }}>ROI</div>
-                      <div style={{ fontSize: '0.95rem', fontWeight: 800, color: '#7c3aed', lineHeight: 1.2 }}>
-                        {(((87248 - 42820) / 42820) * 100).toFixed(1)}%
+                  {(() => {
+                    const inv = prop.investment_total;
+                    const sale = prop.sale_price;
+                    const roi = inv != null && sale != null && inv > 0 ? (((sale - inv) / inv) * 100) : null;
+                    return (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                        <div style={{ width: '36px', height: '36px', borderRadius: '9px', backgroundColor: '#ede9fe', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          <TrendingUp className="w-4 h-4" style={{ color: '#7c3aed' }} />
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '0.6rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em' }}>ROI</div>
+                          <div style={{ fontSize: '0.95rem', fontWeight: 800, color: roi != null && roi >= 0 ? '#7c3aed' : '#dc2626', lineHeight: 1.2 }}>
+                            {roi != null ? `${roi.toFixed(1)}%` : '—'}
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  </div>
+                    );
+                  })()}
 
                 </div>
 
@@ -769,42 +776,45 @@ export default function PropertiesPage() {
                       Profit Projection
                     </div>
                     {(() => {
-                      const base = prop.open_bid || 0;
+                      const base = prop.investment_total || 0;
                       const tiers = [
-                        { label: '+40%', mult: 1.4, fill: 70, color: '#6ee7b7', textColor: '#065f46' },
-                        { label: '+60%', mult: 1.6, fill: 80, color: '#34d399', textColor: '#065f46' },
-                        { label: '+80%', mult: 1.8, fill: 90, color: '#10b981', textColor: '#ffffff' },
-                        { label: '+100%', mult: 2.0, fill: 100, color: '#059669', textColor: '#ffffff' },
+                        { label: '+40%', roi: 0.4, fill: 40, color: '#6ee7b7', textColor: '#065f46' },
+                        { label: '+60%', roi: 0.6, fill: 60, color: '#34d399', textColor: '#065f46' },
+                        { label: '+80%', roi: 0.8, fill: 80, color: '#10b981', textColor: '#ffffff' },
+                        { label: '+100%', roi: 1.0, fill: 100, color: '#059669', textColor: '#ffffff' },
                       ];
                       return (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                          {tiers.map(t => (
-                            <div key={t.label} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                              <div style={{ width: '32px', fontSize: '0.58rem', fontWeight: 700, color: '#94a3b8', textAlign: 'right', flexShrink: 0 }}>{t.label}</div>
-                              <div style={{ flex: 1, height: '18px', backgroundColor: '#f1f5f9', borderRadius: '4px', overflow: 'hidden', position: 'relative' }}>
-                                <div style={{
-                                  width: `${t.fill}%`,
-                                  height: '100%',
-                                  backgroundColor: t.color,
-                                  borderRadius: '4px',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'flex-end',
-                                  paddingRight: '6px',
-                                  transition: 'width 0.4s ease'
-                                }}>
-                                  {base > 0 && (
-                                    <span style={{ fontSize: '0.58rem', fontWeight: 700, color: t.textColor, whiteSpace: 'nowrap' }}>
-                                      {formatCurrency(base * t.mult)}
-                                    </span>
-                                  )}
+                          {tiers.map(t => {
+                            const profit = base * t.roi;
+                            return (
+                              <div key={t.label} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <div style={{ width: '32px', fontSize: '0.58rem', fontWeight: 700, color: '#94a3b8', textAlign: 'right', flexShrink: 0 }}>{t.label}</div>
+                                <div style={{ flex: 1, height: '18px', backgroundColor: '#f1f5f9', borderRadius: '4px', overflow: 'hidden', position: 'relative' }}>
+                                  <div style={{
+                                    width: `${t.fill}%`,
+                                    height: '100%',
+                                    backgroundColor: t.color,
+                                    borderRadius: '4px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'flex-end',
+                                    paddingRight: '6px',
+                                    transition: 'width 0.4s ease'
+                                  }}>
+                                    {base > 0 && (
+                                      <span style={{ fontSize: '0.58rem', fontWeight: 700, color: t.textColor, whiteSpace: 'nowrap' }}>
+                                        {formatCurrency(base + profit)}
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
-                            </div>
-                          ))}
+                            );
+                          })}
                           {base > 0 && (
                             <div style={{ fontSize: '0.6rem', color: '#94a3b8', marginTop: '2px', paddingLeft: '40px', fontWeight: 500 }}>
-                              Base (Open Bid): {formatCurrency(base)}
+                              Base (Total Investment): {formatCurrency(base)}
                             </div>
                           )}
                         </div>
