@@ -412,7 +412,14 @@ export default function PropertyDetailsPage() {
     property?.preapproval_review,   property?.tg_preapproval_review,
   ]);
 
-  // Auto-calculate investment_total_inv = (paid_bid * 2) + doc_fees_inv + closing_fess_inv + active strategy cost toggles
+  // Auto-seed paid_bid_inv = paid_bid * 2 whenever paid_bid changes (user may still override)
+  useEffect(() => {
+    if (!property) return;
+    const auto = (Number(property.paid_bid) || 0) * 2;
+    setProperty((prev: any) => ({ ...prev, paid_bid_inv: auto }));
+  }, [property?.paid_bid]);
+
+  // Auto-calculate investment_total_inv = paid_bid_inv + doc_fees_inv + closing_fess_inv + active strategy cost toggles
   useEffect(() => {
     if (!property) return;
     const strategyItems = [
@@ -425,14 +432,13 @@ export default function PropertyDetailsPage() {
     ];
     const strategySum = strategyItems.reduce((acc, { cost, toggle }) =>
       acc + (property[toggle] ? (Number(property[cost]) || 0) : 0), 0);
-    const paidBidInv = (Number(property.paid_bid) || 0) * 2;
-    const total = paidBidInv
+    const total = (Number(property.paid_bid_inv) || 0)
       + (Number(property.doc_fees_inv) || 0)
       + (Number(property.closing_fess_inv) || 0)
       + strategySum;
     setProperty((prev: any) => ({ ...prev, investment_total_inv: total }));
   }, [
-    property?.paid_bid,
+    property?.paid_bid_inv,
     property?.doc_fees_inv,
     property?.closing_fess_inv,
     property?.warrantydeedtransfer_stg, property?.tg_warrantydeedtransfer_stg,
@@ -1283,8 +1289,8 @@ export default function PropertyDetailsPage() {
                     <CurrencyInput name="sale_price" value={property.sale_price} onChange={handleChange} disabled />
                   </div>
                   <div className="input-group">
-                    <label className="input-label">Paid Bid Investor ($) <span style={{ fontSize: '0.7rem', fontWeight: 600, color: '#94a3b8', marginLeft: '0.4rem' }}>auto-calculated</span></label>
-                    <CurrencyInput name="paid_bid_inv" value={(property.paid_bid || 0) * 2} onChange={handleChange} disabled />
+                    <label className="input-label">Paid Bid Investor ($) <span style={{ fontSize: '0.7rem', fontWeight: 600, color: '#94a3b8', marginLeft: '0.4rem' }}>auto · editável</span></label>
+                    <CurrencyInput name="paid_bid_inv" value={property.paid_bid_inv} onChange={handleChange} />
                   </div>
                   <div className="input-group">
                     <label className="input-label">Doc Fees Investor ($) <span style={{ fontSize: '0.7rem', fontWeight: 600, color: '#94a3b8', marginLeft: '0.4rem' }}>auto-calculated</span></label>
