@@ -9,7 +9,7 @@ import {
   Plus, Search, Grid, List, MapPin, Calendar, ExternalLink,
   ArrowRight, Tag, Loader2, Navigation, ChevronLeft, ChevronRight,
   Filter, Layers, Maximize, Hash, CheckCircle2, Building2, UserCheck,
-  Coins, DollarSign, TrendingUp, ImageOff
+  Coins, DollarSign, TrendingUp, ImageOff, Gavel, Briefcase
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { PermissionGuard } from "@/components/auth/PermissionGuard";
@@ -218,6 +218,7 @@ export default function PropertiesPage() {
           ls_priority(name, color),
           ls_property_type(name),
           ls_origem(name),
+          ls_auction_type(name),
           owner_partner:ls_users_metadata!owner_partner_id(full_name)
           ${selectedAmenityType !== 'all' ? ', ls_asset_amenities!inner(*)' : ''}
         `, { count: "exact" })
@@ -702,16 +703,16 @@ export default function PropertiesPage() {
                       <span style={{ fontSize: '0.78rem' }}>{formatDate(prop.acquisition_date || prop.auction_date)}</span>
                     </div>
                     <div className="detail-item">
-                      <Tag className="w-3.5 h-3.5 detail-icon flex-shrink-0" />
-                      <span style={{ fontSize: '0.78rem' }}>{prop.ls_status?.name || 'N/A'}</span>
+                      <Gavel className="w-3.5 h-3.5 detail-icon flex-shrink-0" />
+                      <span style={{ fontSize: '0.78rem' }}>{prop.ls_auction_type?.name || 'N/A'}</span>
                     </div>
                     <div className="detail-item">
                       <Maximize className="w-3.5 h-3.5 detail-icon flex-shrink-0" />
                       <span style={{ fontSize: '0.78rem' }}>{prop.size ? `${prop.size} AC` : 'No Size'}</span>
                     </div>
                     <div className="detail-item">
-                      <Layers className="w-3.5 h-3.5 detail-icon flex-shrink-0" />
-                      <span style={{ fontSize: '0.78rem' }}>{prop.ls_status?.name || 'N/A'}</span>
+                      <Briefcase className="w-3.5 h-3.5 detail-icon flex-shrink-0" />
+                      <span style={{ fontSize: '0.78rem' }} title={prop.case_number || '--'}>{prop.case_number || '--'}</span>
                     </div>
                   </div>
                 </div>

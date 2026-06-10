@@ -29,7 +29,15 @@ import {
   Trees,
   Lock,
   CheckSquare,
-  Receipt
+  Receipt,
+  Handshake,
+  BadgeCheck,
+  CalendarCheck,
+  User,
+  Mail,
+  Phone,
+  Home,
+  UserCog
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { hasPermission, getCurrentUserPermissions } from "@/lib/permissions";
@@ -404,6 +412,64 @@ export default function PropertyDetailsPage() {
     property?.preapproval_review,   property?.tg_preapproval_review,
   ]);
 
+  // Auto-calculate investment_total_inv = (paid_bid * 2) + doc_fees_inv + closing_fess_inv + active strategy cost toggles
+  useEffect(() => {
+    if (!property) return;
+    const strategyItems = [
+      { cost: 'warrantydeedtransfer_stg', toggle: 'tg_warrantydeedtransfer_stg' },
+      { cost: 'titleclaim_action_stg',    toggle: 'tg_titleclaim_action_stg' },
+      { cost: 'surveyor_stg',             toggle: 'tg_surveyor_stg' },
+      { cost: 'land_clearing_stg',        toggle: 'tg_land_clearing_stg' },
+      { cost: 'fencing_gate_stg',         toggle: 'tg_fencing_gate_stg' },
+      { cost: 'preapproval_review_stg',   toggle: 'tg_preapproval_review_stg' },
+    ];
+    const strategySum = strategyItems.reduce((acc, { cost, toggle }) =>
+      acc + (property[toggle] ? (Number(property[cost]) || 0) : 0), 0);
+    const paidBidInv = (Number(property.paid_bid) || 0) * 2;
+    const total = paidBidInv
+      + (Number(property.doc_fees_inv) || 0)
+      + (Number(property.closing_fess_inv) || 0)
+      + strategySum;
+    setProperty((prev: any) => ({ ...prev, investment_total_inv: total }));
+  }, [
+    property?.paid_bid,
+    property?.doc_fees_inv,
+    property?.closing_fess_inv,
+    property?.warrantydeedtransfer_stg, property?.tg_warrantydeedtransfer_stg,
+    property?.titleclaim_action_stg,    property?.tg_titleclaim_action_stg,
+    property?.surveyor_stg,             property?.tg_surveyor_stg,
+    property?.land_clearing_stg,        property?.tg_land_clearing_stg,
+    property?.fencing_gate_stg,         property?.tg_fencing_gate_stg,
+    property?.preapproval_review_stg,   property?.tg_preapproval_review_stg,
+  ]);
+
+  // Auto-calculate financed_owner = (monthly_installment * 72) + investment_total
+  useEffect(() => {
+    if (!property) return;
+    const pmt = Number(property.monthly_installment) || 0;
+    const inv = Number(property.investment_total) || 0;
+    if (pmt <= 0) {
+      setProperty((prev: any) => ({ ...prev, financed_owner: null }));
+      return;
+    }
+    const total = parseFloat(((pmt * 72) + inv).toFixed(2));
+    setProperty((prev: any) => ({ ...prev, financed_owner: total }));
+  }, [property?.monthly_installment, property?.investment_total]);
+
+  // Auto-calculate monthly_installment using PMT formula: rate=12% a.a., n=72 months, PV=(sale_price - investment_total)
+  useEffect(() => {
+    if (!property) return;
+    const pv = (Number(property.sale_price) || 0) - (Number(property.investment_total) || 0);
+    if (pv <= 0) {
+      setProperty((prev: any) => ({ ...prev, monthly_installment: null }));
+      return;
+    }
+    const r = 0.12 / 12;
+    const n = 72;
+    const pmt = (pv * r) / (1 - Math.pow(1 + r, -n));
+    setProperty((prev: any) => ({ ...prev, monthly_installment: parseFloat(pmt.toFixed(2)) }));
+  }, [property?.sale_price, property?.investment_total]);
+
   // Auto-calculate sale_price based on state (FL/GA vs others) + active cost toggles with markup
   useEffect(() => {
     if (!property) return;
@@ -454,7 +520,7 @@ export default function PropertyDetailsPage() {
     </div>
   );
 
-  const renderCostTableRow = (label: string, desc: string, costName: string, toggleName: string, IconComponent: any) => {
+  const renderCostTableRow = (label: string, desc: string, costName: string, toggleName: string, IconComponent: any, disabled = false) => {
     return (
       <div 
         className="cost-table-row"
@@ -500,16 +566,17 @@ export default function PropertyDetailsPage() {
           />
         </div>
 
-        {/* Coluna 3: Input de Moeda (Sempre editável) */}
+        {/* Coluna 3: Input de Moeda */}
         <div className="input-group" style={{ margin: 0 }}>
-          <CurrencyInput 
-            name={costName} 
-            value={property[costName]} 
-            onChange={handleChange} 
+          <CurrencyInput
+            name={costName}
+            value={property[costName]}
+            onChange={handleChange}
             placeholder="0.00"
+            disabled={disabled}
             style={{
-              backgroundColor: '#ffffff',
-              cursor: 'text',
+              backgroundColor: disabled ? '#f8fafc' : '#ffffff',
+              cursor: disabled ? 'not-allowed' : 'text',
               transition: 'all 0.2s',
               border: '1px solid #cbd5e1'
             }}
@@ -543,7 +610,8 @@ export default function PropertyDetailsPage() {
         'county_appraisal', 'online_appraisal', 'sqft_price_reference', 'house_price',
         'warrantydeedtransfer', 'titleclaim_action', 'surveyor', 'land_clearing', 
         'fencing_gate', 'preapproval_review', 'investment_total', 'paid_bid',
-        'sale_price', 'doc_fees', 'paid_bid_inv', 'investment_total_inv', 'doc_fees_inv', 'closing_fess_inv'
+        'sale_price', 'doc_fees', 'paid_bid_inv', 'investment_total_inv', 'doc_fees_inv', 'closing_fess_inv',
+        'financed_owner', 'monthly_installment', 'sold_value'
       ];
       numericFields.forEach(f => {
         if (payload[f] === "" || payload[f] === undefined) payload[f] = null;
@@ -1022,32 +1090,6 @@ export default function PropertyDetailsPage() {
                 </div>
               </div>
 
-              {/* Ownership */}
-              <div style={{ margin: '0 1rem 1rem 1rem' }}>
-                <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', marginBottom: '1.25rem' }}>Ownership</h3>
-                <div className="form-grid col-3">
-                  <div className="input-group">
-                    <label className="input-label">Property Owner</label>
-                    <select
-                      value={property.owner_type === 'partner' ? (property.owner_partner_id || '') : 'ironclad'}
-                      onChange={(e) => handleOwnerChange(e.target.value)}
-                      className="input-field"
-                    >
-                      <option value="ironclad">IronClad</option>
-                      {partners.map(p => (
-                        <option key={p.id} value={p.id}>{p.full_name}</option>
-                      ))}
-                    </select>
-                  </div>
-                  {property.owner_type === 'partner' && (
-                    <div className="input-group" style={{ display: 'flex', alignItems: 'flex-end' }}>
-                      <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#f59e0b', backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderRadius: '0.5rem', padding: '0.5rem 0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
-                        Assigned to Partner
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </div>
             </div>
           )}
 
@@ -1167,7 +1209,7 @@ export default function PropertyDetailsPage() {
                 <div className="form-grid col-3">
                   <div className="input-group">
                     <label className="input-label">Open Bid ($)</label>
-                    <CurrencyInput name="open_bid" value={property.open_bid} onChange={handleChange} />
+                    <CurrencyInput name="open_bid" value={property.open_bid} onChange={handleChange} disabled />
                   </div>
                   <div className="input-group">
                     <label className="input-label">County Appraisal ($)</label>
@@ -1194,8 +1236,8 @@ export default function PropertyDetailsPage() {
                     <CurrencyInput name="house_price" value={property.house_price} onChange={handleChange} />
                   </div>
                   <div className="input-group">
-                    <label className="input-label">Market Value ($)</label>
-                    <CurrencyInput name="market_value" value={property.market_value} onChange={handleChange} />
+                    <label className="input-label">Residual Land Value ($)</label>
+                    <CurrencyInput name="market_value" value={property.market_value} onChange={handleChange} disabled />
                   </div>
                   <div className="input-group">
                     <label className="input-label">SqFt Price Reference</label>
@@ -1241,16 +1283,24 @@ export default function PropertyDetailsPage() {
                     <CurrencyInput name="sale_price" value={property.sale_price} onChange={handleChange} disabled />
                   </div>
                   <div className="input-group">
-                    <label className="input-label">Paid Bid Investor ($)</label>
-                    <CurrencyInput name="paid_bid_inv" value={property.paid_bid_inv} onChange={handleChange} />
+                    <label className="input-label">Paid Bid Investor ($) <span style={{ fontSize: '0.7rem', fontWeight: 600, color: '#94a3b8', marginLeft: '0.4rem' }}>auto-calculated</span></label>
+                    <CurrencyInput name="paid_bid_inv" value={(property.paid_bid || 0) * 2} onChange={handleChange} disabled />
                   </div>
                   <div className="input-group">
-                    <label className="input-label">Doc Fees Investor ($)</label>
-                    <CurrencyInput name="doc_fees_inv" value={property.doc_fees_inv} onChange={handleChange} />
+                    <label className="input-label">Doc Fees Investor ($) <span style={{ fontSize: '0.7rem', fontWeight: 600, color: '#94a3b8', marginLeft: '0.4rem' }}>auto-calculated</span></label>
+                    <CurrencyInput name="doc_fees_inv" value={property.doc_fees_inv} onChange={handleChange} disabled />
                   </div>
                   <div className="input-group">
-                    <label className="input-label">Closing Fees Investor ($)</label>
-                    <CurrencyInput name="closing_fess_inv" value={property.closing_fess_inv} onChange={handleChange} />
+                    <label className="input-label">Closing Fees Investor ($) <span style={{ fontSize: '0.7rem', fontWeight: 600, color: '#94a3b8', marginLeft: '0.4rem' }}>auto-calculated</span></label>
+                    <CurrencyInput name="closing_fess_inv" value={property.closing_fess_inv} onChange={handleChange} disabled />
+                  </div>
+                  <div className="input-group">
+                    <label className="input-label">Financed by Owner ($) <span style={{ fontSize: '0.7rem', fontWeight: 600, color: '#94a3b8', marginLeft: '0.4rem' }}>auto-calculated</span></label>
+                    <CurrencyInput name="financed_owner" value={property.financed_owner} onChange={handleChange} disabled />
+                  </div>
+                  <div className="input-group">
+                    <label className="input-label">Monthly Installment ($) <span style={{ fontSize: '0.7rem', fontWeight: 600, color: '#94a3b8', marginLeft: '0.4rem' }}>auto-calculated</span></label>
+                    <CurrencyInput name="monthly_installment" value={property.monthly_installment} onChange={handleChange} disabled />
                   </div>
                   <div style={{ gridColumn: '1 / -1', background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)', borderRadius: '12px', padding: '1.25rem 1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: '0 4px 16px rgba(26,26,46,0.25)', border: '2px solid #7c3aed' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -1262,6 +1312,163 @@ export default function PropertyDetailsPage() {
                     </span>
                   </div>
                 </div>
+              </div>
+
+              {/* Ownership */}
+              <div style={{ margin: '0 1rem 1rem 1rem' }}>
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', marginBottom: '1.25rem' }}>Ownership</h3>
+                <div className="form-grid col-3">
+                  <div className="input-group">
+                    <label className="input-label">Property Owner</label>
+                    <select
+                      value={property.owner_type === 'partner' ? (property.owner_partner_id || '') : 'ironclad'}
+                      onChange={(e) => handleOwnerChange(e.target.value)}
+                      className="input-field"
+                    >
+                      <option value="ironclad">IronClad</option>
+                      {partners.map(p => (
+                        <option key={p.id} value={p.id}>{p.full_name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  {property.owner_type === 'partner' && (
+                    <div className="input-group" style={{ display: 'flex', alignItems: 'flex-end' }}>
+                      <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#f59e0b', backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderRadius: '0.5rem', padding: '0.5rem 0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+                        Assigned to Partner
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Sale Status */}
+              <div style={{ margin: '0 1rem 1.5rem 1rem' }}>
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', marginBottom: '1.25rem' }}>Sale Status</h3>
+
+                {/* Botões de seleção */}
+                <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.5rem' }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = property.sale_type === 'sold_to_investor' ? null : 'sold_to_investor';
+                      setProperty((prev: any) => ({
+                        ...prev,
+                        sale_type: next,
+                        sold_date: next && !prev.sold_date ? new Date().toISOString() : prev.sold_date,
+                        sold_value: next && !prev.sold_value ? (prev.investment_total_inv ?? null) : prev.sold_value,
+                      }));
+                    }}
+                    style={{
+                      flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.6rem',
+                      padding: '0.85rem 1rem', borderRadius: '10px', fontWeight: 700, fontSize: '0.9rem',
+                      cursor: 'pointer', transition: 'all 0.2s',
+                      border: property.sale_type === 'sold_to_investor' ? '2px solid #1d4ed8' : '2px solid #e2e8f0',
+                      backgroundColor: property.sale_type === 'sold_to_investor' ? '#eff6ff' : '#f8fafc',
+                      color: property.sale_type === 'sold_to_investor' ? '#1d4ed8' : '#64748b',
+                    }}
+                  >
+                    <Handshake className="w-5 h-5" />
+                    Sold to Investor
+                    {property.sale_type === 'sold_to_investor' && (
+                      <span style={{ marginLeft: '0.25rem', backgroundColor: '#1d4ed8', color: '#fff', borderRadius: '999px', padding: '0.1rem 0.5rem', fontSize: '0.65rem', fontWeight: 700 }}>ACTIVE</span>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = property.sale_type === 'sold_out' ? null : 'sold_out';
+                      setProperty((prev: any) => ({
+                        ...prev,
+                        sale_type: next,
+                        sold_date: next && !prev.sold_date ? new Date().toISOString() : prev.sold_date,
+                        sold_value: next && !prev.sold_value ? (prev.investment_total_inv ?? null) : prev.sold_value,
+                      }));
+                    }}
+                    style={{
+                      flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.6rem',
+                      padding: '0.85rem 1rem', borderRadius: '10px', fontWeight: 700, fontSize: '0.9rem',
+                      cursor: 'pointer', transition: 'all 0.2s',
+                      border: property.sale_type === 'sold_out' ? '2px solid #059669' : '2px solid #e2e8f0',
+                      backgroundColor: property.sale_type === 'sold_out' ? '#ecfdf5' : '#f8fafc',
+                      color: property.sale_type === 'sold_out' ? '#059669' : '#64748b',
+                    }}
+                  >
+                    <BadgeCheck className="w-5 h-5" />
+                    Sold Out
+                    {property.sale_type === 'sold_out' && (
+                      <span style={{ marginLeft: '0.25rem', backgroundColor: '#059669', color: '#fff', borderRadius: '999px', padding: '0.1rem 0.5rem', fontSize: '0.65rem', fontWeight: 700 }}>ACTIVE</span>
+                    )}
+                  </button>
+                </div>
+
+                {/* Detalhes da venda */}
+                {property.sale_type && (
+                  <div style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '1.25rem' }}>
+
+                    {/* Data e Valor — somente leitura */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: property.sale_type === 'sold_out' ? '1.25rem' : 0 }}>
+                      <div>
+                        <div style={{ fontSize: '0.65rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.3rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                          <CalendarCheck className="w-3.5 h-3.5" /> Sale Date
+                        </div>
+                        <div style={{ fontSize: '1rem', fontWeight: 700, color: '#0f172a' }}>
+                          {property.sold_date ? new Date(property.sold_date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: '2-digit' }) : '—'}
+                        </div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '0.65rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.3rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                          <DollarSign className="w-3.5 h-3.5" /> Value
+                        </div>
+                        <div style={{ fontSize: '1rem', fontWeight: 700, color: '#0f172a' }}>
+                          {property.investment_total_inv != null ? `$${Number(property.investment_total_inv).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Campos adicionais — apenas Sold Out */}
+                    {property.sale_type === 'sold_out' && (
+                      <div className="form-grid col-2" style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid #e2e8f0' }}>
+                        <div className="input-group">
+                          <label className="input-label" style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                            <User className="w-3.5 h-3.5" /> Client Name
+                          </label>
+                          <input type="text" name="client_name" value={property.client_name || ''} onChange={handleChange} className="input-field" placeholder="Full name..." />
+                        </div>
+                        <div className="input-group">
+                          <label className="input-label" style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                            <Mail className="w-3.5 h-3.5" /> Client Email
+                          </label>
+                          <input type="email" name="client_email" value={property.client_email || ''} onChange={handleChange} className="input-field" placeholder="email@..." />
+                        </div>
+                        <div className="input-group">
+                          <label className="input-label" style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                            <Phone className="w-3.5 h-3.5" /> Client Phone
+                          </label>
+                          <input type="text" name="client_phone" value={property.client_phone || ''} onChange={handleChange} className="input-field" placeholder="(000) 000-0000" />
+                        </div>
+                        <div className="input-group">
+                          <label className="input-label" style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                            <Home className="w-3.5 h-3.5" /> Client Address
+                          </label>
+                          <input type="text" name="client_addrees" value={property.client_addrees || ''} onChange={handleChange} className="input-field" placeholder="Address..." />
+                        </div>
+                        <div className="input-group">
+                          <label className="input-label" style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                            <UserCog className="w-3.5 h-3.5" /> Buyer Agent
+                          </label>
+                          <input type="text" name="buyer_agent" value={property.buyer_agent || ''} onChange={handleChange} className="input-field" placeholder="Agent name..." />
+                        </div>
+                        <div className="input-group">
+                          <label className="input-label" style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                            <UserCog className="w-3.5 h-3.5" /> Seller Agent
+                          </label>
+                          <input type="text" name="seller_agente" value={property.seller_agente || ''} onChange={handleChange} className="input-field" placeholder="Agent name..." />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -1343,7 +1550,16 @@ export default function PropertyDetailsPage() {
                 <h2 className="section-title">Acquisition & Development</h2>
                 <p className="section-desc">Manage property development costs, acquisition toggles, sales statuses, improvements, and modular options.</p>
               </div>
+              {property.sale_type && (
+                <div style={{ margin: '0 1rem 1rem 1rem', display: 'flex', alignItems: 'center', gap: '0.6rem', backgroundColor: '#fef9c3', border: '1px solid #fde047', borderRadius: '8px', padding: '0.65rem 1rem' }}>
+                  <Lock className="w-4 h-4" style={{ color: '#a16207', flexShrink: 0 }} />
+                  <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#a16207' }}>
+                    This property is marked as <strong>{property.sale_type === 'sold_to_investor' ? 'Sold to Investor' : 'Sold Out'}</strong>. Development fields are locked for editing.
+                  </span>
+                </div>
+              )}
 
+              <fieldset disabled={!!property.sale_type} style={{ border: 'none', padding: 0, margin: 0 }}>
               <div style={{ margin: '0 1rem 2.5rem 1rem' }}>
                 <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', marginBottom: '1.25rem' }}>Cost Estimates & Clearances</h3>
                 
@@ -1357,12 +1573,12 @@ export default function PropertyDetailsPage() {
                   {renderCostTableHeader()}
 
                   {/* Table Rows */}
-                  {renderCostTableRow("Warranty Deed Transfer", "Deed preparation and recording fees", "warrantydeedtransfer", "tg_warrantydeedtransfer", FileText)}
-                  {renderCostTableRow("Title Claim Action", "Clearing title or legal fees", "titleclaim_action", "tg_titleclaim_action", Scale)}
-                  {renderCostTableRow("Surveyor Cost", "Boundary mapping and layout marking", "surveyor", "tg_surveyor", Compass)}
-                  {renderCostTableRow("Land Clearing", "Tree removal and grading", "land_clearing", "tg_land_clearing", Trees)}
-                  {renderCostTableRow("Fencing & Gate", "Perimeter fence and security gate", "fencing_gate", "tg_fencing_gate", Lock)}
-                  {renderCostTableRow("Preapproval Review", "Zoning review and compliance", "preapproval_review", "tg_preapproval_review", CheckSquare)}
+                  {renderCostTableRow("Warranty Deed Transfer", "Deed preparation and recording fees", "warrantydeedtransfer", "tg_warrantydeedtransfer", FileText, !!property.sale_type)}
+                  {renderCostTableRow("Title Claim Action", "Clearing title or legal fees", "titleclaim_action", "tg_titleclaim_action", Scale, !!property.sale_type)}
+                  {renderCostTableRow("Surveyor Cost", "Boundary mapping and layout marking", "surveyor", "tg_surveyor", Compass, !!property.sale_type)}
+                  {renderCostTableRow("Land Clearing", "Tree removal and grading", "land_clearing", "tg_land_clearing", Trees, !!property.sale_type)}
+                  {renderCostTableRow("Fencing & Gate", "Perimeter fence and security gate", "fencing_gate", "tg_fencing_gate", Lock, !!property.sale_type)}
+                  {renderCostTableRow("Preapproval Review", "Zoning review and compliance", "preapproval_review", "tg_preapproval_review", CheckSquare, !!property.sale_type)}
                 </div>
               </div>
 
@@ -1434,6 +1650,7 @@ export default function PropertyDetailsPage() {
                   </div>
                 </div>
               </div>
+              </fieldset>
             </div>
           )}
 
