@@ -778,10 +778,16 @@ export default function PropertiesPage() {
                     </div>
                     {(() => {
                       const base = prop.investment_total || 0;
-                      const tiers = [
-                        { label: '+40%', roi: 0.4, fill: 40, color: '#6ee7b7', textColor: '#065f46' },
-                        { label: '+60%', roi: 0.6, fill: 60, color: '#34d399', textColor: '#065f46' },
-                        { label: '+80%', roi: 0.8, fill: 80, color: '#10b981', textColor: '#ffffff' },
+                      const isAR = prop.ls_county?.state === 'AR';
+                      const tiers = isAR ? [
+                        { label: '+100%', roi: 1.0, fill: 25,  color: '#6ee7b7', textColor: '#065f46' },
+                        { label: '+200%', roi: 2.0, fill: 50,  color: '#34d399', textColor: '#065f46' },
+                        { label: '+300%', roi: 3.0, fill: 75,  color: '#10b981', textColor: '#ffffff' },
+                        { label: '+400%', roi: 4.0, fill: 100, color: '#059669', textColor: '#ffffff' },
+                      ] : [
+                        { label: '+40%',  roi: 0.4, fill: 40,  color: '#6ee7b7', textColor: '#065f46' },
+                        { label: '+60%',  roi: 0.6, fill: 60,  color: '#34d399', textColor: '#065f46' },
+                        { label: '+80%',  roi: 0.8, fill: 80,  color: '#10b981', textColor: '#ffffff' },
                         { label: '+100%', roi: 1.0, fill: 100, color: '#059669', textColor: '#ffffff' },
                       ];
                       return (
