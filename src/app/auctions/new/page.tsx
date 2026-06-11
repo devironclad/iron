@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Save, X, Info, Gavel, MapPin, FileText, Key, DollarSign, Link as LinkIcon, Loader2, ShoppingCart, AlertCircle, Trash2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { formatPropId } from "@/lib/utils";
+import { getCurrentUserPermissions, hasPermission } from "@/lib/permissions";
 import "./form.css";
 
 const SECTIONS = [
@@ -31,6 +32,7 @@ export default function NewAuctionForm() {
   const [paidBidInput, setPaidBidInput] = useState("");
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [lookups, setLookups] = useState<Record<string, any[]>>({});
+  const [permissions, setPermissions] = useState<any>(null);
   
   // Form State
   const [formData, setFormData] = useState<any>({
@@ -136,13 +138,16 @@ export default function NewAuctionForm() {
       };
 
       await Promise.all([...lookupPromises, fetchAuctionData()]);
-      
+
       setLookups(results);
       setFetchingData(false);
     }
-    
+
     loadAllData();
+    getCurrentUserPermissions().then(setPermissions);
   }, [editId]);
+
+  const canEdit = permissions !== null && hasPermission(permissions, 'page:auctions', 'edit');
 
   useEffect(() => {
     const handleScroll = () => {
@@ -248,6 +253,10 @@ export default function NewAuctionForm() {
   };
 
   const handleSave = async () => {
+    if (!canEdit) {
+      alert("You don't have permission to edit auctions.");
+      return;
+    }
     // 1. Validation for mandatory fields
     const requiredFields = [
       { key: 'auction_date', label: 'Auction Date' },
@@ -1099,11 +1108,16 @@ export default function NewAuctionForm() {
         <button
           className="primary-btn"
           onClick={handleSave}
-          disabled={loading || fetchingData || savedOk}
-          style={savedOk ? { backgroundColor: '#10b981', cursor: 'default' } : undefined}
+          disabled={loading || fetchingData || savedOk || !canEdit}
+          title={!canEdit ? "You don't have permission to edit auctions." : undefined}
+          style={
+            savedOk ? { backgroundColor: '#10b981', cursor: 'default' } :
+            !canEdit ? { backgroundColor: '#94a3b8', cursor: 'not-allowed', opacity: 0.7 } :
+            undefined
+          }
         >
           {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-          {loading ? "Saving..." : savedOk ? "Saved! Returning..." : (isEditing ? "Save Changes" : "Save Auction")}
+          {loading ? "Saving..." : savedOk ? "Saved! Returning..." : !canEdit ? "Read Only" : (isEditing ? "Save Changes" : "Save Auction")}
         </button>
       </div>
     </div>

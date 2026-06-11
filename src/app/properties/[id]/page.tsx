@@ -213,6 +213,10 @@ export default function PropertyDetailsPage() {
     time: ''
   });
 
+  // Derive the correct resource key based on where the user came from
+  const propertiesResource = source === 'broker' ? 'page:properties:broker' : 'page:properties:ironclad';
+  const canEdit = permissions !== null && hasPermission(permissions, propertiesResource, 'edit');
+
   const visibleTabs = useMemo(() => {
     if (permissions && Object.keys(permissions).length > 0) {
       return TABS_CONFIG.filter(tab => {
@@ -224,6 +228,15 @@ export default function PropertyDetailsPage() {
     }
     return TABS_CONFIG;
   }, [permissions]);
+
+  // Whether the current active tab allows editing.
+  // Falls back to page-level canEdit when no tab-specific permission is set.
+  const tabCanEdit = useMemo(() => {
+    if (!canEdit) return false; // page-level blocks everything
+    if (!permissions) return false;
+    const tabPerm = permissions[`tab:${activeTab}`];
+    return tabPerm === undefined ? true : tabPerm.can_edit;
+  }, [canEdit, permissions, activeTab]);
 
   useEffect(() => {
     async function loadData() {
@@ -592,10 +605,6 @@ export default function PropertyDetailsPage() {
     );
   };
 
-  // Derive the correct resource key based on where the user came from
-  const propertiesResource = source === 'broker' ? 'page:properties:broker' : 'page:properties:ironclad';
-  const canEdit = permissions !== null && hasPermission(permissions, propertiesResource, 'edit');
-
   const handleSave = async () => {
     if (!canEdit) {
       alert("You don't have permission to edit properties.");
@@ -721,6 +730,10 @@ export default function PropertyDetailsPage() {
   };
 
   const handleSaveTax = async () => {
+    if (!tabCanEdit) {
+      alert("You don't have permission to edit this tab.");
+      return;
+    }
     // Required field validation
     const requiredFields: Record<string, any> = {
       'Received Date': taxForm.received_date,
@@ -938,7 +951,8 @@ export default function PropertyDetailsPage() {
                 <h2 className="section-title">{TABS_CONFIG.find(t => t.id === 'research')?.name}</h2>
                 <p className="section-desc">Comprehensive data regarding the asset's origin, location, and characteristics.</p>
               </div>
-              
+              {!tabCanEdit && <div style={{ margin: '0 1rem 1rem 1rem', display: 'flex', alignItems: 'center', gap: '0.6rem', backgroundColor: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', padding: '0.65rem 1rem' }}><Lock className="w-4 h-4" style={{ color: '#dc2626', flexShrink: 0 }} /><span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#dc2626' }}>This tab is locked for editing based on your profile permissions.</span></div>}
+              <fieldset disabled={!tabCanEdit} style={{ border: 'none', padding: 0, margin: 0 }}>
               <div style={{ margin: '0 1rem 1rem 1rem' }}>
                 <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', marginBottom: '1.25rem' }}>ID and Qualities</h3>
 
@@ -1099,7 +1113,7 @@ export default function PropertyDetailsPage() {
                   </div>
                 </div>
               </div>
-
+              </fieldset>
             </div>
           )}
 
@@ -1110,7 +1124,8 @@ export default function PropertyDetailsPage() {
                 <h2 className="section-title">Surrounding Amenities</h2>
                 <p className="section-desc">Manage points of interest, schools, and health facilities near the property.</p>
               </div>
-
+              {!tabCanEdit && <div style={{ margin: '0 1rem 1rem 1rem', display: 'flex', alignItems: 'center', gap: '0.6rem', backgroundColor: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', padding: '0.65rem 1rem' }}><Lock className="w-4 h-4" style={{ color: '#dc2626', flexShrink: 0 }} /><span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#dc2626' }}>This tab is locked for editing based on your profile permissions.</span></div>}
+              <fieldset disabled={!tabCanEdit} style={{ border: 'none', padding: 0, margin: 0 }}>
               <div style={{ margin: '0 1rem 1rem 1rem' }}>
                 <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', marginBottom: '1.25rem' }}>Amenities in Region</h3>
                 
@@ -1201,6 +1216,7 @@ export default function PropertyDetailsPage() {
                   );
                 })}
               </div>
+              </fieldset>
             </div>
           </div>
         )}
@@ -1212,7 +1228,8 @@ export default function PropertyDetailsPage() {
                 <h2 className="section-title">Valuations & References</h2>
                 <p className="section-desc">Track appraisal history, pricing evolution, bidding limits, and reference documents.</p>
               </div>
-
+              {!tabCanEdit && <div style={{ margin: '0 1rem 1rem 1rem', display: 'flex', alignItems: 'center', gap: '0.6rem', backgroundColor: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', padding: '0.65rem 1rem' }}><Lock className="w-4 h-4" style={{ color: '#dc2626', flexShrink: 0 }} /><span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#dc2626' }}>This tab is locked for editing based on your profile permissions.</span></div>}
+              <fieldset disabled={!tabCanEdit} style={{ border: 'none', padding: 0, margin: 0 }}>
               {/* Group 1: Evolution */}
               <div style={{ margin: '0 1rem 2.5rem 1rem' }}>
                 <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', marginBottom: '1.25rem' }}>Evolution</h3>
@@ -1223,7 +1240,7 @@ export default function PropertyDetailsPage() {
                   </div>
                   <div className="input-group">
                     <label className="input-label">County Appraisal ($)</label>
-                    <CurrencyInput name="county_appraisal" value={property.county_appraisal} onChange={handleChange} />
+                    <CurrencyInput name="county_appraisal" value={property.county_appraisal} onChange={handleChange} disabled={!tabCanEdit} />
                   </div>
                   <div className="input-group">
                     <label className="input-label">Size (Acres/SqFt)</label>
@@ -1231,19 +1248,19 @@ export default function PropertyDetailsPage() {
                   </div>
                   <div className="input-group">
                     <label className="input-label">Appraisal Min ($)</label>
-                    <CurrencyInput name="appraisal_min" value={property.appraisal_min} onChange={handleChange} />
+                    <CurrencyInput name="appraisal_min" value={property.appraisal_min} onChange={handleChange} disabled={!tabCanEdit} />
                   </div>
                   <div className="input-group">
                     <label className="input-label">Appraisal Avg ($)</label>
-                    <CurrencyInput name="appraisal_avg" value={property.appraisal_avg} onChange={handleChange} />
+                    <CurrencyInput name="appraisal_avg" value={property.appraisal_avg} onChange={handleChange} disabled={!tabCanEdit} />
                   </div>
                   <div className="input-group">
                     <label className="input-label">Appraisal Max ($)</label>
-                    <CurrencyInput name="appraisal_max" value={property.appraisal_max} onChange={handleChange} />
+                    <CurrencyInput name="appraisal_max" value={property.appraisal_max} onChange={handleChange} disabled={!tabCanEdit} />
                   </div>
                   <div className="input-group">
                     <label className="input-label">House Price ($)</label>
-                    <CurrencyInput name="house_price" value={property.house_price} onChange={handleChange} />
+                    <CurrencyInput name="house_price" value={property.house_price} onChange={handleChange} disabled={!tabCanEdit} />
                   </div>
                   <div className="input-group">
                     <label className="input-label">Residual Land Value ($)</label>
@@ -1255,15 +1272,15 @@ export default function PropertyDetailsPage() {
                   </div>
                   <div className="input-group">
                     <label className="input-label">Min Bid ($)</label>
-                    <CurrencyInput name="min_bid" value={property.min_bid} onChange={handleChange} />
+                    <CurrencyInput name="min_bid" value={property.min_bid} onChange={handleChange} disabled={!tabCanEdit} />
                   </div>
                   <div className="input-group">
                     <label className="input-label">Max Bid ($)</label>
-                    <CurrencyInput name="max_bid" value={property.max_bid} onChange={handleChange} />
+                    <CurrencyInput name="max_bid" value={property.max_bid} onChange={handleChange} disabled={!tabCanEdit} />
                   </div>
                   <div className="input-group">
                     <label className="input-label">Max Bid Internal ($)</label>
-                    <CurrencyInput name="max_bid_internal" value={property.max_bid_internal} onChange={handleChange} />
+                    <CurrencyInput name="max_bid_internal" value={property.max_bid_internal} onChange={handleChange} disabled={!tabCanEdit} />
                   </div>
                 </div>
               </div>
@@ -1276,6 +1293,7 @@ export default function PropertyDetailsPage() {
                   {renderLinkInput("House Source Link", "link_house_sources", property.link_house_sources, "https://...")}
                 </div>
               </div>
+              </fieldset>
             </div>
           )}
 
@@ -1286,6 +1304,8 @@ export default function PropertyDetailsPage() {
                 <h2 className="section-title">Sales</h2>
                 <p className="section-desc">Sales information and records for this property.</p>
               </div>
+              {!tabCanEdit && <div style={{ margin: '0 1rem 1rem 1rem', display: 'flex', alignItems: 'center', gap: '0.6rem', backgroundColor: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', padding: '0.65rem 1rem' }}><Lock className="w-4 h-4" style={{ color: '#dc2626', flexShrink: 0 }} /><span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#dc2626' }}>This tab is locked for editing based on your profile permissions.</span></div>}
+              <fieldset disabled={!tabCanEdit} style={{ border: 'none', padding: 0, margin: 0 }}>
               <div style={{ margin: '0 1rem 1rem 1rem' }}>
                 <div className="form-grid col-2">
                   <div className="input-group">
@@ -1294,7 +1314,7 @@ export default function PropertyDetailsPage() {
                   </div>
                   <div className="input-group">
                     <label className="input-label">Paid Bid Investor ($) <span style={{ fontSize: '0.7rem', fontWeight: 600, color: '#94a3b8', marginLeft: '0.4rem' }}>auto · editável</span></label>
-                    <CurrencyInput name="paid_bid_inv" value={property.paid_bid_inv} onChange={handleChange} />
+                    <CurrencyInput name="paid_bid_inv" value={property.paid_bid_inv} onChange={handleChange} disabled={!tabCanEdit} />
                   </div>
                   <div className="input-group">
                     <label className="input-label">Doc Fees Investor ($) <span style={{ fontSize: '0.7rem', fontWeight: 600, color: '#94a3b8', marginLeft: '0.4rem' }}>auto-calculated</span></label>
@@ -1480,6 +1500,7 @@ export default function PropertyDetailsPage() {
                   </div>
                 )}
               </div>
+              </fieldset>
             </div>
           )}
 
@@ -1490,7 +1511,8 @@ export default function PropertyDetailsPage() {
                 <h2 className="section-title">Strategy</h2>
                 <p className="section-desc">Projected costs and strategic approvals for the property development plan.</p>
               </div>
-
+              {!tabCanEdit && <div style={{ margin: '0 1rem 1rem 1rem', display: 'flex', alignItems: 'center', gap: '0.6rem', backgroundColor: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', padding: '0.65rem 1rem' }}><Lock className="w-4 h-4" style={{ color: '#dc2626', flexShrink: 0 }} /><span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#dc2626' }}>This tab is locked for editing based on your profile permissions.</span></div>}
+              <fieldset disabled={!tabCanEdit} style={{ border: 'none', padding: 0, margin: 0 }}>
               <div style={{ margin: '0 1rem 2.5rem 1rem' }}>
                 <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', marginBottom: '1.25rem' }}>Strategic Cost Estimates & Clearances</h3>
 
@@ -1504,14 +1526,15 @@ export default function PropertyDetailsPage() {
                   {renderCostTableHeader()}
 
                   {/* Table Rows */}
-                  {renderCostTableRow("Warranty Deed Transfer", "Deed preparation and recording fees", "warrantydeedtransfer_stg", "tg_warrantydeedtransfer_stg", FileText)}
-                  {renderCostTableRow("Title Claim Action", "Clearing title or legal fees", "titleclaim_action_stg", "tg_titleclaim_action_stg", Scale)}
-                  {renderCostTableRow("Surveyor Cost", "Boundary mapping and layout marking", "surveyor_stg", "tg_surveyor_stg", Compass)}
-                  {renderCostTableRow("Land Clearing", "Tree removal and grading", "land_clearing_stg", "tg_land_clearing_stg", Trees)}
-                  {renderCostTableRow("Fencing & Gate", "Perimeter fence and security gate", "fencing_gate_stg", "tg_fencing_gate_stg", Lock)}
-                  {renderCostTableRow("Preapproval Review", "Zoning review and compliance", "preapproval_review_stg", "tg_preapproval_review_stg", CheckSquare)}
+                  {renderCostTableRow("Warranty Deed Transfer", "Deed preparation and recording fees", "warrantydeedtransfer_stg", "tg_warrantydeedtransfer_stg", FileText, !tabCanEdit)}
+                  {renderCostTableRow("Title Claim Action", "Clearing title or legal fees", "titleclaim_action_stg", "tg_titleclaim_action_stg", Scale, !tabCanEdit)}
+                  {renderCostTableRow("Surveyor Cost", "Boundary mapping and layout marking", "surveyor_stg", "tg_surveyor_stg", Compass, !tabCanEdit)}
+                  {renderCostTableRow("Land Clearing", "Tree removal and grading", "land_clearing_stg", "tg_land_clearing_stg", Trees, !tabCanEdit)}
+                  {renderCostTableRow("Fencing & Gate", "Perimeter fence and security gate", "fencing_gate_stg", "tg_fencing_gate_stg", Lock, !tabCanEdit)}
+                  {renderCostTableRow("Preapproval Review", "Zoning review and compliance", "preapproval_review_stg", "tg_preapproval_review_stg", CheckSquare, !tabCanEdit)}
                 </div>
               </div>
+              </fieldset>
             </div>
           )}
 
@@ -1522,7 +1545,8 @@ export default function PropertyDetailsPage() {
                 <h2 className="section-title">Marketing</h2>
                 <p className="section-desc">Production materials and published listings for this property.</p>
               </div>
-
+              {!tabCanEdit && <div style={{ margin: '0 1rem 1rem 1rem', display: 'flex', alignItems: 'center', gap: '0.6rem', backgroundColor: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', padding: '0.65rem 1rem' }}><Lock className="w-4 h-4" style={{ color: '#dc2626', flexShrink: 0 }} /><span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#dc2626' }}>This tab is locked for editing based on your profile permissions.</span></div>}
+              <fieldset disabled={!tabCanEdit} style={{ border: 'none', padding: 0, margin: 0 }}>
               {/* ── Material ── */}
               <div style={{ margin: '0 1rem 2rem 1rem' }}>
                 <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', marginBottom: '1.25rem' }}>Material</h3>
@@ -1550,6 +1574,7 @@ export default function PropertyDetailsPage() {
                   {renderLinkInput("Short Form Videos","short_form_videos", marketing.short_form_videos,"https://...", undefined, handleMarketingChange)}
                 </div>
               </div>
+              </fieldset>
             </div>
           )}
 
@@ -1560,6 +1585,7 @@ export default function PropertyDetailsPage() {
                 <h2 className="section-title">Acquisition & Development</h2>
                 <p className="section-desc">Manage property development costs, acquisition toggles, sales statuses, improvements, and modular options.</p>
               </div>
+              {!tabCanEdit && <div style={{ margin: '0 1rem 1rem 1rem', display: 'flex', alignItems: 'center', gap: '0.6rem', backgroundColor: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', padding: '0.65rem 1rem' }}><Lock className="w-4 h-4" style={{ color: '#dc2626', flexShrink: 0 }} /><span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#dc2626' }}>This tab is locked for editing based on your profile permissions.</span></div>}
               {property.sale_type && (
                 <div style={{ margin: '0 1rem 1rem 1rem', display: 'flex', alignItems: 'center', gap: '0.6rem', backgroundColor: '#fef9c3', border: '1px solid #fde047', borderRadius: '8px', padding: '0.65rem 1rem' }}>
                   <Lock className="w-4 h-4" style={{ color: '#a16207', flexShrink: 0 }} />
@@ -1569,7 +1595,7 @@ export default function PropertyDetailsPage() {
                 </div>
               )}
 
-              <fieldset disabled={!!property.sale_type} style={{ border: 'none', padding: 0, margin: 0 }}>
+              <fieldset disabled={!tabCanEdit || !!property.sale_type} style={{ border: 'none', padding: 0, margin: 0 }}>
               <div style={{ margin: '0 1rem 2.5rem 1rem' }}>
                 <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', marginBottom: '1.25rem' }}>Cost Estimates & Clearances</h3>
                 
@@ -1583,12 +1609,12 @@ export default function PropertyDetailsPage() {
                   {renderCostTableHeader()}
 
                   {/* Table Rows */}
-                  {renderCostTableRow("Warranty Deed Transfer", "Deed preparation and recording fees", "warrantydeedtransfer", "tg_warrantydeedtransfer", FileText, !!property.sale_type)}
-                  {renderCostTableRow("Title Claim Action", "Clearing title or legal fees", "titleclaim_action", "tg_titleclaim_action", Scale, !!property.sale_type)}
-                  {renderCostTableRow("Surveyor Cost", "Boundary mapping and layout marking", "surveyor", "tg_surveyor", Compass, !!property.sale_type)}
-                  {renderCostTableRow("Land Clearing", "Tree removal and grading", "land_clearing", "tg_land_clearing", Trees, !!property.sale_type)}
-                  {renderCostTableRow("Fencing & Gate", "Perimeter fence and security gate", "fencing_gate", "tg_fencing_gate", Lock, !!property.sale_type)}
-                  {renderCostTableRow("Preapproval Review", "Zoning review and compliance", "preapproval_review", "tg_preapproval_review", CheckSquare, !!property.sale_type)}
+                  {renderCostTableRow("Warranty Deed Transfer", "Deed preparation and recording fees", "warrantydeedtransfer", "tg_warrantydeedtransfer", FileText, !tabCanEdit || !!property.sale_type)}
+                  {renderCostTableRow("Title Claim Action", "Clearing title or legal fees", "titleclaim_action", "tg_titleclaim_action", Scale, !tabCanEdit || !!property.sale_type)}
+                  {renderCostTableRow("Surveyor Cost", "Boundary mapping and layout marking", "surveyor", "tg_surveyor", Compass, !tabCanEdit || !!property.sale_type)}
+                  {renderCostTableRow("Land Clearing", "Tree removal and grading", "land_clearing", "tg_land_clearing", Trees, !tabCanEdit || !!property.sale_type)}
+                  {renderCostTableRow("Fencing & Gate", "Perimeter fence and security gate", "fencing_gate", "tg_fencing_gate", Lock, !tabCanEdit || !!property.sale_type)}
+                  {renderCostTableRow("Preapproval Review", "Zoning review and compliance", "preapproval_review", "tg_preapproval_review", CheckSquare, !tabCanEdit || !!property.sale_type)}
                 </div>
               </div>
 
@@ -1597,7 +1623,7 @@ export default function PropertyDetailsPage() {
                 <div className="form-grid col-2">
                   <div className="input-group">
                     <label className="input-label">Paid Bid ($)</label>
-                    <CurrencyInput name="paid_bid" value={property.paid_bid} onChange={handleChange} />
+                    <CurrencyInput name="paid_bid" value={property.paid_bid} onChange={handleChange} disabled={!tabCanEdit || !!property.sale_type} />
                   </div>
 
                   <div className="input-group">
@@ -1671,7 +1697,8 @@ export default function PropertyDetailsPage() {
                 <h2 className="section-title">Documentation</h2>
                 <p className="section-desc">Manage essential property deeds, surveys, planning designs, and tax deadlines.</p>
               </div>
-              
+              {!tabCanEdit && <div style={{ margin: '0 1rem 1rem 1rem', display: 'flex', alignItems: 'center', gap: '0.6rem', backgroundColor: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', padding: '0.65rem 1rem' }}><Lock className="w-4 h-4" style={{ color: '#dc2626', flexShrink: 0 }} /><span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#dc2626' }}>This tab is locked for editing based on your profile permissions.</span></div>}
+              <fieldset disabled={!tabCanEdit} style={{ border: 'none', padding: 0, margin: 0 }}>
               <div style={{ margin: '0 1rem 1rem 1rem' }}>
                 <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', marginBottom: '1.25rem' }}>Deeds, Surveys and Plans</h3>
                 <div className="form-grid col-2">
@@ -1692,6 +1719,7 @@ export default function PropertyDetailsPage() {
                   </div>
                 </div>
               </div>
+              </fieldset>
             </div>
           )}
 
@@ -1703,7 +1731,7 @@ export default function PropertyDetailsPage() {
                   <h2 className="section-title">Tax Records</h2>
                   <p className="section-desc">Manage tax, fees and HOA/POA records associated with this property.</p>
                 </div>
-                {!showTaxForm && (
+                {!showTaxForm && tabCanEdit && (
                   <button
                     onClick={() => { resetTaxForm(); setShowTaxForm(true); }}
                     className="save-btn"
@@ -1713,7 +1741,8 @@ export default function PropertyDetailsPage() {
                   </button>
                 )}
               </div>
-
+              {!tabCanEdit && <div style={{ margin: '0 1rem 1rem 1rem', display: 'flex', alignItems: 'center', gap: '0.6rem', backgroundColor: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', padding: '0.65rem 1rem' }}><Lock className="w-4 h-4" style={{ color: '#dc2626', flexShrink: 0 }} /><span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#dc2626' }}>This tab is locked for editing based on your profile permissions.</span></div>}
+              <fieldset disabled={!tabCanEdit} style={{ border: 'none', padding: 0, margin: 0 }}>
               <div style={{ margin: '0 1rem 1rem 1rem' }}>
 
                 {/* ── Add / Edit Form ── */}
@@ -1774,7 +1803,7 @@ export default function PropertyDetailsPage() {
                       </div>
                       <div className="input-group" style={{ margin: 0 }}>
                         <label className="input-label">Value ($) <span style={{ color: '#ef4444' }}>*</span></label>
-                        <CurrencyInput name="value" value={taxForm.value} onChange={(e: any) => setTaxForm((p: any) => ({ ...p, value: e.target.value }))} />
+                        <CurrencyInput name="value" value={taxForm.value} onChange={(e: any) => setTaxForm((p: any) => ({ ...p, value: e.target.value }))} disabled={!tabCanEdit} />
                       </div>
                       <div className="input-group" style={{ margin: 0 }}>
                         <label className="input-label">% Ironclad</label>
@@ -1888,12 +1917,12 @@ export default function PropertyDetailsPage() {
                               </td>
                               <td style={{ padding: '0.875rem 1rem', whiteSpace: 'nowrap' }}>
                                 <div style={{ display: 'flex', gap: '0.25rem', justifyContent: 'flex-end' }}>
-                                  <button onClick={() => handleEditTax(tax)} title="Edit" style={{ background: 'none', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '0.3rem', cursor: 'pointer', color: '#64748b', display: 'flex', alignItems: 'center' }}>
+                                  {tabCanEdit && <button onClick={() => handleEditTax(tax)} title="Edit" style={{ background: 'none', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '0.3rem', cursor: 'pointer', color: '#64748b', display: 'flex', alignItems: 'center' }}>
                                     <FileText className="w-3.5 h-3.5" />
-                                  </button>
-                                  <button onClick={() => handleDeleteTax(tax.id)} title="Delete" style={{ background: 'none', border: '1px solid #fecaca', borderRadius: '6px', padding: '0.3rem', cursor: 'pointer', color: '#dc2626', display: 'flex', alignItems: 'center' }}>
+                                  </button>}
+                                  {tabCanEdit && <button onClick={() => handleDeleteTax(tax.id)} title="Delete" style={{ background: 'none', border: '1px solid #fecaca', borderRadius: '6px', padding: '0.3rem', cursor: 'pointer', color: '#dc2626', display: 'flex', alignItems: 'center' }}>
                                     <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
+                                  </button>}
                                 </div>
                               </td>
                             </tr>
@@ -1904,6 +1933,7 @@ export default function PropertyDetailsPage() {
                   </div>
                 )}
               </div>
+              </fieldset>
             </div>
           )}
 
