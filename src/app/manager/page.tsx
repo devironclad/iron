@@ -139,6 +139,10 @@ function ManagerContent() {
 
   async function handleAdd() {
     if (!newItemName.trim() || !selectedTable) return;
+    if (!canEditTable(selectedTable)) {
+      setError("You don't have permission to add items to this table.");
+      return;
+    }
     if (selectedTable === "ls_amenity_type" && !newCategoryId) {
       setError("Please select a category.");
       return;
@@ -173,8 +177,12 @@ function ManagerContent() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("Are you sure you want to delete this item?")) return;
     if (!selectedTable) return;
+    if (!canEditTable(selectedTable)) {
+      setError("You don't have permission to delete items from this table.");
+      return;
+    }
+    if (!confirm("Are you sure you want to delete this item?")) return;
     setLoading(true);
     try {
       const { error: supabaseError } = await supabase
@@ -195,6 +203,10 @@ function ManagerContent() {
 
   async function handleUpdate(id: string) {
     if (!editValue.trim() || !selectedTable) return;
+    if (!canEditTable(selectedTable)) {
+      setError("You don't have permission to edit items in this table.");
+      return;
+    }
     setLoading(true);
     try {
       const payload: any = { name: editValue };
@@ -226,6 +238,13 @@ function ManagerContent() {
 
 
   const selectedTableInfo = TABLES.find(t => t.id === selectedTable);
+
+  // Page-level permission gate — must be loaded and explicitly allow edit
+  const pageCanEdit = permissions !== null && hasPermission(permissions, 'page:manager', 'edit');
+
+  // Table-level edit: BOTH page-level AND table-level must allow edit
+  const canEditTable = (tableId: string) =>
+    pageCanEdit && hasPermission(permissions, `table:${tableId}`, 'edit');
 
   return (
     <div className="manager-container">
@@ -303,7 +322,7 @@ function ManagerContent() {
               <div className="card-header">
                 <div className="header-controls">
                   <div className="add-form">
-                    {hasPermission(permissions, `table:${selectedTable}`, 'edit') ? (
+                    {canEditTable(selectedTable) ? (
                       <>
                         {selectedTable === "ls_amenity_type" && (
                           <select 
@@ -500,7 +519,7 @@ function ManagerContent() {
                             </div>
                           ) : (
                             <div className="actions-row">
-                              {hasPermission(permissions, `table:${selectedTable}`, 'edit') && (
+                              {canEditTable(selectedTable) && (
                                 <>
                                   <button className="icon-btn-circle edit" onClick={() => {
                                     setEditingId(item.id);

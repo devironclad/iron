@@ -38,7 +38,7 @@ export default function NewRequestPage() {
       const [userRes, catRes, priRes, assetRes] = await Promise.all([
         supabase.from("ls_users_metadata").select("id, full_name").eq("user_type", "employee").order("full_name"),
         supabase.from("ls_request_category").select("id, name").order("name"),
-        supabase.from("ls_request_priority").select("id, name, sla_days").order("name"),
+        supabase.from("ls_request_priority").select("id, name, sla_hours").order("name"),
         supabase.from("ls_assets").select("id, ref_id, parcel_number").eq("record_type", "PROPERTY").limit(500)
       ]);
       
@@ -147,7 +147,7 @@ export default function NewRequestPage() {
                 <option value="">Select Priority...</option>
                 {lookups.priorities.map((p: any) => (
                   <option key={p.id} value={p.id}>
-                    {p.name} {p.sla_days !== undefined && p.sla_days !== null ? `(${p.sla_days} day${p.sla_days > 1 ? 's' : ''})` : ''}
+                    {p.name}{p.sla_hours != null ? ` (${p.sla_hours}h)` : ''}
                   </option>
                 ))}
               </select>

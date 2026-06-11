@@ -180,6 +180,7 @@ export default function PropertyDetailsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savedOk, setSavedOk] = useState(false);
+  const [wasSaved, setWasSaved] = useState(false);
   const [property, setProperty] = useState<any>(null);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
@@ -230,13 +231,19 @@ export default function PropertyDetailsPage() {
   }, [permissions]);
 
   // Whether the current active tab allows editing.
-  // Falls back to page-level canEdit when no tab-specific permission is set.
+  // Tab-level permissions are INDEPENDENT of page-level:
+  //   - If a tab has an explicit permission → use it directly (overrides page-level)
+  //   - If no tab permission is defined → fall back to page-level canEdit
+  // Uses tab.resource (from TABS_CONFIG) as the key, not `tab:${activeTab}`,
+  // because some tabs share a resource key (e.g. 'research' maps to 'tab:general').
   const tabCanEdit = useMemo(() => {
-    if (!canEdit) return false; // page-level blocks everything
     if (!permissions) return false;
-    const tabPerm = permissions[`tab:${activeTab}`];
-    return tabPerm === undefined ? true : tabPerm.can_edit;
-  }, [canEdit, permissions, activeTab]);
+    const activeTabConfig = TABS_CONFIG.find(t => t.id === activeTab);
+    const resourceKey = activeTabConfig?.resource ?? `tab:${activeTab}`;
+    const tabPerm = permissions[resourceKey];
+    if (tabPerm !== undefined) return tabPerm.can_edit;
+    return canEdit; // no tab-specific rule → inherit page-level
+  }, [permissions, activeTab, canEdit]);
 
   useEffect(() => {
     async function loadData() {
@@ -520,6 +527,20 @@ export default function PropertyDetailsPage() {
     property?.preapproval_review,   property?.tg_preapproval_review,
   ]);
 
+  // Auto-calculate market_value (Residual Land Value) = house_price × 25% (FL/GA) or 20% (others)
+  useEffect(() => {
+    if (!property) return;
+    const housePrice = Number(property.house_price) || 0;
+    if (!housePrice) {
+      setProperty((prev: any) => ({ ...prev, market_value: '' }));
+      return;
+    }
+    const state = property.ls_county?.state;
+    const isFlGa = state === 'FL' || state === 'GA';
+    const calculated = housePrice * (isFlGa ? 0.25 : 0.20);
+    setProperty((prev: any) => ({ ...prev, market_value: calculated }));
+  }, [property?.house_price, property?.ls_county?.state]);
+
   const renderCostTableHeader = () => (
     <div style={{
       display: 'grid',
@@ -670,8 +691,9 @@ export default function PropertyDetailsPage() {
       if (mktResult.error) throw mktResult.error;
 
       setSavedOk(true);
-      // Navigate back via client-side router (proven to work with highlight)
-      setTimeout(() => router.push(`/properties?action=updated&highlight=${id}${source ? `&source=${source}` : ''}`), 1200);
+      setWasSaved(true);
+      // Stay on the page — reset the save button after 2s so the user can save again
+      setTimeout(() => setSavedOk(false), 2000);
     } catch (err: any) {
       console.error(err);
       alert("Error updating property: " + err.message);
@@ -910,7 +932,7 @@ export default function PropertyDetailsPage() {
     <div className="property-details-container">
       <div className="details-header">
         <div className="header-left">
-          <button onClick={() => router.push(backUrl)} className="back-btn">
+          <button onClick={() => router.push(wasSaved ? `/properties?action=updated&highlight=${id}${source ? `&source=${source}` : ''}` : backUrl)} className="back-btn">
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div className="header-title-area">
@@ -1216,8 +1238,8 @@ export default function PropertyDetailsPage() {
                   );
                 })}
               </div>
-              </fieldset>
             </div>
+            </fieldset>
           </div>
         )}
 
@@ -1375,7 +1397,6 @@ export default function PropertyDetailsPage() {
               <div style={{ margin: '0 1rem 1.5rem 1rem' }}>
                 <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', marginBottom: '1.25rem' }}>Sale Status</h3>
 
-                {/* Botões de seleção */}
                 <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.5rem' }}>
                   <button
                     type="button"
@@ -1432,11 +1453,8 @@ export default function PropertyDetailsPage() {
                   </button>
                 </div>
 
-                {/* Detalhes da venda */}
                 {property.sale_type && (
                   <div style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '1.25rem' }}>
-
-                    {/* Data e Valor — somente leitura */}
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: property.sale_type === 'sold_out' ? '1.25rem' : 0 }}>
                       <div>
                         <div style={{ fontSize: '0.65rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.3rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
@@ -1456,7 +1474,6 @@ export default function PropertyDetailsPage() {
                       </div>
                     </div>
 
-                    {/* Campos adicionais — apenas Sold Out */}
                     {property.sale_type === 'sold_out' && (
                       <div className="form-grid col-2" style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid #e2e8f0' }}>
                         <div className="input-group">
@@ -1642,16 +1659,6 @@ export default function PropertyDetailsPage() {
                   </div>
 
                   <div className="input-group">
-                    <label className="input-label">Sale Status</label>
-                    <select name="sale_status" value={property.sale_status || ""} onChange={handleChange} className="input-field">
-                      <option value="">Select Status...</option>
-                      <option value="Pending">Pending</option>
-                      <option value="Listed">Listed</option>
-                      <option value="Awaiting Purchase">Awaiting Purchase</option>
-                    </select>
-                  </div>
-
-                  <div className="input-group">
                     <label className="input-label">Improvements</label>
                     <select name="improvements" value={property.improvements || ""} onChange={handleChange} className="input-field">
                       <option value="">Select Improvements...</option>
@@ -1707,16 +1714,6 @@ export default function PropertyDetailsPage() {
                   {renderLinkInput("Survey Link", "survey", property.survey, "https://...")}
                   {renderLinkInput("Site Plan Link", "site_plan", property.site_plan, "https://...")}
                   
-                  <div className="input-group">
-                    <label className="input-label">Tax Payment Deadline</label>
-                    <input 
-                      type="date" 
-                      name="tax_pay_dead" 
-                      value={property.tax_pay_dead} 
-                      onChange={handleChange} 
-                      className="input-field" 
-                    />
-                  </div>
                 </div>
               </div>
               </fieldset>
@@ -1942,9 +1939,9 @@ export default function PropertyDetailsPage() {
       </div>
 
       <div className="form-actions-bar">
-        <button className="btn-secondary" onClick={() => router.push(backUrl)}>
+        <button className="btn-secondary" onClick={() => router.push(wasSaved ? `/properties?action=updated&highlight=${id}${source ? `&source=${source}` : ''}` : backUrl)}>
           <X className="w-4 h-4" />
-          Cancel
+          Exit
         </button>
         
         <div style={{ flex: 1 }}></div>
@@ -1952,16 +1949,16 @@ export default function PropertyDetailsPage() {
         <button
           className="primary-btn"
           onClick={handleSave}
-          disabled={saving || savedOk || !canEdit}
-          title={!canEdit ? "You don't have permission to edit properties." : undefined}
+          disabled={saving || savedOk || !tabCanEdit}
+          title={!tabCanEdit ? "You don't have permission to edit this tab." : undefined}
           style={
             savedOk ? { backgroundColor: '#10b981', cursor: 'default' } :
-            !canEdit ? { backgroundColor: '#94a3b8', cursor: 'not-allowed', opacity: 0.7 } :
+            !tabCanEdit ? { backgroundColor: '#94a3b8', cursor: 'not-allowed', opacity: 0.7 } :
             undefined
           }
         >
           {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-          {saving ? "Saving..." : savedOk ? "Saved! Returning..." : !canEdit ? "Read Only" : "Save Changes"}
+          {saving ? "Saving..." : savedOk ? "Saved!" : !tabCanEdit ? "Read Only" : "Save Changes"}
         </button>
       </div>
     </div>

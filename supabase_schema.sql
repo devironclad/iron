@@ -308,7 +308,7 @@ CREATE TABLE IF NOT EXISTS ls_request_priority (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(255) NOT NULL,
     color VARCHAR(7) DEFAULT '#94a3b8',
-    sla_days INTEGER NOT NULL DEFAULT 3
+    sla_hours INTEGER NOT NULL DEFAULT 24  -- SLA in running hours: Critical=4, High=24, Medium=48, Low=72
 );
 
 -- Lookup: Status
@@ -343,25 +343,25 @@ CREATE TABLE IF NOT EXISTS ls_requests (
 
 CREATE TRIGGER tr_ls_requests_updated_at BEFORE UPDATE ON ls_requests FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
--- Trigger Function to auto-calculate due_date based on SLA
+-- Trigger Function to auto-calculate due_date based on SLA (running hours)
 CREATE OR REPLACE FUNCTION calculate_request_due_date()
 RETURNS TRIGGER AS $$
 DECLARE
-    v_sla_days INTEGER;
+    v_sla_hours INTEGER;
 BEGIN
     -- Only calculate if due_date is not manually set
     IF NEW.due_date IS NULL AND NEW.priority_id IS NOT NULL THEN
-        SELECT sla_days INTO v_sla_days FROM ls_request_priority WHERE id = NEW.priority_id;
-        IF v_sla_days IS NOT NULL THEN
-            NEW.due_date := CURRENT_TIMESTAMP + (v_sla_days || ' days')::interval;
+        SELECT sla_hours INTO v_sla_hours FROM ls_request_priority WHERE id = NEW.priority_id;
+        IF v_sla_hours IS NOT NULL THEN
+            NEW.due_date := CURRENT_TIMESTAMP + make_interval(hours => v_sla_hours);
         END IF;
     END IF;
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER tr_ls_requests_due_date 
-BEFORE INSERT OR UPDATE OF priority_id ON ls_requests 
+CREATE TRIGGER tr_ls_requests_due_date
+BEFORE INSERT OR UPDATE OF priority_id ON ls_requests
 FOR EACH ROW EXECUTE FUNCTION calculate_request_due_date();
 
 -- Comments & Audit Timeline

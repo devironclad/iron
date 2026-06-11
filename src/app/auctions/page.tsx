@@ -262,11 +262,13 @@ export default function AuctionsPage() {
         query = query.eq("ls_county.state", selectedState);
       }
 
-      // Server-side search for main text fields
+      // Server-side search for main text fields + numeric ID
       if (searchTerm) {
         const s = `%${searchTerm}%`;
-        // Note: Using double quotes around values in .or() helps with special characters
-        query = query.or(`parcel_number.ilike."${s}",address.ilike."${s}",case_number.ilike."${s}",coordinates.ilike."${s}"`);
+        const trimmed = searchTerm.trim();
+        const isNumeric = /^\d+$/.test(trimmed);
+        const textConditions = `parcel_number.ilike."${s}",address.ilike."${s}",case_number.ilike."${s}",coordinates.ilike."${s}"`;
+        query = query.or(isNumeric ? `${textConditions},id.eq.${parseInt(trimmed)}` : textConditions);
       }
 
       const from = (currentPage - 1) * ITEMS_PER_PAGE;
@@ -295,7 +297,10 @@ export default function AuctionsPage() {
     }
   }
 
+  const canEdit = userPermissions !== null && hasPermission(userPermissions, 'page:auctions', 'edit');
+
   const handleDelete = (id: number, parcel: string) => {
+    if (!canEdit) { alert("You don't have permission to delete auctions."); return; }
     setAuctionToDelete({ id, parcel });
   };
 
@@ -503,7 +508,7 @@ export default function AuctionsPage() {
           <Search className="search-icon" />
           <input
             type="text"
-            placeholder="Search by Parcel No, Address..."
+            placeholder="Search by ID, Parcel No, Address..."
             className="search-input"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -777,14 +782,16 @@ export default function AuctionsPage() {
                     Edit Details
                     <ArrowRight className="w-4 h-4" />
                   </Link>
-                  <button 
+                  {canEdit && (
+                  <button
                     onClick={() => handleDelete(auction.id, auction.parcel_number)}
-                    className="card-details-btn" 
+                    className="card-details-btn"
                     style={{ backgroundColor: 'white', color: '#475569', border: '1px solid #cbd5e1', width: '40px', padding: 0, justifyContent: 'center' }}
                     title="Delete"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
+                  )}
                 </div>
               </div>
             );
@@ -874,14 +881,16 @@ export default function AuctionsPage() {
                     >
                       Edit
                     </Link>
-                    <button 
+                    {canEdit && (
+                    <button
                       onClick={() => handleDelete(auction.id, auction.parcel_number)}
-                      className="btn-secondary" 
+                      className="btn-secondary"
                       style={{ padding: "0.3rem 0.5rem", fontSize: "0.75rem", background: "white", color: "#475569", border: "1px solid #cbd5e1" }}
                       title="Delete"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
+                    )}
                   </td>
                 </tr>
               )

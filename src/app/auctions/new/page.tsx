@@ -381,6 +381,10 @@ export default function NewAuctionForm() {
 
   const handleDelete = () => {
     if (!editId) return;
+    if (!canEdit) {
+      alert("You don't have permission to delete auctions.");
+      return;
+    }
     setShowDeleteConfirm(true);
   };
 
@@ -850,7 +854,7 @@ export default function NewAuctionForm() {
             </div>
             <div className="checkbox-group" style={{ marginTop: "2rem" }}>
               <input type="checkbox" id="corner_lot" name="corner_lot" checked={formData.corner_lot} onChange={handleChange as any} className="checkbox-input" />
-              <label htmlFor="corner_lot" className="checkbox-label">Corner Lot?</label>
+              <label htmlFor="corner_lot" className="checkbox-label">Corner Lot</label>
             </div>
           </div>
         </section>
@@ -965,10 +969,10 @@ export default function NewAuctionForm() {
               <input type="number" step="any" name="sqft_price_reference" value={formData.sqft_price_reference} onChange={handleChange} className="input-field" placeholder="0.00" />
             </div>
             <div className="input-group">
-              <label className="input-label">Internal Max Bid ($)</label>
+              <label className="input-label">Residual Land Value ($) (Auto)</label>
               <div className="currency-input-wrapper">
                 <span className="currency-symbol">$</span>
-                <input type="number" step="any" name="max_bid_internal" value={formData.max_bid_internal} onChange={handleChange} className="input-field currency" placeholder="0.00" />
+                <input type="number" step="any" name="market_value" value={formData.market_value} className="input-field currency locked" placeholder="0.00" readOnly disabled />
               </div>
             </div>
 
@@ -987,10 +991,10 @@ export default function NewAuctionForm() {
               </div>
             </div>
             <div className="input-group">
-              <label className="input-label">Market Value ($) (Auto)</label>
+              <label className="input-label">Internal Max Bid ($)</label>
               <div className="currency-input-wrapper">
                 <span className="currency-symbol">$</span>
-                <input type="number" step="any" name="market_value" value={formData.market_value} className="input-field currency locked" placeholder="0.00" readOnly disabled />
+                <input type="number" step="any" name="max_bid_internal" value={formData.max_bid_internal} onChange={handleChange} className="input-field currency" placeholder="0.00" />
               </div>
             </div>
           </div>
@@ -1029,7 +1033,7 @@ export default function NewAuctionForm() {
           
           <div className="checkbox-group" style={{ marginTop: "1rem" }}>
             <input type="checkbox" id="inperson" name="inperson_visit" checked={formData.inperson_visit} onChange={handleChange as any} className="checkbox-input" />
-            <label htmlFor="inperson" className="checkbox-label">In-person Visit Performed?</label>
+            <label htmlFor="inperson" className="checkbox-label">In-person Visit</label>
           </div>
         </section>
 
@@ -1085,12 +1089,16 @@ export default function NewAuctionForm() {
         </button>
         
         {isEditing && (
-          <button 
-            className="btn-secondary" 
-            onClick={handleDelete} 
-            disabled={loading || fetchingData}
-            style={{ color: '#ef4444', borderColor: '#fee2e2' }}
-            title="Delete Auction"
+          <button
+            className="btn-secondary"
+            onClick={handleDelete}
+            disabled={loading || fetchingData || !canEdit}
+            title={!canEdit ? "You don't have permission to delete auctions." : "Delete Auction"}
+            style={
+              !canEdit
+                ? { color: '#94a3b8', borderColor: '#e2e8f0', cursor: 'not-allowed', opacity: 0.6 }
+                : { color: '#ef4444', borderColor: '#fee2e2' }
+            }
           >
             <Trash2 className="w-4 h-4" />
             Delete

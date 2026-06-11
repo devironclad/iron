@@ -285,7 +285,7 @@ export default function PropertiesPage() {
           // If it's a number, it could be ref_id or part of address/parcel
           const isOnlyNumber = /^\d+$/.test(searchTerm);
           if (isOnlyNumber) {
-            query = query.or(`ref_id.eq.${searchTerm},parcel_number.ilike.%${searchTerm}%,address.ilike.%${searchTerm}%`);
+            query = query.or(`ref_id.eq.${searchTerm},parcel_number.ilike.%${searchTerm}%,address.ilike.%${searchTerm}%,case_number.ilike.%${searchTerm}%`);
           } else {
             const s = `%${searchTerm}%`;
             query = query.or(`parcel_number.ilike."${s}",address.ilike."${s}",case_number.ilike."${s}"`);
@@ -362,7 +362,7 @@ export default function PropertiesPage() {
           <Search className="search-icon" />
           <input 
             type="text" 
-            placeholder="Search by ID (PRP-0001), Parcel No, Address..." 
+            placeholder="Search by ID (PRP-0001), Parcel No, Case, Address..."
             className="search-input" 
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
