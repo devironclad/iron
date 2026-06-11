@@ -592,8 +592,12 @@ export default function PropertyDetailsPage() {
     );
   };
 
+  // Derive the correct resource key based on where the user came from
+  const propertiesResource = source === 'broker' ? 'page:properties:broker' : 'page:properties:ironclad';
+  const canEdit = permissions !== null && hasPermission(permissions, propertiesResource, 'edit');
+
   const handleSave = async () => {
-    if (permissions && !hasPermission(permissions, 'page:properties', 'edit')) {
+    if (!canEdit) {
       alert("You don't have permission to edit properties.");
       return;
     }
@@ -1918,11 +1922,16 @@ export default function PropertyDetailsPage() {
         <button
           className="primary-btn"
           onClick={handleSave}
-          disabled={saving || savedOk}
-          style={savedOk ? { backgroundColor: '#10b981', cursor: 'default' } : undefined}
+          disabled={saving || savedOk || !canEdit}
+          title={!canEdit ? "You don't have permission to edit properties." : undefined}
+          style={
+            savedOk ? { backgroundColor: '#10b981', cursor: 'default' } :
+            !canEdit ? { backgroundColor: '#94a3b8', cursor: 'not-allowed', opacity: 0.7 } :
+            undefined
+          }
         >
           {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-          {saving ? "Saving..." : savedOk ? "Saved! Returning..." : "Save Changes"}
+          {saving ? "Saving..." : savedOk ? "Saved! Returning..." : !canEdit ? "Read Only" : "Save Changes"}
         </button>
       </div>
     </div>
