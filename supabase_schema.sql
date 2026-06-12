@@ -438,7 +438,40 @@ FOR EACH ROW EXECUTE FUNCTION notify_on_request_assignment();
 -- INSERT INTO ls_request_status (name, color, is_closed) VALUES ('Open', '#3b82f6', FALSE), ('In Progress', '#eab308', FALSE), ('Waiting on Requester', '#f97316', FALSE), ('Resolved', '#22c55e', TRUE), ('Cancelled', '#94a3b8', TRUE);
 
 -- ==============================================================================
--- 11. TAX MODULE
+-- 11. MARKETING MODULE
+-- One record per property. All fields are optional TEXT (links/URLs).
+-- Columns not yet used in the import spreadsheet: video_3d_copy, video_3d,
+-- before_video, after_video.
+-- ==============================================================================
+
+CREATE TABLE IF NOT EXISTS ls_asset_marketing (
+    id                 BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+    asset_id           BIGINT REFERENCES ls_assets(id) ON DELETE CASCADE,
+    marketing_report   TEXT,
+    library            TEXT,
+    website_video_copy TEXT,
+    video_3d_copy      TEXT,
+    short_form_copy    TEXT,
+    before_video       TEXT,
+    after_video        TEXT,
+    product_page       TEXT,
+    zillow_listing     TEXT,
+    facebook_listing   TEXT,
+    edited_photos      TEXT,
+    website_video      TEXT,
+    short_form_videos  TEXT,
+    video_3d           TEXT,
+    created_at         TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at         TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TRIGGER tr_ls_asset_marketing_updated_at
+BEFORE UPDATE ON ls_asset_marketing
+FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+
+-- ==============================================================================
+-- 12. TAX MODULE
 -- Values for vigency, recurrence, status and type_tax are stored as plain TEXT.
 -- Options are managed in the frontend code (no lookup tables needed).
 -- ==============================================================================

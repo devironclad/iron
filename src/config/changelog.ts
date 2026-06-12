@@ -27,7 +27,10 @@ export const CHANGELOG: ChangelogItem[] = [
       "Fixed import dedup: delete now scoped per record_type to prevent PROPERTY rows being deleted during AUCTION import.",
       "legal_description column changed from VARCHAR(255) to TEXT to support long legal descriptions.",
       "mh_allowed enum values normalized on import (case-insensitive matching to 'Yes'/'No'/'Modular Only').",
-      "supabase_schema.sql updated with assign_ref_id trigger and id_prop_old column documentation."
+      "supabase_schema.sql updated with assign_ref_id trigger and id_prop_old column documentation.",
+      "New script import-tax.js loads 245 tax records from Carga_Tax.xlsx via id_prop_old mapping.",
+      "New script import-marketing.js loads 55 marketing records from carga_marketing.xlsx via id_prop_old mapping.",
+      "ls_asset_marketing table added to schema with 14 link/text fields and CASCADE on asset delete."
     ]
   },
   {
