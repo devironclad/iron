@@ -414,25 +414,9 @@ export default function NewAuctionForm() {
     setShowBuyConfirm(false);
     setLoading(true);
     try {
-      const { data: existingRefs } = await supabase
-        .from("ls_assets")
-        .select("ref_id")
-        .eq("record_type", "PROPERTY");
-      
-      let nextNumber = 1;
-      if (existingRefs && existingRefs.length > 0) {
-        const numbers = existingRefs
-          .map(r => r.ref_id)
-          .filter(n => n !== null && !isNaN(Number(n)))
-          .map(n => Number(n));
-        
-        if (numbers.length > 0) {
-          nextNumber = Math.max(...numbers) + 1;
-        }
-      }
-
       const paidBid = Number(paidBidInput);
-      const payload: any = { ...formData, record_type: 'PROPERTY', ref_id: nextNumber, paid_bid: paidBid, paid_bid_inv: paidBid * 1.5 };
+      // ref_id is assigned automatically by the DB trigger (assign_ref_id) on INSERT
+      const payload: any = { ...formData, record_type: 'PROPERTY', ref_id: null, paid_bid: paidBid, paid_bid_inv: paidBid * 1.5 };
       
       delete payload.id;
       delete payload.created_at;

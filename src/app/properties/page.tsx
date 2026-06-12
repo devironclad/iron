@@ -243,7 +243,17 @@ export default function PropertiesPage() {
       }
 
       if (selectedState && selectedState !== "all") {
-        query = query.eq("ls_county.state", selectedState);
+        const countyIdsForState = counties
+          .filter(c => c.state === selectedState)
+          .map(c => c.id);
+        if (countyIdsForState.length === 0) {
+          // No counties found for this state — return nothing
+          setProperties([]);
+          setTotalCount(0);
+          setLoading(false);
+          return;
+        }
+        query = query.in("county_id", countyIdsForState);
       }
 
       if (selectedAmenityType && selectedAmenityType !== "all") {

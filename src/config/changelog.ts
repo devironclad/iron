@@ -6,9 +6,30 @@ export interface ChangelogItem {
   changes: string[];
 }
 
-export const CURRENT_VERSION = "1.4.0";
+export const CURRENT_VERSION = "1.5.0";
 
 export const CHANGELOG: ChangelogItem[] = [
+  {
+    version: "1.5.0",
+    date: "2026-06-12",
+    title: "Data Import, Amenities & Bug Fixes",
+    type: "minor",
+    changes: [
+      "Import script now reads record_type from Excel (AUCTION/PROPERTY) instead of hardcoding AUCTION.",
+      "ref_id auto-assigned per record_type on import (sequential counters); DB trigger assign_ref_id handles UI inserts.",
+      "Property cards now display PRP-0001 format using ref_id instead of internal DB id.",
+      "Added id_prop_old field to ls_assets and import script to link legacy system property IDs.",
+      "New script import-amenities.js loads 3,682 amenity records from carga_amenities.xlsx via id_prop_old mapping.",
+      "New script dry-run.js validates Excel data against DB lookups without inserting.",
+      "AR state Profit Projection uses +100/200/300/400% tiers instead of default +40/60/80/100%.",
+      "Fixed Properties state filter: was nullifying ls_county embed; now filters via county_id IN (ids for state).",
+      "Fixed Auction date display: toLocaleDateString() caused timezone shift (±1 day); now parses UTC date directly.",
+      "Fixed import dedup: delete now scoped per record_type to prevent PROPERTY rows being deleted during AUCTION import.",
+      "legal_description column changed from VARCHAR(255) to TEXT to support long legal descriptions.",
+      "mh_allowed enum values normalized on import (case-insensitive matching to 'Yes'/'No'/'Modular Only').",
+      "supabase_schema.sql updated with assign_ref_id trigger and id_prop_old column documentation."
+    ]
+  },
   {
     version: "1.4.0",
     date: "2026-06-05",

@@ -19,6 +19,18 @@ function cleanString(val) {
   return str === '' ? null : str;
 }
 
+// Normalize mh_allowed enum values to match DB enum ('Yes', 'No', 'Modular Only')
+function normalizeMhAllowed(val) {
+  if (val === undefined || val === null) return null;
+  const str = val.toString().trim();
+  if (!str) return null;
+  const lower = str.toLowerCase();
+  if (lower === 'yes') return 'Yes';
+  if (lower === 'no') return 'No';
+  if (lower === 'modular only') return 'Modular Only';
+  return null; // valor desconhecido — nao insere para evitar erro de enum
+}
+
 // Clean number helpers
 function cleanNumber(val) {
   if (val === undefined || val === null) return null;
@@ -116,7 +128,7 @@ async function startImport() {
   const statuses = statusesRes.data || [];
 
   // Setup default active status for auctions
-  let activeStatus = statuses.find(s => s.name.toLowerCase() === 'active' || s.name.toLowerCase() === 'active asset');
+  let activeStatus = statuses.find(s => s.name.toLowerCase() === 'active auction' || s.name.toLowerCase() === 'active' || s.name.toLowerCase() === 'active asset');
   if (!activeStatus && statuses.length > 0) {
     activeStatus = statuses[0];
   }
@@ -151,20 +163,35 @@ async function startImport() {
   let successCount = 0;
   let errorCount = 0;
 
-  // Limpeza de leiloes anteriores com os mesmos case_numbers
-  const caseNumbers = rawRows.map(r => cleanString(r.case_number)).filter(Boolean);
-  if (caseNumbers.length > 0) {
-    console.log(`[Limpeza] Removendo leiloes anteriores com os mesmos case_numbers (${caseNumbers.length} possiveis)...`);
-    const { error: deleteError } = await supabase
-      .from('ls_assets')
-      .delete()
-      .in('case_number', caseNumbers)
-      .eq('record_type', 'AUCTION');
-    if (deleteError) {
-      console.error('Erro ao limpar leiloes anteriores:', deleteError.message);
-    } else {
-      console.log('Limpeza concluida com sucesso!');
+  // Contadores de ref_id por record_type (reiniciados a cada import)
+  const refIdCounters = {};
+
+  // Limpeza de registros anteriores com os mesmos case_numbers, agrupado por record_type
+  // para evitar apagar registros de tipo diferente que compartilham o mesmo case_number
+  const caseNumbersByType = {};
+  for (const r of rawRows) {
+    const cn = cleanString(r.case_number);
+    const rt = cleanString(r.record_type) || 'AUCTION';
+    if (cn) {
+      if (!caseNumbersByType[rt]) caseNumbersByType[rt] = [];
+      caseNumbersByType[rt].push(cn);
     }
+  }
+  const recordTypes = Object.keys(caseNumbersByType);
+  if (recordTypes.length > 0) {
+    const totalCaseNumbers = Object.values(caseNumbersByType).reduce((acc, arr) => acc + arr.length, 0);
+    console.log(`[Limpeza] Removendo registros anteriores com os mesmos case_numbers (${totalCaseNumbers} possiveis, por tipo)...`);
+    for (const rt of recordTypes) {
+      const { error: deleteError } = await supabase
+        .from('ls_assets')
+        .delete()
+        .in('case_number', caseNumbersByType[rt])
+        .eq('record_type', rt);
+      if (deleteError) {
+        console.error(`Erro ao limpar registros ${rt}:`, deleteError.message);
+      }
+    }
+    console.log('Limpeza concluida com sucesso!');
   }
 
   console.log('\nProcessando e salvando linhas no banco...');
@@ -202,7 +229,7 @@ async function startImport() {
       // 4. Resolve Relationship text fields to UUIDs
       const ref_construction_id = await getOrCreateLookup('ls_ref_construction', row.Ref_Construction_id || row.ref_construction_id, constructions);
       const fema_id = await getOrCreateLookup('ls_fema', row.Fema_id || row.fema_id, femas);
-      const wetlands_id = await getOrCreateLookup('ls_wetlands', row.Wetland_id || row.wetland_id || row.Wetland_id || row.wetlands_id, wetlands);
+      const wetlands_id = await getOrCreateLookup('ls_wetlands', row.Wetland_id || row.wetland_id || row.wetlands_id, wetlands);
       const debit_id = await getOrCreateLookup('ls_debit', row.Debit_id || row.debit_id, debits);
       const gismap_id = await getOrCreateLookup('ls_gismap', row.Gismap_id || row.gismap_id, gismaps);
       const prop_access_id = await getOrCreateLookup('ls_property_access', row.Prop_Access_id || row.prop_access_id, propAccesses);
@@ -211,10 +238,18 @@ async function startImport() {
       const priority_id = await getOrCreateLookup('ls_priority', row.Priority_id || row.priority_id || row.priority, priorities);
       const auction_model_id = await getOrCreateLookup('ls_auction_model', row.Auction_model_id || row.auction_model_id || row.auction_model, auctionModels);
       const auction_type_id = await getOrCreateLookup('ls_auction_type', row.Auction_Type || row.auction_type_id || row.auction_type, auctionTypes);
+      const origem_id = await getOrCreateLookup('ls_origem', row.Origem || row.origem || row.origem_id || row.origin || row.Origin, origems);
 
       // 5. Construct mapped assets object
+      const recordType = cleanString(row.record_type) || 'AUCTION';
+      if (!refIdCounters[recordType]) refIdCounters[recordType] = 0;
+      refIdCounters[recordType]++;
+      const ref_id = refIdCounters[recordType];
+
       const asset = {
-        record_type: 'AUCTION',
+        record_type: recordType,
+        ref_id,
+        id_prop_old: cleanString(row.id_prop_old),
         case_number: cleanString(row.case_number),
         parcel_number: cleanString(row.parcel_number),
         address: cleanString(row.address),
@@ -225,6 +260,7 @@ async function startImport() {
         surrounds: cleanString(row.surrounds),
         link_sources: cleanString(row.sources || row.link_sources),
         link_house_sources: cleanString(row.house_sources || row.link_house_sources),
+        link_video: cleanString(row.link_video || row.Link_Video),
         legal_description: cleanString(row.legal_description),
         
         size: cleanNumber(row.size),
@@ -246,12 +282,46 @@ async function startImport() {
         
         inperson_visit: parseBoolean(row.In_Person_Visit || row.inperson_visit),
         corner_lot: parseBoolean(row.Corner_Lot || row.corner_lot),
-        
+        utilities: cleanString(row.Utilities || row.utilities),
+        tax_deed: cleanString(row.tax_deed || row.Tax_Deed),
+        warranty_deed: cleanString(row.warranty_deed || row.Warranty_Deed),
+        survey: cleanString(row.Survey || row.survey),
+        site_plan: cleanString(row.site_plan || row.Site_Plan),
+        owner_type: cleanString(row.owner_type || row.Owner_Type) || 'ironclad',
+
         auction_date: parseExcelDate(row.auction_date),
-        
+        upset_date: parseExcelDate(row.upset_date || row.Upset_Date),
+        acquisition_date: parseExcelDate(row.Acquisition_Date || row.acquisition_date),
+
+        improvements: cleanString(row.Improvements || row.improvements) || null,
+        mh_allowed: normalizeMhAllowed(row.MH_Allowed || row.mh_allowed),
+
+        // Financial fields
+        paid_bid:             cleanNumber(row.paid_bid),
+        sale_price:           cleanNumber(row.sale_price),
+        doc_fees:             cleanNumber(row.doc_fees),
+        paid_bid_inv:         cleanNumber(row.paid_bid_inv),
+        investment_total:     cleanNumber(row.investment_total),
+        investment_total_inv: cleanNumber(row.investment_total_inv),
+
+        // Cost breakdown + toggles
+        warrantydeedtransfer:    cleanNumber(row.warrantydeedtransfer),
+        tg_warrantydeedtransfer: parseBoolean(row.tg_warrantydeedtransfer),
+        titleclaim_action:       cleanNumber(row.titleclaim_action),
+        tg_titleclaim_action:    parseBoolean(row.tg_titleclaim_action),
+        surveyor:                cleanNumber(row.surveyor),
+        tg_surveyor:             parseBoolean(row.tg_surveyor),
+        land_clearing:           cleanNumber(row.land_clearing),
+        tg_land_clearing:        parseBoolean(row.tg_land_clearing),
+        fencing_gate:            cleanNumber(row.fencing_gate),
+        tg_fencing_gate:         parseBoolean(row.tg_fencing_gate),
+        preapproval_review:      cleanNumber(row.preapproval_review),
+        tg_preapproval_review:   parseBoolean(row.tg_preapproval_review),
+
         // Relational IDs
         county_id: countyId,
         status_id: defaultStatusId,
+        origem_id,
         ref_construction_id,
         fema_id,
         wetlands_id,

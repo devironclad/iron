@@ -55,7 +55,7 @@ CREATE TABLE ls_assets (
     address VARCHAR(255),
     parcel_number VARCHAR(255),
     case_number VARCHAR(255),
-    legal_description VARCHAR(255),
+    legal_description TEXT,
     coordinates VARCHAR(255),
     zoning VARCHAR(255),
     
@@ -140,7 +140,29 @@ ALTER TABLE ls_assets
 
 
 -- ==============================================================================
--- 3. AUTOMATIC UPDATED_AT TRIGGER
+-- 3. AUTO ref_id TRIGGER (assigns sequential ref_id per record_type on INSERT)
+-- ==============================================================================
+
+CREATE OR REPLACE FUNCTION assign_ref_id()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.ref_id IS NULL THEN
+    SELECT COALESCE(MAX(ref_id), 0) + 1
+      INTO NEW.ref_id
+      FROM ls_assets
+     WHERE record_type = NEW.record_type;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE TRIGGER trg_assign_ref_id
+BEFORE INSERT ON ls_assets
+FOR EACH ROW EXECUTE FUNCTION assign_ref_id();
+
+
+-- ==============================================================================
+-- 4. AUTOMATIC UPDATED_AT TRIGGER
 -- ==============================================================================
 
 CREATE OR REPLACE FUNCTION set_updated_at()

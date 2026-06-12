@@ -376,7 +376,7 @@ export default function AuctionsPage() {
         "County": item.ls_county?.name || "",
         "State": item.ls_county?.state || "",
         "Origin": item.ls_origem?.name || "",
-        "Auction Date": item.auction_date ? new Date(item.auction_date).toLocaleDateString() : "",
+        "Auction Date": item.auction_date ? formatDate(item.auction_date) : "",
         "Auction Type": item.ls_auction_type?.name || "",
         "Property Type": item.ls_property_type?.name || "",
         "Priority": item.ls_priority?.name || "",
@@ -413,10 +413,13 @@ export default function AuctionsPage() {
     }
   };
 
-  // Date formatting helper
+  // Date formatting helper — uses UTC date portion to avoid timezone shift
   const formatDate = (dateString: string | null) => {
     if (!dateString) return "N/A";
-    return new Date(dateString).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
+    const datePart = dateString.split('T')[0]; // "2024-03-15"
+    if (!datePart || datePart.length < 10) return "N/A";
+    const [year, month, day] = datePart.split('-');
+    return `${month}/${day}/${year}`; // MM/DD/YYYY
   };
 
   const formatCurrency = (val: number | null) => {
