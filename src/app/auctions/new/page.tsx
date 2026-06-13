@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Save, X, Info, Gavel, MapPin, FileText, Key, DollarSign, Link as LinkIcon, Loader2, ShoppingCart, AlertCircle, Trash2 } from "lucide-react";
+import { Save, X, Info, Gavel, MapPin, FileText, Key, DollarSign, Link as LinkIcon, Loader2, ShoppingCart, AlertCircle, Trash2, ExternalLink } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { formatPropId } from "@/lib/utils";
 import { getCurrentUserPermissions, hasPermission } from "@/lib/permissions";
@@ -22,6 +22,7 @@ export default function NewAuctionForm() {
   const searchParams = useSearchParams();
   const editId = searchParams.get("id");
   const isEditing = !!editId;
+  const fromRejected = searchParams.get("from") === "rejected";
 
   const [activeSection, setActiveSection] = useState("identity");
   const [loading, setLoading] = useState(false);
@@ -147,7 +148,11 @@ export default function NewAuctionForm() {
     getCurrentUserPermissions().then(setPermissions);
   }, [editId]);
 
-  const canEdit = permissions !== null && hasPermission(permissions, 'page:auctions', 'edit');
+  const canEdit = permissions !== null && (
+    fromRejected
+      ? hasPermission(permissions, 'page:auctions:rejected', 'edit')
+      : hasPermission(permissions, 'page:auctions', 'edit')
+  );
 
   useEffect(() => {
     const handleScroll = () => {
@@ -250,6 +255,65 @@ export default function NewAuctionForm() {
     const { name, value, type } = e.target;
     const val = type === 'checkbox' ? (e.target as HTMLInputElement).checked : value;
     setFormData((prev: any) => ({ ...prev, [name]: val }));
+  };
+
+  const renderLinkInput = (label: string, name: string, value: string, placeholder: string, style?: React.CSSProperties) => {
+    const getHref = (url: string) => {
+      if (!url) return "";
+      if (url.startsWith("http://") || url.startsWith("https://")) return url;
+      return `https://${url}`;
+    };
+    return (
+      <div className="input-group" style={style}>
+        <label className="input-label">{label}{name === 'link_regrid' && <span className="required-star"> *</span>}</label>
+        <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+          <input
+            type="url"
+            name={name}
+            value={value || ""}
+            onChange={handleChange}
+            className="input-field"
+            placeholder={placeholder}
+            style={{ paddingRight: value ? '2.5rem' : '0.75rem' }}
+          />
+          {value && (
+            <a
+              href={getHref(value)}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                position: 'absolute',
+                right: '0.375rem',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '28px',
+                height: '28px',
+                borderRadius: '6px',
+                color: '#64748b',
+                backgroundColor: '#f1f5f9',
+                transition: 'all 0.2s ease-in-out',
+                border: '1px solid #e2e8f0',
+                boxSizing: 'border-box'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = '#10b981';
+                e.currentTarget.style.backgroundColor = '#ecfdf5';
+                e.currentTarget.style.borderColor = '#a7f3d0';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = '#64748b';
+                e.currentTarget.style.backgroundColor = '#f1f5f9';
+                e.currentTarget.style.borderColor = '#e2e8f0';
+              }}
+              title={`Open ${label}`}
+            >
+              <ExternalLink className="w-4 h-4" />
+            </a>
+          )}
+        </div>
+      </div>
+    );
   };
 
   const handleSave = async () => {
@@ -1040,26 +1104,11 @@ export default function NewAuctionForm() {
           </div>
 
           <div className="form-grid col-2" style={{ marginTop: "1.5rem" }}>
-            <div className="input-group">
-              <label className="input-label">Regrid Link <span className="required-star">*</span></label>
-              <input type="url" name="link_regrid" value={formData.link_regrid} onChange={handleChange} className="input-field" placeholder="https://regrid.com/..." />
-            </div>
-            <div className="input-group">
-              <label className="input-label">Sources Link</label>
-              <input type="url" name="link_sources" value={formData.link_sources} onChange={handleChange} className="input-field" placeholder="https://..." />
-            </div>
-            <div className="input-group">
-              <label className="input-label">House Sources Link</label>
-              <input type="url" name="link_house_sources" value={formData.link_house_sources} onChange={handleChange} className="input-field" placeholder="https://zillow.com/..." />
-            </div>
-            <div className="input-group">
-              <label className="input-label">Video Link</label>
-              <input type="url" name="link_video" value={formData.link_video} onChange={handleChange} className="input-field" placeholder="https://youtube.com/..." />
-            </div>
-            <div className="input-group" style={{ gridColumn: 'span 2' }}>
-              <label className="input-label">Google Earth Link</label>
-              <input type="url" name="link_earth" value={formData.link_earth} onChange={handleChange} className="input-field" placeholder="https://earth.google.com/..." />
-            </div>
+            {renderLinkInput("Regrid Link", "link_regrid", formData.link_regrid, "https://regrid.com/...")}
+            {renderLinkInput("Sources Link", "link_sources", formData.link_sources, "https://...")}
+            {renderLinkInput("House Sources Link", "link_house_sources", formData.link_house_sources, "https://zillow.com/...")}
+            {renderLinkInput("Video Link", "link_video", formData.link_video, "https://youtube.com/...")}
+            {renderLinkInput("Google Earth Link", "link_earth", formData.link_earth, "https://earth.google.com/...", { gridColumn: 'span 2' })}
           </div>
         </section>
 

@@ -29,7 +29,14 @@ type NavItem =
 
 const NAV_ITEMS: NavItem[] = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard, resource: "page:dashboard" },
-  { name: "Auctions", href: "/auctions", icon: Gavel, resource: "page:auctions" },
+  {
+    name: "Research",
+    icon: Gavel,
+    children: [
+      { name: "Auctions", href: "/auctions", resource: "page:auctions" },
+      { name: "Rejecteds", href: "/auctions?filter=rejected", resource: "page:auctions:rejected" },
+    ],
+  },
   {
     name: "Properties",
     icon: Building2,
@@ -92,8 +99,11 @@ export function Sidebar() {
 
   const isChildActive = (href: string) => {
     const [path, query] = href.split('?');
-    const childSource = new URLSearchParams(query || '').get('source');
-    return pathname === path && searchParams.get('source') === childSource;
+    if (pathname !== path) return false;
+    const childParams = new URLSearchParams(query || '');
+    return ['source', 'filter'].every(
+      key => searchParams.get(key) === (childParams.get(key) ?? null)
+    );
   };
 
   const toggleExpand = (name: string) => {

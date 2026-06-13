@@ -2,18 +2,21 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/lib/supabase";
-import { 
-  Gavel, 
-  Building2, 
-  TrendingUp, 
-  BarChart3, 
-  Calendar, 
-  ArrowUpRight, 
+import {
+  Gavel,
+  Building2,
+  BarChart3,
+  Calendar,
+  ArrowUpRight,
   Plus,
   Clock,
   MapPin,
   ChevronRight,
-  PieChart
+  PieChart,
+  XCircle,
+  Ticket,
+  AlertTriangle,
+  Timer
 } from "lucide-react";
 import Link from "next/link";
 import { PermissionGuard } from "@/components/auth/PermissionGuard";
@@ -25,11 +28,17 @@ export default function Dashboard() {
   const [stats, setStats] = useState({
     totalAssets: 0,
     activeAuctions: 0,
-    totalInvestment: 0,
+    totalRejecteds: 0,
     priorityStats: [] as any[],
     weeklyStats: [] as any[],
     countyStats: [] as any[],
     upcomingEvents: [] as any[]
+  });
+  const [ticketsStats, setTicketsStats] = useState({
+    openByCategory: [] as { name: string, color: string, count: number, percentage: number }[],
+    byPriority: [] as { name: string, color: string, count: number, percentage: number }[],
+    overdueCount: 0,
+    avgResolutionHours: null as number | null,
   });
   const [loading, setLoading] = useState(true);
 
@@ -39,14 +48,68 @@ export default function Dashboard() {
       const today = new Date().toISOString().split('T')[0];
 
       try {
-        const { data: allAssets } = await supabase
-          .from('ls_assets')
-          .select('id, market_value, max_bid, ls_priority(name, color), auction_date, address, record_type, county_id, ls_county(name, state)');
+        const [
+          { data: activeAuctionsRaw },
+          { data: propertiesRaw },
+          { data: rejectedPriorityRow },
+          { data: ticketsData }
+        ] = await Promise.all([
+          supabase
+            .from('ls_assets')
+            .select('id, auction_date, county_id, ls_priority(name, color), ls_county(name, state)')
+            .eq('record_type', 'AUCTION')
+            .gte('auction_date', today)
+            .range(0, 4999),
+          supabase
+            .from('ls_assets')
+            .select('id, county_id, ls_county(name, state)')
+            .eq('record_type', 'PROPERTY')
+            .range(0, 4999),
+          supabase
+            .from('ls_priority')
+            .select('id')
+            .eq('name', 'Rejected Property')
+            .single(),
+          supabase
+            .from('ls_requests')
+            .select(`
+              created_at, updated_at, due_date,
+              category:ls_request_category(name, color),
+              priority:ls_request_priority(name, color),
+              status:ls_request_status(is_closed)
+            `)
+        ]);
 
-        const assets = allAssets || [];
-        const properties = assets.filter(a => a.record_type === 'PROPERTY');
-        const activeAuctions = assets.filter(a => a.record_type === 'AUCTION' && a.auction_date && a.auction_date >= today);
-        const totalInvestmentValue = activeAuctions.reduce((acc, curr) => acc + (Number(curr.max_bid) || 0), 0);
+        const rejectedId = rejectedPriorityRow?.id;
+        const properties = propertiesRaw || [];
+
+        const activeAuctions = (activeAuctionsRaw || []).filter(a => {
+          if (!rejectedId) return true;
+          const priority = (Array.isArray(a.ls_priority) ? a.ls_priority[0] : a.ls_priority) as any;
+          return priority?.name !== 'Rejected Property';
+        });
+
+        // Server-side counts for KPI cards
+        const activeAuctionsQuery = (() => {
+          let q = supabase
+            .from('ls_assets')
+            .select('id', { count: 'exact', head: true })
+            .eq('record_type', 'AUCTION')
+            .gte('auction_date', today);
+          if (rejectedId) q = q.or(`priority_id.neq.${rejectedId},priority_id.is.null`);
+          return q;
+        })();
+
+        const rejectedsQuery = rejectedId
+          ? supabase.from('ls_assets').select('id', { count: 'exact', head: true }).eq('record_type', 'AUCTION').eq('priority_id', rejectedId)
+          : Promise.resolve({ count: 0, data: null, error: null });
+
+        const [{ count: activeAuctionsCount }, { count: rejectedsCount }] = await Promise.all([
+          activeAuctionsQuery,
+          rejectedsQuery
+        ]);
+
+        const totalRejecteds = rejectedsCount || 0;
 
         // Priority Stats
         const priorities: Record<string, { count: number, color: string }> = {};
@@ -67,7 +130,8 @@ export default function Dashboard() {
 
         // Weekly Stats (Current + 3 Weeks)
         const weeklyArray = [];
-        const now = new Date();
+        const currentTime = new Date();
+        const now = new Date(currentTime);
         now.setHours(0, 0, 0, 0);
 
         for (let i = 0; i < 4; i++) {
@@ -146,10 +210,58 @@ export default function Dashboard() {
           .sort((a: any, b: any) => a.date.getTime() - b.date.getTime())
           .slice(0, 5);
 
+        // Tickets
+        const tickets = ticketsData || [];
+
+        const openTickets = tickets.filter(t => {
+          const status = (Array.isArray(t.status) ? t.status[0] : t.status) as any;
+          return !status?.is_closed;
+        });
+
+        const overdueCount = openTickets.filter(t => t.due_date && new Date(t.due_date) < currentTime).length;
+
+        const catMap: Record<string, { count: number, color: string }> = {};
+        openTickets.forEach(t => {
+          const cat = (Array.isArray(t.category) ? t.category[0] : t.category) as any;
+          const name = cat?.name || 'Uncategorized';
+          const color = cat?.color || '#94a3b8';
+          if (!catMap[name]) catMap[name] = { count: 0, color };
+          catMap[name].count++;
+        });
+        const maxCat = Math.max(...Object.values(catMap).map(c => c.count), 1);
+        const openByCategory = Object.entries(catMap)
+          .map(([name, d]) => ({ name, color: d.color, count: d.count, percentage: (d.count / maxCat) * 100 }))
+          .sort((a, b) => b.count - a.count);
+
+        const priMap: Record<string, { count: number, color: string }> = {};
+        openTickets.forEach(t => {
+          const pri = (Array.isArray(t.priority) ? t.priority[0] : t.priority) as any;
+          const name = pri?.name || 'Unassigned';
+          const color = pri?.color || '#94a3b8';
+          if (!priMap[name]) priMap[name] = { count: 0, color };
+          priMap[name].count++;
+        });
+        const maxPri = Math.max(...Object.values(priMap).map(p => p.count), 1);
+        const byPriority = Object.entries(priMap)
+          .map(([name, d]) => ({ name, color: d.color, count: d.count, percentage: (d.count / maxPri) * 100 }))
+          .sort((a, b) => b.count - a.count);
+
+        const closedTickets = tickets.filter(t => {
+          const status = (Array.isArray(t.status) ? t.status[0] : t.status) as any;
+          return status?.is_closed && t.created_at && t.updated_at;
+        });
+        const avgResolutionHours = closedTickets.length > 0
+          ? closedTickets.reduce((acc, t) => {
+              return acc + (new Date(t.updated_at).getTime() - new Date(t.created_at).getTime());
+            }, 0) / closedTickets.length / (1000 * 60 * 60)
+          : null;
+
+        setTicketsStats({ openByCategory, byPriority, overdueCount, avgResolutionHours });
+
         setStats({
           totalAssets: properties.length,
-          activeAuctions: activeAuctions.length,
-          totalInvestment: totalInvestmentValue,
+          activeAuctions: activeAuctionsCount || 0,
+          totalRejecteds,
           priorityStats: priorityArray,
           weeklyStats: weeklyArray,
           countyStats: countyArray,
@@ -178,12 +290,6 @@ export default function Dashboard() {
     });
   };
 
-
-  const formatCurrency = (val: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency', currency: 'USD', maximumFractionDigits: 0
-    }).format(val);
-  };
 
   const donutSegments = getDonutSegments();
   
@@ -223,18 +329,18 @@ export default function Dashboard() {
         {/* KPI Cards */}
         <div className="kpi-grid">
           <div className="kpi-card">
-            <div className="kpi-icon-wrapper" style={{ background: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6' }}>
-               <TrendingUp className="w-6 h-6" />
+            <div className="kpi-icon-wrapper" style={{ background: 'rgba(202, 24, 26, 0.1)', color: '#ca181a' }}>
+              <Building2 className="w-6 h-6" />
             </div>
             <div className="kpi-info">
-              <h3>Target Value</h3>
-              <p className="kpi-value">{formatCurrency(stats.totalInvestment)}</p>
+              <h3>Total Portfolio</h3>
+              <p className="kpi-value">{stats.totalAssets}</p>
             </div>
           </div>
 
           <div className="kpi-card">
             <div className="kpi-icon-wrapper" style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#10b981' }}>
-               <Gavel className="w-6 h-6" />
+              <Gavel className="w-6 h-6" />
             </div>
             <div className="kpi-info">
               <h3>Active Asset for Auctions</h3>
@@ -243,12 +349,12 @@ export default function Dashboard() {
           </div>
 
           <div className="kpi-card">
-            <div className="kpi-icon-wrapper" style={{ background: 'rgba(202, 24, 26, 0.1)', color: '#ca181a' }}>
-               <Building2 className="w-6 h-6" />
+            <div className="kpi-icon-wrapper" style={{ background: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b' }}>
+              <XCircle className="w-6 h-6" />
             </div>
             <div className="kpi-info">
-              <h3>Total Portfolio</h3>
-              <p className="kpi-value">{stats.totalAssets}</p>
+              <h3>Rejecteds</h3>
+              <p className="kpi-value">{stats.totalRejecteds}</p>
             </div>
           </div>
         </div>
@@ -375,6 +481,93 @@ export default function Dashboard() {
               </Link>
             </div>
           </section>
+        </div>
+
+        {/* ── Requests & Tickets ── */}
+        <div style={{ marginTop: '2.5rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
+            <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border-subtle)' }} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', whiteSpace: 'nowrap' }}>
+              <Ticket className="w-4 h-4" />
+              Requests &amp; Tickets
+            </div>
+            <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border-subtle)' }} />
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 260px', gap: '1.5rem', alignItems: 'start' }}>
+
+            {/* By Category */}
+            <section className="content-section compact">
+              <div className="section-header">
+                <h2>Open tickets by category</h2>
+                <BarChart3 className="w-5 h-5 text-muted" />
+              </div>
+              <div className="chart-container">
+                {ticketsStats.openByCategory.length > 0 ? ticketsStats.openByCategory.map(c => (
+                  <div key={c.name} className="chart-row">
+                    <div className="chart-label">
+                      <span>{c.name}</span>
+                      <span>{c.count}</span>
+                    </div>
+                    <div className="chart-bar-bg">
+                      <div className="chart-bar-fill" style={{ width: `${c.percentage}%`, backgroundColor: c.color }} />
+                    </div>
+                  </div>
+                )) : <p className="text-muted" style={{ fontSize: '0.875rem' }}>No open tickets.</p>}
+              </div>
+            </section>
+
+            {/* By Priority */}
+            <section className="content-section compact">
+              <div className="section-header">
+                <h2>Open tickets by priority</h2>
+                <BarChart3 className="w-5 h-5 text-muted" />
+              </div>
+              <div className="chart-container">
+                {ticketsStats.byPriority.length > 0 ? ticketsStats.byPriority.map(p => (
+                  <div key={p.name} className="chart-row">
+                    <div className="chart-label">
+                      <span>{p.name}</span>
+                      <span>{p.count}</span>
+                    </div>
+                    <div className="chart-bar-bg">
+                      <div className="chart-bar-fill" style={{ width: `${p.percentage}%`, backgroundColor: p.color }} />
+                    </div>
+                  </div>
+                )) : <p className="text-muted" style={{ fontSize: '0.875rem' }}>No open tickets.</p>}
+              </div>
+            </section>
+
+            {/* KPI mini-cards */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div className="kpi-card">
+                <div className="kpi-icon-wrapper" style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444' }}>
+                  <AlertTriangle className="w-6 h-6" />
+                </div>
+                <div className="kpi-info">
+                  <h3>Overdue (SLA)</h3>
+                  <p className="kpi-value">{ticketsStats.overdueCount}</p>
+                </div>
+              </div>
+
+              <div className="kpi-card">
+                <div className="kpi-icon-wrapper" style={{ background: 'rgba(139, 92, 246, 0.1)', color: '#8b5cf6' }}>
+                  <Timer className="w-6 h-6" />
+                </div>
+                <div className="kpi-info">
+                  <h3>Avg Resolution</h3>
+                  <p className="kpi-value">
+                    {ticketsStats.avgResolutionHours === null
+                      ? '—'
+                      : ticketsStats.avgResolutionHours < 48
+                        ? `${Math.round(ticketsStats.avgResolutionHours)}h`
+                        : `${Math.round(ticketsStats.avgResolutionHours / 24)}d`}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+          </div>
         </div>
 
       </div>

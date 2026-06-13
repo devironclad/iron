@@ -23,6 +23,7 @@ export default function AuctionsPage() {
 
   const searchParams = useSearchParams();
   const router = useRouter();
+  const isRejectedView = searchParams.get('filter') === 'rejected';
   const [recentCardId, setRecentCardId] = useState<number | null>(null);
   const [highlightId, setHighlightId] = useState<number | null>(null);
   const [totalCount, setTotalCount] = useState(0);
@@ -52,6 +53,7 @@ export default function AuctionsPage() {
     priorities: []
   });
   const [userPermissions, setUserPermissions] = useState<Record<string, Permission> | null>(null);
+  const [rejectedPriorityId, setRejectedPriorityId] = useState<number | null | undefined>(undefined);
 
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 24;
@@ -70,8 +72,20 @@ export default function AuctionsPage() {
   }
 
   useEffect(() => {
+    if (lookups.priorities.length === 0) return;
+    const rejected = lookups.priorities.find(p => p.name === 'Rejected Property');
+    setRejectedPriorityId(rejected?.id ?? null);
+    if (isRejectedView) {
+      if (rejected) setSelectedPriority(String(rejected.id));
+    } else {
+      setSelectedPriority('all');
+    }
+  }, [isRejectedView, lookups.priorities]);
+
+  useEffect(() => {
+    if (rejectedPriorityId === undefined) return;
     fetchAuctions();
-  }, [selectedState, selectedCounty, selectedDate, selectedOrigem, selectedAuctionType, selectedPropertyType, selectedPriority, showPast, currentPage, searchTerm]);
+  }, [selectedState, selectedCounty, selectedDate, selectedOrigem, selectedAuctionType, selectedPropertyType, selectedPriority, showPast, currentPage, searchTerm, rejectedPriorityId]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -211,6 +225,13 @@ export default function AuctionsPage() {
     setHighlightId(targetId);
   }
 
+  function applyRejectionExclusion<T>(query: T): T {
+    if (!isRejectedView && rejectedPriorityId) {
+      return (query as any).or(`priority_id.neq.${rejectedPriorityId},priority_id.is.null`) as T;
+    }
+    return query;
+  }
+
   async function fetchAuctions() {
     setLoading(true);
     try {
@@ -248,6 +269,8 @@ export default function AuctionsPage() {
       if (selectedPropertyType && selectedPropertyType !== "all") {
         query = query.eq("property_type_id", selectedPropertyType);
       }
+
+      query = applyRejectionExclusion(query);
 
       if (selectedPriority && selectedPriority !== "all") {
         query = query.eq("priority_id", selectedPriority);
@@ -347,6 +370,7 @@ export default function AuctionsPage() {
       if (!showPast) {
         query = query.gte("auction_date", new Date().toISOString().split('T')[0]);
       }
+      query = applyRejectionExclusion(query);
       if (selectedCounty && selectedCounty !== "all") query = query.eq("county_id", selectedCounty);
       if (selectedOrigem && selectedOrigem !== "all") query = query.eq("origem_id", selectedOrigem);
       if (selectedAuctionType && selectedAuctionType !== "all") query = query.eq("auction_type_id", selectedAuctionType);
@@ -436,7 +460,7 @@ export default function AuctionsPage() {
   const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE);
 
   return (
-    <PermissionGuard resource="page:auctions">
+    <PermissionGuard anyOf={["page:auctions", "page:auctions:rejected"]}>
       <div className="auctions-container">
 
       {auctionToDelete && (
@@ -488,8 +512,8 @@ export default function AuctionsPage() {
       {/* Page Header */}
       <div className="page-header">
         <div className="page-header-text">
-          <h1 className="page-title">Auctions<span className="dot">.</span></h1>
-          <p className="page-subtitle">Manage upcoming auctions and research prospective acquisitions.</p>
+          <h1 className="page-title">{isRejectedView ? 'Rejecteds' : 'Auctions'}<span className="dot">.</span></h1>
+          <p className="page-subtitle">{isRejectedView ? 'Auction records marked as Rejected Property.' : 'Manage upcoming auctions and research prospective acquisitions.'}</p>
         </div>
         <div style={{ display: 'flex', gap: '0.75rem' }}>
           {hasPermission(userPermissions, 'action:export_auctions') && (
@@ -654,6 +678,8 @@ export default function AuctionsPage() {
                 className="auc-filter-select"
                 value={selectedPriority}
                 onChange={(e) => setSelectedPriority(e.target.value)}
+                disabled={isRejectedView}
+                title={isRejectedView ? 'Locked: Rejected Property view' : undefined}
               >
                 <option value="all">All Priorities</option>
                 {lookups.priorities.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -781,7 +807,7 @@ export default function AuctionsPage() {
                 </div>
 
                 <div style={{ display: 'flex', gap: '0.5rem', marginTop: 'auto' }}>
-                  <Link href={`/auctions/new?id=${auction.id}`} className="card-details-btn" style={{ textDecoration: 'none', flex: 1 }}>
+                  <Link href={`/auctions/new?id=${auction.id}${isRejectedView ? '&from=rejected' : ''}`} className="card-details-btn" style={{ textDecoration: 'none', flex: 1 }}>
                     Edit Details
                     <ArrowRight className="w-4 h-4" />
                   </Link>
@@ -878,8 +904,8 @@ export default function AuctionsPage() {
                     )}
                   </td>
                   <td style={{ display: 'flex', gap: '0.4rem' }}>
-                    <Link 
-                      href={`/auctions/new?id=${auction.id}`} 
+                    <Link
+                      href={`/auctions/new?id=${auction.id}${isRejectedView ? '&from=rejected' : ''}`}
                       className="btn-list-edit"
                     >
                       Edit
