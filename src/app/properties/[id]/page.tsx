@@ -215,7 +215,7 @@ export default function PropertyDetailsPage() {
   });
 
   // Derive the correct resource key based on where the user came from
-  const propertiesResource = source === 'broker' ? 'page:properties:broker' : 'page:properties:ironclad';
+  const propertiesResource = source === 'broker' ? 'page:properties:broker' : source === 'partners' ? 'page:properties:partners' : 'page:properties:ironclad';
   const canEdit = permissions !== null && hasPermission(permissions, propertiesResource, 'edit');
 
   const visibleTabs = useMemo(() => {

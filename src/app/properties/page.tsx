@@ -23,7 +23,7 @@ export default function PropertiesPage() {
   const [totalCount, setTotalCount] = useState(0);
 
   const searchParams = useSearchParams();
-  const source = searchParams.get('source') as 'ironclad' | 'broker' | null;
+  const source = searchParams.get('source') as 'ironclad' | 'broker' | 'partners' | null;
   const router = useRouter();
   const [recentCardId, setRecentCardId] = useState<number | null>(null);
   const [highlightId, setHighlightId] = useState<number | null>(null);
@@ -224,7 +224,7 @@ export default function PropertiesPage() {
         `, { count: "exact" })
         .eq("record_type", "PROPERTY");
 
-      if (source === 'ironclad') {
+      if (source === 'ironclad' || source === 'partners') {
         query = query.or('owner_type.is.null,owner_type.neq.partner');
       } else if (source === 'broker') {
         query = query.eq('owner_type', 'partner');
@@ -349,14 +349,18 @@ export default function PropertiesPage() {
     ? 'Ironclad Properties'
     : source === 'broker'
     ? 'Broker Properties'
+    : source === 'partners'
+    ? 'Partners Properties'
     : 'My Properties';
 
   const pageSubtitle = source === 'broker'
     ? 'Properties managed by partner brokers.'
+    : source === 'partners'
+    ? 'Properties managed in partnership.'
     : 'Manage acquired assets, financials, and detailed characteristics.';
 
   return (
-    <PermissionGuard anyOf={["page:properties:ironclad", "page:properties:broker"]}>
+    <PermissionGuard anyOf={["page:properties:ironclad", "page:properties:broker", "page:properties:partners"]}>
       <div className="properties-container">
       {/* Header */}
       <div className="page-header">
