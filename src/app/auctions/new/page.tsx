@@ -321,6 +321,18 @@ export default function NewAuctionForm() {
       alert("You don't have permission to edit auctions.");
       return;
     }
+
+    // Confirm before saving as Rejected Property
+    const isRejectedPriority = lookups.ls_priority?.find(
+      p => p.id?.toString() === formData.priority_id?.toString()
+    )?.name.trim().toLowerCase() === 'rejected property';
+    if (isRejectedPriority) {
+      const confirmed = window.confirm(
+        'Are you sure you want to send this Auction to Rejected?'
+      );
+      if (!confirmed) return;
+    }
+
     // 1. Validation for mandatory fields
     const requiredFields = [
       { key: 'auction_date', label: 'Auction Date' },
