@@ -4,8 +4,8 @@ import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { 
-  Grid, List, Plus, MapPin, Calendar, Tag, ExternalLink, Search, 
-  Filter, ArrowRight, Loader2, ChevronLeft, ChevronRight, 
+  Grid, List, Plus, MapPin, Briefcase, Tag, ExternalLink, Search,
+  Filter, ArrowRight, Loader2, ChevronLeft, ChevronRight,
   CheckCircle2, Navigation, Layers, Maximize, Download, Trash2, Hash
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
@@ -766,7 +766,7 @@ export default function AuctionsPage() {
                     </span>
                   </div>
                   <div className="detail-item">
-                    <Calendar className="w-4 h-4 detail-icon" />
+                    <Briefcase className="w-4 h-4 detail-icon" />
                     <span title={auction.case_number || 'No Case Number'}>
                       {auction.case_number || 'No Case Number'}
                     </span>
