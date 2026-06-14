@@ -709,7 +709,7 @@ export default function PropertyDetailsPage() {
   };
 
   const handleAddAmenity = async () => {
-    if (!newAmenity.type_id) return;
+    if (!newAmenity.type_id || !canEdit || !tabCanEdit) return;
     
     const payload = {
       asset_id: id,
@@ -1210,7 +1210,7 @@ export default function PropertyDetailsPage() {
                           className="input-field"
                         />
                       </div>
-                      <button onClick={handleAddAmenity} className="save-btn" style={{ height: '38px', padding: '0 1rem', marginTop: 'auto', backgroundColor: 'var(--primary)', color: 'white', border: 'none' }} disabled={!newAmenity.type_id}>
+                      <button onClick={handleAddAmenity} className="save-btn" style={{ height: '38px', padding: '0 1rem', marginTop: 'auto', backgroundColor: 'var(--primary)', color: 'white', border: 'none' }} disabled={!newAmenity.type_id || !canEdit || !tabCanEdit}>
                         <Plus className="w-4 h-4" />
                       </button>
                     </div>
@@ -1734,7 +1734,7 @@ export default function PropertyDetailsPage() {
                   <h2 className="section-title">Tax Records</h2>
                   <p className="section-desc">Manage tax, fees and HOA/POA records associated with this property.</p>
                 </div>
-                {!showTaxForm && tabCanEdit && (
+                {!showTaxForm && canEdit && tabCanEdit && (
                   <button
                     onClick={() => { resetTaxForm(); setShowTaxForm(true); }}
                     className="save-btn"
@@ -1850,7 +1850,7 @@ export default function PropertyDetailsPage() {
                       <button
                         onClick={handleSaveTax}
                         className="primary-btn"
-                        disabled={taxSavedOk}
+                        disabled={taxSavedOk || !canEdit || !tabCanEdit}
                         style={{
                           padding: '0.5rem 1.25rem',
                           display: 'flex',
@@ -1955,16 +1955,16 @@ export default function PropertyDetailsPage() {
         <button
           className="primary-btn"
           onClick={handleSave}
-          disabled={saving || savedOk || !tabCanEdit}
-          title={!tabCanEdit ? "You don't have permission to edit this tab." : undefined}
+          disabled={saving || savedOk || !canEdit || !tabCanEdit}
+          title={!canEdit || !tabCanEdit ? "You don't have permission to edit this tab." : undefined}
           style={
             savedOk ? { backgroundColor: '#10b981', cursor: 'default' } :
-            !tabCanEdit ? { backgroundColor: '#94a3b8', cursor: 'not-allowed', opacity: 0.7 } :
+            (!canEdit || !tabCanEdit) ? { backgroundColor: '#94a3b8', cursor: 'not-allowed', opacity: 0.7 } :
             undefined
           }
         >
           {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-          {saving ? "Saving..." : savedOk ? "Saved!" : !tabCanEdit ? "Read Only" : "Save Changes"}
+          {saving ? "Saving..." : savedOk ? "Saved!" : (!canEdit || !tabCanEdit) ? "Read Only" : "Save Changes"}
         </button>
       </div>
     </div>
