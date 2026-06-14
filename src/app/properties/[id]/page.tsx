@@ -295,13 +295,19 @@ export default function PropertyDetailsPage() {
         .from('ls_asset_amenities')
         .select(`
           *,
-          ls_amenity_type ( 
-            name, 
-            ls_amenity_category ( name ) 
+          ls_amenity_type (
+            name,
+            ls_amenity_category ( name )
           )
         `)
         .eq('asset_id', id);
-      setAmenities(amenData || []);
+      const sortedAmenities = (amenData || []).sort((a: any, b: any) => {
+        const catA = a.ls_amenity_type?.ls_amenity_category?.name || '';
+        const catB = b.ls_amenity_type?.ls_amenity_category?.name || '';
+        if (catA !== catB) return catA.localeCompare(catB);
+        return (a.ls_amenity_type?.name || '').localeCompare(b.ls_amenity_type?.name || '');
+      });
+      setAmenities(sortedAmenities);
 
       const [catData, typeData] = await Promise.all([
         supabase.from('ls_amenity_category').select('*').order('name'),

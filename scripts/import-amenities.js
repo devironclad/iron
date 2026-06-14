@@ -53,40 +53,20 @@ async function importAmenities() {
   const categoryCache = categories || [];
   const typeCache = types || [];
 
-  // Helper: get or create category
-  async function getOrCreateCategory(name) {
+  // Helper: lookup category by name (read-only — ls_amenity_category is managed via the UI)
+  function lookupCategory(name) {
     const trimmed = name.toString().trim();
-    let cat = categoryCache.find(c => c.name.toLowerCase() === trimmed.toLowerCase());
-    if (!cat) {
-      const { data, error } = await supabase
-        .from('ls_amenity_category')
-        .insert({ name: trimmed })
-        .select('id, name')
-        .single();
-      if (error) { console.error(`Erro ao criar categoria "${trimmed}":`, error.message); return null; }
-      cat = data;
-      categoryCache.push(cat);
-      console.log(`  [Novo] Categoria criada: "${trimmed}"`);
-    }
-    return cat;
+    const cat = categoryCache.find(c => c.name.toLowerCase() === trimmed.toLowerCase());
+    if (!cat) console.warn(`  [Aviso] Categoria não encontrada: "${trimmed}" — linha ignorada`);
+    return cat || null;
   }
 
-  // Helper: get or create type (linked to category)
-  async function getOrCreateType(typeName, categoryId) {
+  // Helper: lookup type by name within a category (read-only — ls_amenity_type is managed via the UI)
+  function lookupType(typeName, categoryId) {
     const trimmed = typeName.toString().trim();
-    let type = typeCache.find(t => t.name.toLowerCase() === trimmed.toLowerCase() && t.category_id === categoryId);
-    if (!type) {
-      const { data, error } = await supabase
-        .from('ls_amenity_type')
-        .insert({ name: trimmed, category_id: categoryId })
-        .select('id, name, category_id')
-        .single();
-      if (error) { console.error(`Erro ao criar tipo "${trimmed}":`, error.message); return null; }
-      type = data;
-      typeCache.push(type);
-      console.log(`  [Novo] Tipo criado: "${trimmed}" (categoria: ${categoryId})`);
-    }
-    return type;
+    const type = typeCache.find(t => t.name.toLowerCase() === trimmed.toLowerCase() && t.category_id === categoryId);
+    if (!type) console.warn(`  [Aviso] Tipo não encontrado: "${trimmed}" — linha ignorada`);
+    return type || null;
   }
 
   // 4. Processar e inserir
@@ -100,8 +80,10 @@ async function importAmenities() {
     const rowNum = i + 2;
 
     const idPropOld = row.id_prop_old?.toString().trim();
-    const categoryName = row.amenity_category?.toString().trim();
-    const typeName = row.amenity_type?.toString().trim();
+    // Note: in the Excel file, amenity_type holds the broad classification (category)
+    // and amenity_category holds the specific place name (type/description)
+    const categoryName = row.amenity_type?.toString().trim();
+    const typeName = row.amenity_category?.toString().trim();
     const distanceMiles = row.distance_miles != null ? parseFloat(row.distance_miles) : null;
     const timeMinutes = row.time_minutes != null ? parseInt(row.time_minutes) : null;
 
@@ -126,11 +108,20 @@ async function importAmenities() {
     }
 
     try {
-      const category = await getOrCreateCategory(categoryName);
-      if (!category) { errors++; continue; }
+      const category = lookupCategory(categoryName);
+      if (!category) { skipped++; continue; }
 
-      const type = await getOrCreateType(typeName, category.id);
-      if (!type) { errors++; continue; }
+      const type = lookupType(typeName, category.id);
+      if (!type) { skipped++; continue; }
+
+      // Skip if this exact (asset, type) combination already exists
+      const { data: existing } = await supabase
+        .from('ls_asset_amenities')
+        .select('id')
+        .eq('asset_id', assetId)
+        .eq('amenity_type_id', type.id)
+        .maybeSingle();
+      if (existing) { skipped++; continue; }
 
       const { error } = await supabase.from('ls_asset_amenities').insert({
         asset_id: assetId,
