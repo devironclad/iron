@@ -794,10 +794,10 @@ export default function PropertiesPage() {
                       const base = prop.investment_total || 0;
                       const isAR = prop.ls_county?.state === 'AR';
                       const tiers = isAR ? [
-                        { label: '+100%', roi: 1.0, fill: 25,  color: '#6ee7b7', textColor: '#065f46' },
-                        { label: '+200%', roi: 2.0, fill: 50,  color: '#34d399', textColor: '#065f46' },
-                        { label: '+300%', roi: 3.0, fill: 75,  color: '#10b981', textColor: '#ffffff' },
-                        { label: '+400%', roi: 4.0, fill: 100, color: '#059669', textColor: '#ffffff' },
+                        { label: '+400%',  roi: 4.0,  fill: 25,  color: '#6ee7b7', textColor: '#065f46' },
+                        { label: '+600%',  roi: 6.0,  fill: 50,  color: '#34d399', textColor: '#065f46' },
+                        { label: '+800%',  roi: 8.0,  fill: 75,  color: '#10b981', textColor: '#ffffff' },
+                        { label: '+1000%', roi: 10.0, fill: 100, color: '#059669', textColor: '#ffffff' },
                       ] : [
                         { label: '+40%',  roi: 0.4, fill: 40,  color: '#6ee7b7', textColor: '#065f46' },
                         { label: '+60%',  roi: 0.6, fill: 60,  color: '#34d399', textColor: '#065f46' },
