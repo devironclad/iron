@@ -319,34 +319,49 @@ export default function NewAuctionForm() {
 
   const doSave = async () => {
     // 1. Validation for mandatory fields
-    const requiredFields = [
-      { key: 'auction_date', label: 'Auction Date' },
-      { key: 'origem_id', label: 'Origin' },
-      { key: 'parcel_number', label: 'Parcel Number' },
-      { key: 'case_number', label: 'Case Number' },
-      { key: 'auction_type_id', label: 'Auction Type' },
-      { key: 'auction_model_id', label: 'Auction Model' },
-      { key: 'county_id', label: 'County' },
-      { key: 'property_type_id', label: 'Property Type' },
-      { key: 'legal_description', label: 'Legal Description' },
-      { key: 'zoning', label: 'Zoning' },
-      { key: 'size', label: 'Size' },
-      { key: 'coordinates', label: 'Coordinates' },
-      { key: 'address', label: 'Address' },
-      { key: 'annual_tax', label: 'Annual Tax' },
-      { key: 'link_regrid', label: 'Regrid Link' },
-      { key: 'fema_id', label: 'FEMA Zone' },
-      { key: 'wetlands_id', label: 'Wetlands' },
-      { key: 'debit_id', label: 'Debit Status' },
-      { key: 'gismap_id', label: 'GIS Map Reference' },
-      { key: 'open_bid', label: 'Open Bid' }
-    ];
+    const isRejectedPriority = lookups.ls_priority?.find(
+      p => p.id?.toString() === formData.priority_id?.toString()
+    )?.name.trim().toLowerCase() === 'rejected property';
+
+    const requiredFields = isRejectedPriority
+      ? [
+          { key: 'auction_date',    label: 'Auction Date' },
+          { key: 'origem_id',       label: 'Origin' },
+          { key: 'county_id',       label: 'County' },
+          { key: 'parcel_number',   label: 'Parcel Number' },
+          { key: 'case_number',     label: 'Case Number' },
+          { key: 'property_type_id', label: 'Property Type' },
+          { key: 'link_regrid',     label: 'Regrid Link' },
+          { key: 'address',         label: 'Address' },
+        ]
+      : [
+          { key: 'auction_date',    label: 'Auction Date' },
+          { key: 'origem_id',       label: 'Origin' },
+          { key: 'parcel_number',   label: 'Parcel Number' },
+          { key: 'case_number',     label: 'Case Number' },
+          { key: 'auction_type_id', label: 'Auction Type' },
+          { key: 'auction_model_id', label: 'Auction Model' },
+          { key: 'county_id',       label: 'County' },
+          { key: 'property_type_id', label: 'Property Type' },
+          { key: 'legal_description', label: 'Legal Description' },
+          { key: 'zoning',          label: 'Zoning' },
+          { key: 'size',            label: 'Size' },
+          { key: 'coordinates',     label: 'Coordinates' },
+          { key: 'address',         label: 'Address' },
+          { key: 'annual_tax',      label: 'Annual Tax' },
+          { key: 'link_regrid',     label: 'Regrid Link' },
+          { key: 'fema_id',         label: 'FEMA Zone' },
+          { key: 'wetlands_id',     label: 'Wetlands' },
+          { key: 'debit_id',        label: 'Debit Status' },
+          { key: 'gismap_id',       label: 'GIS Map Reference' },
+          { key: 'open_bid',        label: 'Open Bid' },
+        ];
 
     const missing = requiredFields.filter(f => !formData[f.key]);
-    
+
     if (missing.length > 0) {
       setValidationErrors(missing.map(m => m.label));
-      
+
       const firstMissing = missing[0].key;
       if (['auction_date', 'origem_id', 'parcel_number', 'case_number', 'auction_type_id', 'auction_model_id'].includes(firstMissing)) {
         scrollToSection('identity');
@@ -359,7 +374,7 @@ export default function NewAuctionForm() {
       } else if (['link_regrid'].includes(firstMissing)) {
         scrollToSection('links');
       }
-      
+
       return;
     }
 
