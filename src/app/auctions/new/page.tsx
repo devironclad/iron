@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Save, X, Info, Gavel, MapPin, FileText, Key, DollarSign, Link as LinkIcon, Loader2, ShoppingCart, AlertCircle, Trash2, ExternalLink } from "lucide-react";
+import { Save, X, Info, Gavel, MapPin, FileText, Key, DollarSign, Link as LinkIcon, Loader2, ShoppingCart, AlertCircle, Trash2, ExternalLink, XCircle } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { formatPropId } from "@/lib/utils";
 import { getCurrentUserPermissions, hasPermission } from "@/lib/permissions";
@@ -30,6 +30,7 @@ export default function NewAuctionForm() {
   const [fetchingData, setFetchingData] = useState(true);
   const [showBuyConfirm, setShowBuyConfirm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showRejectConfirm, setShowRejectConfirm] = useState(false);
   const [paidBidInput, setPaidBidInput] = useState("");
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [lookups, setLookups] = useState<Record<string, any[]>>({});
@@ -316,23 +317,7 @@ export default function NewAuctionForm() {
     );
   };
 
-  const handleSave = async () => {
-    if (!canEdit) {
-      alert("You don't have permission to edit auctions.");
-      return;
-    }
-
-    // Confirm before saving as Rejected Property
-    const isRejectedPriority = lookups.ls_priority?.find(
-      p => p.id?.toString() === formData.priority_id?.toString()
-    )?.name.trim().toLowerCase() === 'rejected property';
-    if (isRejectedPriority) {
-      const confirmed = window.confirm(
-        'Are you sure you want to send this Auction to Rejected?'
-      );
-      if (!confirmed) return;
-    }
-
+  const doSave = async () => {
     // 1. Validation for mandatory fields
     const requiredFields = [
       { key: 'auction_date', label: 'Auction Date' },
@@ -453,6 +438,21 @@ export default function NewAuctionForm() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSave = async () => {
+    if (!canEdit) {
+      alert("You don't have permission to edit auctions.");
+      return;
+    }
+    const isRejectedPriority = lookups.ls_priority?.find(
+      p => p.id?.toString() === formData.priority_id?.toString()
+    )?.name.trim().toLowerCase() === 'rejected property';
+    if (isRejectedPriority) {
+      setShowRejectConfirm(true);
+      return;
+    }
+    await doSave();
   };
 
   const handleDelete = () => {
@@ -685,6 +685,52 @@ export default function NewAuctionForm() {
                 style={{ flex: 1, justifyContent: 'center', backgroundColor: '#ef4444', borderColor: '#ef4444' }}
               >
                 Yes, Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showRejectConfirm && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
+          backgroundColor: 'rgba(15, 23, 42, 0.4)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200
+        }}>
+          <div style={{
+            backgroundColor: 'white', borderRadius: '1.25rem', width: '100%', maxWidth: '400px',
+            padding: '2rem', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.3)',
+            display: 'flex', flexDirection: 'column', gap: '1.25rem',
+            animation: 'modalSlideIn 0.3s ease-out'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', color: '#f59e0b' }}>
+              <div style={{ backgroundColor: 'rgba(245, 158, 11, 0.1)', padding: '0.75rem', borderRadius: '0.75rem' }}>
+                <XCircle className="w-6 h-6" />
+              </div>
+              <div>
+                <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: '#0f172a' }}>Send to Rejected</h2>
+                <p style={{ margin: 0, fontSize: '0.875rem', color: '#64748b' }}>This will mark the auction as rejected.</p>
+              </div>
+            </div>
+
+            <p style={{ color: '#475569', fontSize: '0.95rem', margin: 0, lineHeight: 1.5 }}>
+              Are you sure you want to send this Auction to Rejected?
+            </p>
+
+            <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem' }}>
+              <button
+                onClick={() => setShowRejectConfirm(false)}
+                className="btn-secondary"
+                style={{ flex: 1, justifyContent: 'center' }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => { setShowRejectConfirm(false); await doSave(); }}
+                className="primary-btn"
+                style={{ flex: 1, justifyContent: 'center', backgroundColor: '#f59e0b', borderColor: '#f59e0b' }}
+              >
+                Yes, Reject
               </button>
             </div>
           </div>
