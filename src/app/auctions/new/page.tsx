@@ -23,6 +23,14 @@ export default function NewAuctionForm() {
   const editId = searchParams.get("id");
   const isEditing = !!editId;
   const fromRejected = searchParams.get("from") === "rejected";
+  const returnTo = searchParams.get("returnTo") || "/auctions";
+
+  function pushReturn(extra: Record<string, string> = {}) {
+    const [base, search] = returnTo.split("?");
+    const p = new URLSearchParams(search || "");
+    Object.entries(extra).forEach(([k, v]) => p.set(k, v));
+    router.push(`${base}?${p.toString()}`);
+  }
 
   const [activeSection, setActiveSection] = useState("identity");
   const [loading, setLoading] = useState(false);
@@ -436,7 +444,7 @@ export default function NewAuctionForm() {
           throw error;
         }
         setSavedOk(true);
-        setTimeout(() => router.push(`/auctions?action=updated&highlight=${editId}`), 1200);
+        setTimeout(() => pushReturn({ action: "updated", highlight: String(editId) }), 1200);
       } else {
         const { data, error } = await supabase.from("ls_assets").insert([payload]).select("id").single();
         if (error) {
@@ -444,7 +452,7 @@ export default function NewAuctionForm() {
           throw error;
         }
         setSavedOk(true);
-        setTimeout(() => router.push(`/auctions?action=created&highlight=${data.id}`), 1200);
+        setTimeout(() => pushReturn({ action: "created", highlight: String(data.id) }), 1200);
       }
     } catch (err: any) {
       console.error("Full Error Object:", err);
@@ -491,7 +499,7 @@ export default function NewAuctionForm() {
 
       if (error) throw error;
       
-      router.push("/auctions?action=deleted");
+      pushReturn({ action: "deleted" });
     } catch (err: any) {
       console.error("Delete Error:", err);
       alert("Error deleting auction: " + err.message);
@@ -563,7 +571,7 @@ export default function NewAuctionForm() {
       }
       
       setSavedOk(true);
-      setTimeout(() => router.push('/auctions?action=purchased'), 1200);
+      setTimeout(() => pushReturn({ action: "purchased" }), 1200);
     } catch (err: any) {
       console.error("Full Error Object:", err);
       const msg = err.message || err.details || "Unknown error";
@@ -1189,7 +1197,7 @@ export default function NewAuctionForm() {
       </div>
 
       <div className="form-actions-bar">
-        <button className="btn-secondary" onClick={() => router.push('/auctions')}>
+        <button className="btn-secondary" onClick={() => router.push(returnTo)}>
           <X className="w-4 h-4" />
           Cancel
         </button>

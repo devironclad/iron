@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { 
@@ -29,17 +29,17 @@ export default function AuctionsPage() {
   const [totalCount, setTotalCount] = useState(0);
   const [auctionToDelete, setAuctionToDelete] = useState<{id: number, parcel: string} | null>(null);
 
-  // Filters & Pagination
-  const [searchTerm, setSearchTerm] = useState("");
-  const [selectedState, setSelectedState] = useState("all");
+  // Filters & Pagination — initialized from URL so they survive navigation
+  const [searchTerm, setSearchTerm] = useState(searchParams.get('q') || "");
+  const [selectedState, setSelectedState] = useState(searchParams.get('state') || "all");
   const [selectedCounty, setSelectedCounty] = useState(searchParams.get('county') || "all");
   const [selectedDate, setSelectedDate] = useState(searchParams.get('date') || "");
-  const [selectedOrigem, setSelectedOrigem] = useState("all");
-  const [selectedAuctionType, setSelectedAuctionType] = useState("all");
-  const [selectedPropertyType, setSelectedPropertyType] = useState("all");
-  const [selectedPriority, setSelectedPriority] = useState("all");
+  const [selectedOrigem, setSelectedOrigem] = useState(searchParams.get('origem') || "all");
+  const [selectedAuctionType, setSelectedAuctionType] = useState(searchParams.get('auctionType') || "all");
+  const [selectedPropertyType, setSelectedPropertyType] = useState(searchParams.get('propertyType') || "all");
+  const [selectedPriority, setSelectedPriority] = useState(searchParams.get('priority') || "all");
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const [showPast, setShowPast] = useState(false);
+  const [showPast, setShowPast] = useState(searchParams.get('past') === 'true');
   
   const [lookups, setLookups] = useState<{
     origens: any[],
@@ -55,7 +55,10 @@ export default function AuctionsPage() {
   const [userPermissions, setUserPermissions] = useState<Record<string, Permission> | null>(null);
   const [rejectedPriorityId, setRejectedPriorityId] = useState<number | null | undefined>(undefined);
 
-  const [currentPage, setCurrentPage] = useState(1);
+  const [currentPage, setCurrentPage] = useState(Number(searchParams.get('page')) || 1);
+  const filterSyncMounted = useRef(false);
+  const filterChangeMounted = useRef(false);
+  const prioritiesLoaded = useRef(false);
   const ITEMS_PER_PAGE = 24;
 
   const uniqueStates = Array.from(new Set(counties.map(c => c.state).filter(Boolean))).sort();
@@ -77,9 +80,11 @@ export default function AuctionsPage() {
     setRejectedPriorityId(rejected?.id ?? null);
     if (isRejectedView) {
       if (rejected) setSelectedPriority(String(rejected.id));
-    } else {
+    } else if (prioritiesLoaded.current) {
+      // Only reset when transitioning away from rejected view, not on initial load
       setSelectedPriority('all');
     }
+    prioritiesLoaded.current = true;
   }, [isRejectedView, lookups.priorities]);
 
   useEffect(() => {
@@ -88,8 +93,31 @@ export default function AuctionsPage() {
   }, [selectedState, selectedCounty, selectedDate, selectedOrigem, selectedAuctionType, selectedPropertyType, selectedPriority, showPast, currentPage, searchTerm, rejectedPriorityId]);
 
   useEffect(() => {
+    if (!filterChangeMounted.current) { filterChangeMounted.current = true; return; }
     setCurrentPage(1);
   }, [searchTerm, selectedCounty, selectedState, selectedOrigem, selectedAuctionType, selectedPropertyType, selectedPriority, selectedDate]);
+
+  // Sync all active filters to URL so they survive navigation to/from auction detail
+  useEffect(() => {
+    if (!filterSyncMounted.current) {
+      filterSyncMounted.current = true;
+      return;
+    }
+    const params = new URLSearchParams();
+    const filterParam = searchParams.get('filter');
+    if (filterParam) params.set('filter', filterParam);
+    if (searchTerm) params.set('q', searchTerm);
+    if (selectedState !== 'all') params.set('state', selectedState);
+    if (selectedCounty !== 'all') params.set('county', selectedCounty);
+    if (selectedDate) params.set('date', selectedDate);
+    if (selectedOrigem !== 'all') params.set('origem', selectedOrigem);
+    if (selectedAuctionType !== 'all') params.set('auctionType', selectedAuctionType);
+    if (selectedPropertyType !== 'all') params.set('propertyType', selectedPropertyType);
+    if (selectedPriority !== 'all' && !isRejectedView) params.set('priority', selectedPriority);
+    if (showPast) params.set('past', 'true');
+    if (currentPage > 1) params.set('page', String(currentPage));
+    router.replace(`?${params.toString()}`, { scroll: false });
+  }, [searchTerm, selectedState, selectedCounty, selectedDate, selectedOrigem, selectedAuctionType, selectedPropertyType, selectedPriority, showPast, currentPage]);
 
   useEffect(() => {
     const savedView = localStorage.getItem("auctionsViewMode");
@@ -110,16 +138,28 @@ export default function AuctionsPage() {
     }
     const timer = setTimeout(() => {
       setToastMsg(null);
-      window.history.replaceState(null, '', window.location.pathname);
+      const clean = new URLSearchParams(window.location.search);
+      clean.delete('action');
+      clean.delete('highlight');
+      const qs = clean.toString();
+      window.history.replaceState(null, '', window.location.pathname + (qs ? '?' + qs : ''));
     }, 3000);
     return () => clearTimeout(timer);
   }, []);
 
-  // Read the edited/created record id from the URL and locate which page it lives on
+  // Read the edited/created record id from the URL and locate which page it lives on.
+  // If we returned via returnTo (page param already in URL), trust the current page and
+  // highlight directly — locateHighlight would recalculate without active filters and
+  // navigate to the wrong page.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const h = params.get('highlight');
-    if (h) locateHighlight(Number(h));
+    if (!h) return;
+    if (params.get('page')) {
+      setHighlightId(Number(h));
+    } else {
+      locateHighlight(Number(h));
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -139,26 +179,22 @@ export default function AuctionsPage() {
     return () => clearTimeout(t);
   }, [recentCardId]);
 
-  // Scroll to card when recentCardId is set (fires after DOM is updated)
+  // Scroll to card when recentCardId is set. Use scrollIntoView (works regardless
+  // of which ancestor is the actual scroll container). Retry once after layout settles.
   useEffect(() => {
-    if (!recentCardId) return;
-    const timer = setTimeout(() => {
+    if (!recentCardId || loading) return;
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    const doScroll = () => {
       const el = document.getElementById(`auction-${recentCardId}`);
-      if (!el) return;
-      const container = document.querySelector('.page-content') as HTMLElement | null;
-      if (container) {
-        const containerRect = container.getBoundingClientRect();
-        const elRect = el.getBoundingClientRect();
-        container.scrollTo({
-          top: container.scrollTop + elRect.top - containerRect.top - containerRect.height / 2 + elRect.height / 2,
-          behavior: 'smooth',
-        });
-      } else {
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
-    }, 150);
-    return () => clearTimeout(timer);
-  }, [recentCardId]);
+      if (!el) return false;
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return true;
+    };
+    timers.push(setTimeout(() => {
+      if (doScroll()) timers.push(setTimeout(doScroll, 500));
+    }, 300));
+    return () => timers.forEach(clearTimeout);
+  }, [recentCardId, loading]);
 
   const handleViewModeChange = (mode: "grid" | "list") => {
     setViewMode(mode);
@@ -291,7 +327,9 @@ export default function AuctionsPage() {
         const trimmed = searchTerm.trim();
         const isNumeric = /^\d+$/.test(trimmed);
         const textConditions = `parcel_number.ilike."${s}",address.ilike."${s}",case_number.ilike."${s}",coordinates.ilike."${s}"`;
-        query = query.or(isNumeric ? `${textConditions},id.eq.${parseInt(trimmed)}` : textConditions);
+        // Postgres bigint max is 9223372036854775807 (~9.2e18); skip id.eq for larger values
+        const withinBigint = isNumeric && BigInt(trimmed) <= BigInt("9223372036854775807");
+        query = query.or(withinBigint ? `${textConditions},id.eq.${trimmed}` : textConditions);
       }
 
       const from = (currentPage - 1) * ITEMS_PER_PAGE;
@@ -303,6 +341,11 @@ export default function AuctionsPage() {
         .range(from, to);
 
       if (error) {
+        // Page out of range — reset to page 1 and let the effect re-run
+        if (error.message?.includes("range not satisfiable") || (error as any).code === "PGRST103") {
+          setCurrentPage(1);
+          return;
+        }
         console.error("Supabase Error Details:", {
           message: error.message,
           details: error.details,
@@ -458,6 +501,14 @@ export default function AuctionsPage() {
 
   const paginatedAuctions = auctions;
   const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE);
+
+  // Build return URL carrying current filters so the edit page can navigate back correctly.
+  // Always include 'page' (even when 1) so the highlight effect trusts the URL and skips
+  // locateHighlight, which doesn't account for active filters.
+  const cleanParams = new URLSearchParams(searchParams.toString());
+  ['action', 'highlight'].forEach(p => cleanParams.delete(p));
+  cleanParams.set('page', String(currentPage));
+  const returnTo = encodeURIComponent(`/auctions?${cleanParams.toString()}`);
 
   return (
     <PermissionGuard anyOf={["page:auctions", "page:auctions:rejected"]}>
@@ -807,7 +858,7 @@ export default function AuctionsPage() {
                 </div>
 
                 <div style={{ display: 'flex', gap: '0.5rem', marginTop: 'auto' }}>
-                  <Link href={`/auctions/new?id=${auction.id}${isRejectedView ? '&from=rejected' : ''}`} className="card-details-btn" style={{ textDecoration: 'none', flex: 1 }}>
+                  <Link href={`/auctions/new?id=${auction.id}${isRejectedView ? '&from=rejected' : ''}&returnTo=${returnTo}`} className="card-details-btn" style={{ textDecoration: 'none', flex: 1 }}>
                     Edit Details
                     <ArrowRight className="w-4 h-4" />
                   </Link>
@@ -905,7 +956,7 @@ export default function AuctionsPage() {
                   </td>
                   <td style={{ display: 'flex', gap: '0.4rem' }}>
                     <Link
-                      href={`/auctions/new?id=${auction.id}${isRejectedView ? '&from=rejected' : ''}`}
+                      href={`/auctions/new?id=${auction.id}${isRejectedView ? '&from=rejected' : ''}&returnTo=${returnTo}`}
                       className="btn-list-edit"
                     >
                       Edit

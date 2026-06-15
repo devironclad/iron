@@ -130,17 +130,7 @@ export default function PropertiesPage() {
     const doScroll = () => {
       const el = document.getElementById(`property-${recentCardId}`);
       if (!el) return false;
-      const container = document.querySelector('.page-content') as HTMLElement | null;
-      if (container) {
-        const containerRect = container.getBoundingClientRect();
-        const elRect = el.getBoundingClientRect();
-        container.scrollTo({
-          top: container.scrollTop + elRect.top - containerRect.top - containerRect.height / 2 + elRect.height / 2,
-          behavior: 'smooth',
-        });
-      } else {
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
       return true;
     };
     const tryScroll = () => {
