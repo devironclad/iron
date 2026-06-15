@@ -6,6 +6,7 @@ import { Save, X, Info, Gavel, MapPin, FileText, Key, DollarSign, Link as LinkIc
 import { supabase } from "@/lib/supabase";
 import { formatPropId } from "@/lib/utils";
 import { getCurrentUserPermissions, hasPermission } from "@/lib/permissions";
+import { logAudit } from "@/lib/audit";
 import "./form.css";
 
 const SECTIONS = [
@@ -451,6 +452,14 @@ export default function NewAuctionForm() {
           console.error("Supabase Insert Error:", error);
           throw error;
         }
+        logAudit({
+          action_type: 'AUCTION_CREATE',
+          asset_id: data.id,
+          meta: {
+            parcel_number: formData.parcel_number,
+            address: formData.address,
+          },
+        });
         setSavedOk(true);
         setTimeout(() => pushReturn({ action: "created", highlight: String(data.id) }), 1200);
       }
@@ -514,7 +523,7 @@ export default function NewAuctionForm() {
     setLoading(true);
     try {
       const paidBid = Number(paidBidInput);
-      // ref_id is assigned automatically by the DB trigger (assign_ref_id) on INSERT
+      // ref_id: null signals the DB trigger (assign_ref_id) to assign the next PROPERTY sequence
       const payload: any = { ...formData, record_type: 'PROPERTY', ref_id: null, paid_bid: paidBid, paid_bid_inv: paidBid * 1.5 };
       
       delete payload.id;
@@ -569,7 +578,15 @@ export default function NewAuctionForm() {
         console.error("Supabase Update Error:", error);
         throw error;
       }
-      
+
+      logAudit({
+        action_type: 'AUCTION_BUY',
+        asset_id: Number(editId),
+        meta: {
+          bid_amount: paidBid,
+          parcel_number: formData.parcel_number,
+        },
+      });
       setSavedOk(true);
       setTimeout(() => pushReturn({ action: "purchased" }), 1200);
     } catch (err: any) {

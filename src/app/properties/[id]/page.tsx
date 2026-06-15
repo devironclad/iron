@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo, useRef } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import NextImage from "next/image";
 import { formatPropId } from "@/lib/utils";
+import { logAudit } from "@/lib/audit";
 import { 
   ArrowLeft, 
   Save, 
@@ -179,6 +180,7 @@ export default function PropertyDetailsPage() {
   const [activeTab, setActiveTab] = useState('research');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const originalPropertyRef = useRef<any>(null);
   const [savedOk, setSavedOk] = useState(false);
   const [wasSaved, setWasSaved] = useState(false);
   const [property, setProperty] = useState<any>(null);
@@ -280,6 +282,7 @@ export default function PropertyDetailsPage() {
           if (formatted[key] === null) formatted[key] = "";
         });
         setProperty(formatted);
+        originalPropertyRef.current = { ...formatted };
       }
 
       const lookupResults: Record<string, any[]> = {};
@@ -696,6 +699,48 @@ export default function PropertyDetailsPage() {
       if (assetsResult.error) throw assetsResult.error;
       if (mktResult.error) throw mktResult.error;
 
+      // Log tracked field changes
+      const TRACKED_FIELDS = [
+        { key: 'sale_type',       label: 'Sale Type' },
+        { key: 'paid_bid',        label: 'Paid Bid ($)' },
+        { key: 'paid_bid_inv',    label: 'Paid Bid Investor ($)' },
+      ];
+      const orig = originalPropertyRef.current;
+      if (orig) {
+        const norm = (v: any) => (v === null || v === undefined || v === '') ? '' : String(v);
+        const logs = TRACKED_FIELDS
+          .filter(({ key }) => norm(orig[key]) !== norm(property[key]))
+          .map(({ key, label }) => logAudit({
+            action_type: 'FIELD_UPDATE',
+            asset_id: Number(id),
+            field_name: key,
+            old_value: norm(orig[key]) || undefined,
+            new_value: norm(property[key]) || undefined,
+            meta: { label },
+          }));
+
+        // Property Owner: resolve display name instead of raw "partner"/"ironclad"
+        const resolveOwner = (prop: any) =>
+          prop.owner_type === 'partner'
+            ? (partners.find((p: any) => p.id === prop.owner_partner_id)?.full_name || 'Unknown Partner')
+            : 'Ironclad';
+        const origOwner = resolveOwner(orig);
+        const newOwner  = resolveOwner(property);
+        if (origOwner !== newOwner) {
+          logs.push(logAudit({
+            action_type: 'FIELD_UPDATE',
+            asset_id: Number(id),
+            field_name: 'owner',
+            old_value: origOwner,
+            new_value: newOwner,
+            meta: { label: 'Property Owner' },
+          }));
+        }
+
+        await Promise.all(logs);
+        originalPropertyRef.current = { ...property };
+      }
+
       setSavedOk(true);
       setWasSaved(true);
       // Stay on the page — reset the save button after 2s so the user can save again
@@ -834,10 +879,21 @@ export default function PropertyDetailsPage() {
     };
 
     if (editingTaxId) {
+      const original = taxes.find(t => t.id === editingTaxId);
       const { data, error } = await supabase.from('ls_asset_tax').update(payload).eq('id', editingTaxId).select('*').single();
       if (!error && data) {
         setTaxes(taxes.map(t => t.id === editingTaxId ? data : t));
         await applyAssetAccumulation();
+        logAudit({
+          action_type: 'TAX_EDIT',
+          asset_id: Number(id),
+          field_name: 'value',
+          old_value: original?.value != null ? String(original.value) : undefined,
+          new_value: data.value != null ? String(data.value) : undefined,
+          meta: {
+            tax_type: data.type_tax,
+          },
+        });
         setTaxSavedOk(true);
         setTimeout(() => resetTaxForm(), 1400);
       } else if (error) alert('Error updating tax record: ' + error.message);
@@ -846,6 +902,15 @@ export default function PropertyDetailsPage() {
       if (!error && data) {
         setTaxes([data, ...taxes]);
         await applyAssetAccumulation();
+        logAudit({
+          action_type: 'TAX_ADD',
+          asset_id: Number(id),
+          meta: {
+            tax_type: data.type_tax,
+            amount: data.value,
+            description: data.vigency,
+          },
+        });
         setTaxSavedOk(true);
         setTimeout(() => resetTaxForm(), 1400);
       } else if (error) alert('Error saving tax record: ' + error.message);
