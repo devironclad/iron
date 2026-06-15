@@ -1,22 +1,24 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { 
-  Users, 
-  ShieldCheck, 
-  Settings2, 
-  Plus, 
-  Save, 
-  Trash2, 
-  Eye, 
-  Edit3, 
+import {
+  Users,
+  ShieldCheck,
+  Settings2,
+  Plus,
+  Save,
+  Trash2,
+  Eye,
+  Edit3,
   ChevronRight,
   Loader2,
   CheckCircle2,
   AlertCircle,
   Mail,
   UserCircle,
-  X
+  X,
+  Send,
+  Pencil
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { PermissionGuard } from "@/components/auth/PermissionGuard";
@@ -74,7 +76,13 @@ export default function AccessPage() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const [showAddUserModal, setShowAddUserModal] = useState(false);
-  const [newUser, setNewUser] = useState({ full_name: '', email: '', profile_id: '' });
+  const [newUser, setNewUser] = useState({ full_name: '', email: '', user_type: 'employee', profile_id: '' });
+  const [invitingUserId, setInvitingUserId] = useState<string | null>(null);
+  const [editingUser, setEditingUser] = useState<any | null>(null);
+  const [editForm, setEditForm] = useState({ full_name: '', email: '' });
+  const [editError, setEditError] = useState<string | null>(null);
+  const [deletingUser, setDeletingUser] = useState<any | null>(null);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -95,7 +103,7 @@ export default function AccessPage() {
       const { data: userData, error: userError } = await supabase
         .from("ls_users_metadata")
         .select(`
-          id, email, full_name, avatar_url, user_type,
+          id, email, full_name, avatar_url, user_type, invited_at,
           ls_user_profiles(profile_id)
         `);
       
@@ -202,31 +210,152 @@ export default function AccessPage() {
     }
   }
 
-  async function handleInviteUser() {
+  async function handleCreateUser() {
     if (!newUser.email || !newUser.full_name) return;
     setSaving(true);
     try {
-      // NOTE: In a real app with Service Role, you would call an Edge Function to invite.
-      // For now, we will:
-      // 1. Tell Supabase to send an invitation (if configured)
-      // 2. OR simply add to our metadata table if the user exists.
-      
-      // Since we can't 'Invite' easily without Service Role from client,
-      // we will use the 'signUp' method which is allowed.
-      // WARNING: This logs out the admin if not careful, so we use a different approach:
-      // We will tell the user to use the Supabase Dashboard to 'Add User', 
-      // but we will 'Pre-register' them here to show the flow.
-      
-      // For this MVP, we insert into metadata. If they have no ID, it fails FK.
-      // So we suggest the user creates the auth record first.
-      
-      alert("In this Supabase setup, please first add the user in your 'Supabase Dashboard -> Authentication -> Users'. \n\nOnce added, they will automatically appear here to have their profile assigned.");
-      
+      const { data: { session } } = await supabase.auth.getSession();
+
+      const res = await fetch("/api/users/create", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session?.access_token}`,
+        },
+        body: JSON.stringify(newUser),
+      });
+
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error);
+
+      // Add new user to local state immediately (no need to refetch)
+      setUsers((prev: any[]) => [
+        ...prev,
+        {
+          id: json.user.id,
+          email: json.user.email,
+          full_name: json.user.full_name,
+          user_type: json.user.user_type,
+          invited_at: null,
+          ls_user_profiles: newUser.profile_id ? { profile_id: newUser.profile_id } : null,
+        },
+      ]);
+
+      setMessage({ type: 'success', text: `User ${json.user.full_name} created successfully.` });
+      setShowAddUserModal(false);
+      setNewUser({ full_name: '', email: '', user_type: 'employee', profile_id: '' });
     } catch (err: any) {
-      alert("Error: " + err.message);
+      setMessage({ type: 'error', text: "Error creating user: " + err.message });
     } finally {
       setSaving(false);
-      setShowAddUserModal(false);
+      setTimeout(() => setMessage(null), 4000);
+    }
+  }
+
+  async function handleSendInvite(userId: string, email: string) {
+    setInvitingUserId(userId);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+
+      const res = await fetch("/api/users/invite", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session?.access_token}`,
+        },
+        body: JSON.stringify({ user_id: userId, email }),
+      });
+
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error);
+
+      setUsers((prev: any[]) =>
+        prev.map(u => u.id === userId ? { ...u, invited_at: new Date().toISOString() } : u)
+      );
+      setMessage({ type: 'success', text: `Invite sent to ${email}.` });
+    } catch (err: any) {
+      setMessage({ type: 'error', text: "Error sending invite: " + err.message });
+    } finally {
+      setInvitingUserId(null);
+      setTimeout(() => setMessage(null), 4000);
+    }
+  }
+
+  function openEditModal(user: any) {
+    setEditingUser(user);
+    setEditForm({ full_name: user.full_name || '', email: user.email || '' });
+    setEditError(null);
+  }
+
+  async function handleEditUser() {
+    if (!editingUser || !editForm.full_name || !editForm.email) return;
+    setSaving(true);
+    setEditError(null);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+
+      // Only send fields that actually changed
+      const payload: Record<string, string> = { user_id: editingUser.id };
+      if (editForm.full_name !== editingUser.full_name) payload.full_name = editForm.full_name;
+      if (editForm.email !== editingUser.email) payload.email = editForm.email;
+
+      if (Object.keys(payload).length === 1) {
+        // Nothing changed
+        setEditingUser(null);
+        return;
+      }
+
+      const res = await fetch("/api/users/update", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session?.access_token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error);
+
+      setUsers((prev: any[]) =>
+        prev.map(u => u.id === editingUser.id ? { ...u, ...editForm } : u)
+      );
+      setMessage({ type: 'success', text: "User updated successfully." });
+      setEditingUser(null);
+    } catch (err: any) {
+      console.error("Edit user error:", err);
+      setEditError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDeleteUser() {
+    if (!deletingUser) return;
+    setConfirmingDelete(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+
+      const res = await fetch("/api/users/delete", {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session?.access_token}`,
+        },
+        body: JSON.stringify({ user_id: deletingUser.id }),
+      });
+
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error);
+
+      setUsers((prev: any[]) => prev.filter(u => u.id !== deletingUser.id));
+      setMessage({ type: 'success', text: `User ${deletingUser.full_name} removed.` });
+      setDeletingUser(null);
+    } catch (err: any) {
+      setMessage({ type: 'error', text: "Error deleting user: " + err.message });
+    } finally {
+      setConfirmingDelete(false);
+      setTimeout(() => setMessage(null), 4000);
     }
   }
 
@@ -474,15 +603,16 @@ export default function AccessPage() {
                     <th>Email</th>
                     <th>Type</th>
                     <th>Assigned Profile</th>
+                    <th className="center">Invite</th>
                     <th className="center">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {users.length === 0 ? (
-                    <tr><td colSpan={4} className="center" style={{ padding: '3rem', color: '#94a3b8' }}>
+                    <tr><td colSpan={6} className="center" style={{ padding: '3rem', color: '#94a3b8' }}>
                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
-                        <Loader2 className="w-8 h-8 animate-spin opacity-20" />
-                        <span>No users found in metadata yet. Make sure to refresh (F5).</span>
+                        <Users className="w-8 h-8 opacity-20" />
+                        <span>No users found. Click "Add New User" to create the first one.</span>
                       </div>
                     </td></tr>
                   ) : (
@@ -524,7 +654,49 @@ export default function AccessPage() {
                           </select>
                         </td>
                         <td className="center">
-                          <button className="delete-btn-mini"><Trash2 className="w-4 h-4" /></button>
+                          {u.invited_at ? (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#10b981', fontSize: '0.75rem', justifyContent: 'center' }}>
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              Sent
+                            </div>
+                          ) : (
+                            <button
+                              title="Send invite email"
+                              onClick={() => handleSendInvite(u.id, u.email)}
+                              disabled={invitingUserId === u.id}
+                              style={{
+                                display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
+                                padding: '0.3rem 0.75rem', borderRadius: '6px', fontSize: '0.75rem',
+                                fontWeight: 600, cursor: 'pointer', border: '1px solid #334155',
+                                background: 'transparent', color: '#94a3b8',
+                                opacity: invitingUserId === u.id ? 0.5 : 1,
+                              }}
+                            >
+                              {invitingUserId === u.id
+                                ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                : <Send className="w-3.5 h-3.5" />}
+                              Invite
+                            </button>
+                          )}
+                        </td>
+                        <td className="center">
+                          <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
+                            <button
+                              title="Edit user"
+                              className="delete-btn-mini"
+                              onClick={() => openEditModal(u)}
+                              style={{ color: '#64748b' }}
+                            >
+                              <Pencil className="w-4 h-4" />
+                            </button>
+                            <button
+                              title="Delete user"
+                              className="delete-btn-mini"
+                              onClick={() => setDeletingUser(u)}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))
@@ -534,7 +706,7 @@ export default function AccessPage() {
             </div>
             
             <div className="invite-footer">
-              <p>In Supabase, users must be invited or sign up via <strong>Authentication</strong> settings before appearing here.</p>
+              <p>Users created here are immediately available in the system. Send the invite when ready to grant access.</p>
             </div>
           </div>
         </div>
@@ -550,50 +722,163 @@ export default function AccessPage() {
                 <X className="w-6 h-6" />
               </button>
             </div>
-            
+
             <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
               <div className="form-group">
                 <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 block">Full Name</label>
-                <input 
-                  type="text" 
-                  className="form-input" 
+                <input
+                  type="text"
+                  className="form-input"
                   placeholder="John Doe"
                   value={newUser.full_name}
-                  onChange={(e) => setNewUser({...newUser, full_name: e.target.value})}
+                  onChange={(e) => setNewUser({ ...newUser, full_name: e.target.value })}
                 />
               </div>
               <div className="form-group">
                 <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 block">Email Address</label>
-                <input 
-                  type="email" 
-                  className="form-input" 
+                <input
+                  type="email"
+                  className="form-input"
                   placeholder="john@example.com"
                   value={newUser.email}
-                  onChange={(e) => setNewUser({...newUser, email: e.target.value})}
+                  onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
                 />
               </div>
               <div className="form-group">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 block">User Type</label>
+                <select
+                  className="form-input"
+                  value={newUser.user_type}
+                  onChange={(e) => setNewUser({ ...newUser, user_type: e.target.value })}
+                >
+                  <option value="employee">Employee</option>
+                  <option value="partner">Partner</option>
+                </select>
+              </div>
+              <div className="form-group">
                 <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 block">Initial Profile</label>
-                <select 
+                <select
                   className="form-input"
                   value={newUser.profile_id}
-                  onChange={(e) => setNewUser({...newUser, profile_id: e.target.value})}
+                  onChange={(e) => setNewUser({ ...newUser, profile_id: e.target.value })}
                 >
                   <option value="">Select a profile...</option>
                   {profiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </select>
               </div>
+              <p style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '-0.5rem' }}>
+                No invite email will be sent. You can send the invite later from the user list.
+              </p>
             </div>
 
             <div className="modal-footer" style={{ marginTop: '2rem', display: 'flex', gap: '1rem' }}>
-              <button 
-                className="save-btn" 
-                style={{ width: '100%', justifyContent: 'center', background: '#10b981' }}
-                onClick={handleInviteUser}
-                disabled={saving || !newUser.email}
+              <button
+                className="save-btn"
+                style={{ width: '100%', justifyContent: 'center' }}
+                onClick={handleCreateUser}
+                disabled={saving || !newUser.email || !newUser.full_name}
               >
-                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />}
-                Invite User
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                Create User
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* EDIT USER MODAL */}
+      {editingUser && (
+        <div className="modal-overlay">
+          <div className="modal-content card shadow-xl" style={{ maxWidth: '500px', width: '90%', padding: '2rem' }}>
+            <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2rem' }}>
+              <h2 className="text-xl font-bold">Edit User</h2>
+              <button onClick={() => setEditingUser(null)} className="text-slate-400 hover:text-slate-600">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+              {editError && (
+                <div className="message-banner error" style={{ marginBottom: 0 }}>
+                  <AlertCircle className="w-4 h-4" />
+                  {editError}
+                </div>
+              )}
+              <div className="form-group">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 block">Full Name</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={editForm.full_name}
+                  onChange={(e) => setEditForm({ ...editForm, full_name: e.target.value })}
+                />
+              </div>
+              <div className="form-group">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 block">Email Address</label>
+                <input
+                  type="email"
+                  className="form-input"
+                  value={editForm.email}
+                  onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="modal-footer" style={{ marginTop: '2rem', display: 'flex', gap: '1rem' }}>
+              <button
+                className="save-btn"
+                style={{ flex: 1, justifyContent: 'center', background: 'transparent', border: '1px solid #334155', color: '#94a3b8' }}
+                onClick={() => setEditingUser(null)}
+              >
+                Cancel
+              </button>
+              <button
+                className="save-btn"
+                style={{ flex: 1, justifyContent: 'center' }}
+                onClick={handleEditUser}
+                disabled={saving || !editForm.full_name || !editForm.email}
+              >
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                Save Changes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* DELETE CONFIRMATION MODAL */}
+      {deletingUser && (
+        <div className="modal-overlay">
+          <div className="modal-content card shadow-xl" style={{ maxWidth: '440px', width: '90%', padding: '2rem' }}>
+            <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
+              <h2 className="text-xl font-bold">Remove User</h2>
+              <button onClick={() => setDeletingUser(null)} className="text-slate-400 hover:text-slate-600">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <p style={{ color: '#94a3b8', marginBottom: '0.5rem' }}>
+              Are you sure you want to remove <strong style={{ color: '#f1f5f9' }}>{deletingUser.full_name}</strong>?
+            </p>
+            <p style={{ color: '#64748b', fontSize: '0.8rem', marginBottom: '2rem' }}>
+              The email <strong>{deletingUser.email}</strong> will be freed and can be registered again.
+            </p>
+
+            <div style={{ display: 'flex', gap: '1rem' }}>
+              <button
+                className="save-btn"
+                style={{ flex: 1, justifyContent: 'center', background: 'transparent', border: '1px solid #334155', color: '#94a3b8' }}
+                onClick={() => setDeletingUser(null)}
+              >
+                Cancel
+              </button>
+              <button
+                className="save-btn"
+                style={{ flex: 1, justifyContent: 'center', background: '#ef4444' }}
+                onClick={handleDeleteUser}
+                disabled={confirmingDelete}
+              >
+                {confirmingDelete ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                Remove
               </button>
             </div>
           </div>
