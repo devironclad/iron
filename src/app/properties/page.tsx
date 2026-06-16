@@ -20,6 +20,7 @@ export default function PropertiesPage() {
   const source = searchParams.get('source') as 'ironclad' | 'broker' | 'partners' | null;
   const router = useRouter();
 
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [properties, setProperties] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
@@ -70,10 +71,10 @@ export default function PropertiesPage() {
   const uniqueStates = Array.from(new Set(counties.map(c => c.state).filter(Boolean))).sort();
 
   useEffect(() => {
-    // Load preference from local storage
     const savedMode = localStorage.getItem("propertiesViewMode") as "grid" | "list";
     if (savedMode) setViewMode(savedMode);
 
+    supabase.auth.getUser().then(({ data }) => setCurrentUserId(data.user?.id ?? null));
     fetchCounties();
     fetchLookups();
   }, []);
@@ -177,8 +178,9 @@ export default function PropertiesPage() {
   }, [recentCardId, loading]);
 
   useEffect(() => {
+    if (source === 'partners' && currentUserId === null) return;
     fetchProperties();
-  }, [source, selectedCounty, selectedState, selectedPropertyType, selectedPriority, selectedOrigin, selectedAuctionType, selectedAcquisitionDate, selectedAmenityCategory, selectedAmenityType, maxDistance, maxTime, currentPage, searchTerm, counties]);
+  }, [source, currentUserId, selectedCounty, selectedState, selectedPropertyType, selectedPriority, selectedOrigin, selectedAuctionType, selectedAcquisitionDate, selectedAmenityCategory, selectedAmenityType, maxDistance, maxTime, currentPage, searchTerm, counties]);
 
   useEffect(() => {
     if (!filterChangeMounted.current) { filterChangeMounted.current = true; return; }
@@ -248,10 +250,12 @@ export default function PropertiesPage() {
         `, { count: "exact" })
         .eq("record_type", "PROPERTY");
 
-      if (source === 'ironclad' || source === 'partners') {
+      if (source === 'ironclad') {
         query = query.or('owner_type.is.null,owner_type.neq.partner');
       } else if (source === 'broker') {
         query = query.eq('owner_type', 'partner');
+      } else if (source === 'partners') {
+        query = query.eq('owner_type', 'partner').eq('owner_partner_id', currentUserId!);
       }
 
       if (selectedCounty && selectedCounty !== "all") {
@@ -772,7 +776,9 @@ export default function PropertiesPage() {
                     <div>
                       <div style={{ fontSize: '0.6rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Investment</div>
                       <div style={{ fontSize: '0.95rem', fontWeight: 800, color: '#0f172a', lineHeight: 1.2 }}>
-                        {prop.investment_total != null ? formatCurrency(prop.investment_total) : '—'}
+                        {source === 'partners'
+                          ? (prop.investment_total_inv != null ? formatCurrency(prop.investment_total_inv) : '—')
+                          : (prop.investment_total != null ? formatCurrency(prop.investment_total) : '—')}
                       </div>
                     </div>
                   </div>
@@ -792,7 +798,7 @@ export default function PropertiesPage() {
 
                   {/* ROI */}
                   {(() => {
-                    const inv = prop.investment_total;
+                    const inv = source === 'partners' ? prop.investment_total_inv : prop.investment_total;
                     const sale = prop.sale_price;
                     const roi = inv != null && sale != null && inv > 0 ? (((sale - inv) / inv) * 100) : null;
                     return (
@@ -821,19 +827,31 @@ export default function PropertiesPage() {
                       Profit Projection
                     </div>
                     {(() => {
-                      const base = prop.investment_total || 0;
+                      const base = (source === 'partners' ? prop.investment_total_inv : prop.investment_total) || 0;
                       const isAR = prop.ls_county?.state === 'AR';
-                      const tiers = isAR ? [
-                        { label: '+400%',  roi: 4.0,  fill: 25,  color: '#6ee7b7', textColor: '#065f46' },
-                        { label: '+600%',  roi: 6.0,  fill: 50,  color: '#34d399', textColor: '#065f46' },
-                        { label: '+800%',  roi: 8.0,  fill: 75,  color: '#10b981', textColor: '#ffffff' },
-                        { label: '+1000%', roi: 10.0, fill: 100, color: '#059669', textColor: '#ffffff' },
-                      ] : [
-                        { label: '+40%',  roi: 0.4, fill: 40,  color: '#6ee7b7', textColor: '#065f46' },
-                        { label: '+60%',  roi: 0.6, fill: 60,  color: '#34d399', textColor: '#065f46' },
-                        { label: '+80%',  roi: 0.8, fill: 80,  color: '#10b981', textColor: '#ffffff' },
-                        { label: '+100%', roi: 1.0, fill: 100, color: '#059669', textColor: '#ffffff' },
-                      ];
+                      const tiers = source === 'partners'
+                        ? (isAR ? [
+                          { label: '+100%', roi: 1.0, fill: 25,  color: '#6ee7b7', textColor: '#065f46' },
+                          { label: '+200%', roi: 2.0, fill: 50,  color: '#34d399', textColor: '#065f46' },
+                          { label: '+300%', roi: 3.0, fill: 75,  color: '#10b981', textColor: '#ffffff' },
+                          { label: '+400%', roi: 4.0, fill: 100, color: '#059669', textColor: '#ffffff' },
+                        ] : [
+                          { label: '+40%',  roi: 0.4, fill: 40,  color: '#6ee7b7', textColor: '#065f46' },
+                          { label: '+60%',  roi: 0.6, fill: 60,  color: '#34d399', textColor: '#065f46' },
+                          { label: '+80%',  roi: 0.8, fill: 80,  color: '#10b981', textColor: '#ffffff' },
+                          { label: '+100%', roi: 1.0, fill: 100, color: '#059669', textColor: '#ffffff' },
+                        ])
+                        : (isAR ? [
+                          { label: '+400%',  roi: 4.0,  fill: 25,  color: '#6ee7b7', textColor: '#065f46' },
+                          { label: '+600%',  roi: 6.0,  fill: 50,  color: '#34d399', textColor: '#065f46' },
+                          { label: '+800%',  roi: 8.0,  fill: 75,  color: '#10b981', textColor: '#ffffff' },
+                          { label: '+1000%', roi: 10.0, fill: 100, color: '#059669', textColor: '#ffffff' },
+                        ] : [
+                          { label: '+40%',  roi: 0.4, fill: 40,  color: '#6ee7b7', textColor: '#065f46' },
+                          { label: '+60%',  roi: 0.6, fill: 60,  color: '#34d399', textColor: '#065f46' },
+                          { label: '+80%',  roi: 0.8, fill: 80,  color: '#10b981', textColor: '#ffffff' },
+                          { label: '+100%', roi: 1.0, fill: 100, color: '#059669', textColor: '#ffffff' },
+                        ]);
                       return (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
                           {tiers.map(t => {
@@ -865,7 +883,7 @@ export default function PropertiesPage() {
                           })}
                           {base > 0 && (
                             <div style={{ fontSize: '0.6rem', color: '#94a3b8', marginTop: '2px', paddingLeft: '40px', fontWeight: 500 }}>
-                              Base (Total Investment): {formatCurrency(base)}
+                              Base ({source === 'partners' ? 'Partner Investment' : 'Total Investment'}): {formatCurrency(base)}
                             </div>
                           )}
                         </div>

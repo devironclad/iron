@@ -1337,14 +1337,18 @@ export default function PropertyDetailsPage() {
               <div style={{ margin: '0 1rem 2.5rem 1rem' }}>
                 <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', marginBottom: '1.25rem' }}>Evolution</h3>
                 <div className="form-grid col-3">
+                  {source !== 'partners' && (
                   <div className="input-group">
                     <label className="input-label">Open Bid ($)</label>
                     <CurrencyInput name="open_bid" value={property.open_bid} onChange={handleChange} disabled />
                   </div>
+                  )}
+                  {source !== 'partners' && (
                   <div className="input-group">
                     <label className="input-label">County Appraisal ($)</label>
                     <CurrencyInput name="county_appraisal" value={property.county_appraisal} onChange={handleChange} disabled={!tabCanEdit} />
                   </div>
+                  )}
                   <div className="input-group">
                     <label className="input-label">Size (Acres/SqFt)</label>
                     <input type="number" step="any" name="size" value={property.size} onChange={handleChange} className="input-field" placeholder="0.00" />
@@ -1373,18 +1377,24 @@ export default function PropertyDetailsPage() {
                     <label className="input-label">SqFt Price Reference</label>
                     <input type="number" step="any" name="sqft_price_reference" value={property.sqft_price_reference} onChange={handleChange} className="input-field" placeholder="0.00" />
                   </div>
+                  {source !== 'partners' && (
                   <div className="input-group">
                     <label className="input-label">Min Bid ($)</label>
                     <CurrencyInput name="min_bid" value={property.min_bid} onChange={handleChange} disabled={!tabCanEdit} />
                   </div>
+                  )}
+                  {source !== 'partners' && (
                   <div className="input-group">
                     <label className="input-label">Max Bid ($)</label>
                     <CurrencyInput name="max_bid" value={property.max_bid} onChange={handleChange} disabled={!tabCanEdit} />
                   </div>
+                  )}
+                  {source !== 'partners' && (
                   <div className="input-group">
                     <label className="input-label">Max Bid Internal ($)</label>
                     <CurrencyInput name="max_bid_internal" value={property.max_bid_internal} onChange={handleChange} disabled={!tabCanEdit} />
                   </div>
+                  )}
                 </div>
               </div>
 
@@ -1448,7 +1458,7 @@ export default function PropertyDetailsPage() {
               </div>
 
               {/* Ownership */}
-              <div style={{ margin: '0 1rem 1rem 1rem' }}>
+              {source !== 'partners' && <div style={{ margin: '0 1rem 1rem 1rem' }}>
                 <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', marginBottom: '1.25rem' }}>Ownership</h3>
                 <div className="form-grid col-3">
                   <div className="input-group">
@@ -1472,10 +1482,10 @@ export default function PropertyDetailsPage() {
                     </div>
                   )}
                 </div>
-              </div>
+              </div>}
 
               {/* Sale Status */}
-              <div style={{ margin: '0 1rem 1.5rem 1rem' }}>
+              {source !== 'partners' && <div style={{ margin: '0 1rem 1.5rem 1rem' }}>
                 <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', marginBottom: '1.25rem' }}>Sale Status</h3>
 
                 <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.5rem' }}>
@@ -1597,7 +1607,7 @@ export default function PropertyDetailsPage() {
                     )}
                   </div>
                 )}
-              </div>
+              </div>}
               </fieldset>
             </div>
           )}
@@ -1790,7 +1800,7 @@ export default function PropertyDetailsPage() {
               <div style={{ margin: '0 1rem 1rem 1rem' }}>
                 <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', marginBottom: '1.25rem' }}>Deeds, Surveys and Plans</h3>
                 <div className="form-grid col-2">
-                  {renderLinkInput("Tax Deed Link", "tax_deed", property.tax_deed, "https://...")}
+                  {source !== 'partners' && renderLinkInput("Tax Deed Link", "tax_deed", property.tax_deed, "https://...")}
                   {renderLinkInput("Warranty Deed Link", "warranty_deed", property.warranty_deed, "https://...")}
                   {renderLinkInput("Survey Link", "survey", property.survey, "https://...")}
                   {renderLinkInput("Site Plan Link", "site_plan", property.site_plan, "https://...")}
