@@ -105,7 +105,8 @@ export default function AccessPage() {
         .select(`
           id, email, full_name, avatar_url, user_type, invited_at,
           ls_user_profiles(profile_id)
-        `);
+        `)
+        .order("full_name", { ascending: true });
       
       if (userError) {
         console.error("Error fetching users:", JSON.stringify(userError, null, 2));

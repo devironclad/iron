@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import NextImage from "next/image";
@@ -16,31 +16,31 @@ import { PermissionGuard } from "@/components/auth/PermissionGuard";
 import "./properties.css";
 
 export default function PropertiesPage() {
-  const [properties, setProperties] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
-  const [searchTerm, setSearchTerm] = useState("");
-  const [totalCount, setTotalCount] = useState(0);
-
   const searchParams = useSearchParams();
   const source = searchParams.get('source') as 'ironclad' | 'broker' | 'partners' | null;
   const router = useRouter();
+
+  const [properties, setProperties] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [searchTerm, setSearchTerm] = useState(searchParams.get('q') || "");
+  const [totalCount, setTotalCount] = useState(0);
   const [recentCardId, setRecentCardId] = useState<number | null>(null);
   const [highlightId, setHighlightId] = useState<number | null>(null);
   const [toastMsg, setToastMsg] = useState<{ title: string, desc: string } | null>(null);
-  
-  // Filters
-  const [selectedState, setSelectedState] = useState("all");
-  const [selectedCounty, setSelectedCounty] = useState("all");
-  const [selectedPropertyType, setSelectedPropertyType] = useState("all");
-  const [selectedPriority, setSelectedPriority] = useState("all");
-  const [selectedOrigin, setSelectedOrigin] = useState("all");
-  const [selectedAuctionType, setSelectedAuctionType] = useState("all");
-  const [selectedAcquisitionDate, setSelectedAcquisitionDate] = useState("");
-  const [selectedAmenityCategory, setSelectedAmenityCategory] = useState("all");
-  const [selectedAmenityType, setSelectedAmenityType] = useState("all");
-  const [maxDistance, setMaxDistance] = useState("");
-  const [maxTime, setMaxTime] = useState("");
+
+  // Filters — initialized from URL so they survive navigation
+  const [selectedState, setSelectedState] = useState(searchParams.get('state') || "all");
+  const [selectedCounty, setSelectedCounty] = useState(searchParams.get('county') || "all");
+  const [selectedPropertyType, setSelectedPropertyType] = useState(searchParams.get('propertyType') || "all");
+  const [selectedPriority, setSelectedPriority] = useState(searchParams.get('priority') || "all");
+  const [selectedOrigin, setSelectedOrigin] = useState(searchParams.get('origin') || "all");
+  const [selectedAuctionType, setSelectedAuctionType] = useState(searchParams.get('auctionType') || "all");
+  const [selectedAcquisitionDate, setSelectedAcquisitionDate] = useState(searchParams.get('acquisitionDate') || "");
+  const [selectedAmenityCategory, setSelectedAmenityCategory] = useState(searchParams.get('amenityCategory') || "all");
+  const [selectedAmenityType, setSelectedAmenityType] = useState(searchParams.get('amenityType') || "all");
+  const [maxDistance, setMaxDistance] = useState(searchParams.get('maxDistance') || "");
+  const [maxTime, setMaxTime] = useState(searchParams.get('maxTime') || "");
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   const [counties, setCounties] = useState<any[]>([]);
@@ -60,7 +60,11 @@ export default function PropertiesPage() {
     amenityCategories: []
   });
 
-  const [currentPage, setCurrentPage] = useState(1);
+  const [currentPage, setCurrentPage] = useState(Number(searchParams.get('page')) || 1);
+
+  // Refs to prevent effects from firing on first mount
+  const filterSyncMounted  = useRef(false);
+  const filterChangeMounted = useRef(false);
   const ITEMS_PER_PAGE = 24;
 
   const uniqueStates = Array.from(new Set(counties.map(c => c.state).filter(Boolean))).sort();
@@ -69,10 +73,33 @@ export default function PropertiesPage() {
     // Load preference from local storage
     const savedMode = localStorage.getItem("propertiesViewMode") as "grid" | "list";
     if (savedMode) setViewMode(savedMode);
-    
+
     fetchCounties();
     fetchLookups();
   }, []);
+
+  // Sync filters → URL (skip on first mount to preserve URL params from returnTo)
+  useEffect(() => {
+    if (!filterSyncMounted.current) { filterSyncMounted.current = true; return; }
+    const p = new URLSearchParams();
+    if (source)                                    p.set('source', source);
+    if (searchTerm)                                p.set('q', searchTerm);
+    if (selectedState !== 'all')                   p.set('state', selectedState);
+    if (selectedCounty !== 'all')                  p.set('county', selectedCounty);
+    if (selectedPropertyType !== 'all')            p.set('propertyType', selectedPropertyType);
+    if (selectedPriority !== 'all')                p.set('priority', selectedPriority);
+    if (selectedOrigin !== 'all')                  p.set('origin', selectedOrigin);
+    if (selectedAuctionType !== 'all')             p.set('auctionType', selectedAuctionType);
+    if (selectedAcquisitionDate)                   p.set('acquisitionDate', selectedAcquisitionDate);
+    if (selectedAmenityCategory !== 'all')         p.set('amenityCategory', selectedAmenityCategory);
+    if (selectedAmenityType !== 'all')             p.set('amenityType', selectedAmenityType);
+    if (maxDistance)                               p.set('maxDistance', maxDistance);
+    if (maxTime)                                   p.set('maxTime', maxTime);
+    p.set('page', String(currentPage));
+    router.replace(`?${p.toString()}`, { scroll: false });
+  }, [source, searchTerm, selectedState, selectedCounty, selectedPropertyType, selectedPriority,
+      selectedOrigin, selectedAuctionType, selectedAcquisitionDate, selectedAmenityCategory,
+      selectedAmenityType, maxDistance, maxTime, currentPage]);
 
   // Toast — reads window.location.search on mount
   useEffect(() => {
@@ -86,25 +113,29 @@ export default function PropertiesPage() {
     }
     const timer = setTimeout(() => {
       setToastMsg(null);
-      const cleanParams = new URLSearchParams();
-      if (source) cleanParams.set('source', source);
-      const cleanUrl = cleanParams.toString()
-        ? `${window.location.pathname}?${cleanParams.toString()}`
-        : window.location.pathname;
-      window.history.replaceState(null, '', cleanUrl);
+      const clean = new URLSearchParams(window.location.search);
+      clean.delete('action');
+      clean.delete('highlight');
+      const qs = clean.toString();
+      window.history.replaceState(null, '', window.location.pathname + (qs ? '?' + qs : ''));
     }, 3000);
     return () => clearTimeout(timer);
   }, []);
 
-  // Read the edited record id from the URL and locate which page it lives on
+  // Highlight: if page is already in URL trust it; otherwise locate via DB count
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const h = params.get('highlight');
-    if (h) locateHighlight(Number(h));
+    if (!h) return;
+    if (params.get('page')) {
+      setHighlightId(Number(h));
+    } else {
+      locateHighlight(Number(h));
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Once the target record is present in the loaded page, highlight it
+  // Once the target record is present in the loaded page, trigger scroll
   useEffect(() => {
     if (!highlightId) return;
     if (properties.some((p: any) => p.id === highlightId)) {
@@ -147,9 +178,10 @@ export default function PropertiesPage() {
 
   useEffect(() => {
     fetchProperties();
-  }, [source, selectedCounty, selectedState, selectedPropertyType, selectedPriority, selectedOrigin, selectedAuctionType, selectedAcquisitionDate, selectedAmenityCategory, selectedAmenityType, maxDistance, maxTime, currentPage, searchTerm]);
+  }, [source, selectedCounty, selectedState, selectedPropertyType, selectedPriority, selectedOrigin, selectedAuctionType, selectedAcquisitionDate, selectedAmenityCategory, selectedAmenityType, maxDistance, maxTime, currentPage, searchTerm, counties]);
 
   useEffect(() => {
+    if (!filterChangeMounted.current) { filterChangeMounted.current = true; return; }
     setCurrentPage(1);
   }, [source, searchTerm, selectedCounty, selectedState, selectedPropertyType, selectedPriority, selectedOrigin, selectedAuctionType, selectedAcquisitionDate, selectedAmenityCategory, selectedAmenityType, maxDistance, maxTime]);
 
@@ -197,6 +229,8 @@ export default function PropertiesPage() {
   }
 
   async function fetchProperties() {
+    // Wait for counties to load before filtering by state
+    if (selectedState !== 'all' && counties.length === 0) return;
     setLoading(true);
     try {
       let query = supabase
@@ -300,7 +334,13 @@ export default function PropertiesPage() {
         .order("id", { ascending: false })
         .range(from, to);
 
-      if (error) throw error;
+      if (error) {
+        if (error.message?.includes("range not satisfiable") || (error as any).code === "PGRST103") {
+          setCurrentPage(1);
+          return;
+        }
+        throw error;
+      }
       setProperties(data || []);
       setTotalCount(count || 0);
     } catch (err) {
@@ -834,7 +874,7 @@ export default function PropertiesPage() {
                   </div>
 
                   {/* Botão */}
-                  <Link href={`/properties/${prop.id}${source ? `?source=${source}` : ''}`} className="card-details-btn" style={{ textDecoration: 'none', marginTop: '1rem' }}>
+                  <Link href={(() => { const cleanParams = new URLSearchParams(window.location.search); cleanParams.delete('action'); cleanParams.delete('highlight'); cleanParams.set('page', String(currentPage)); const returnTo = encodeURIComponent(`/properties?${cleanParams.toString()}`); return `/properties/${prop.id}?returnTo=${returnTo}${source ? `&source=${source}` : ''}`; })()} className="card-details-btn" style={{ textDecoration: 'none', marginTop: '1rem' }}>
                     Open Property
                     <ArrowRight className="w-4 h-4" />
                   </Link>
@@ -904,7 +944,7 @@ export default function PropertiesPage() {
                 <td>{prop.ls_property_type?.name || '--'}</td>
                 <td style={{ fontWeight: 600 }}>{formatCurrency(prop.market_value)}</td>
                 <td>
-                  <Link href={`/properties/${prop.id}${source ? `?source=${source}` : ''}`} className="primary-btn" style={{ padding: "0.3rem 0.75rem", fontSize: "0.75rem", textDecoration: 'none' }}>Open</Link>
+                  <Link href={(() => { const cleanParams = new URLSearchParams(window.location.search); cleanParams.delete('action'); cleanParams.delete('highlight'); cleanParams.set('page', String(currentPage)); const returnTo = encodeURIComponent(`/properties?${cleanParams.toString()}`); return `/properties/${prop.id}?returnTo=${returnTo}${source ? `&source=${source}` : ''}`; })()} className="primary-btn" style={{ padding: "0.3rem 0.75rem", fontSize: "0.75rem", textDecoration: 'none' }}>Open</Link>
                 </td>
                 </tr>
               );

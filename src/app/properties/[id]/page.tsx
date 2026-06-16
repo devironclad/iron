@@ -38,7 +38,8 @@ import {
   Mail,
   Phone,
   Home,
-  UserCog
+  UserCog,
+  CheckCircle2
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { hasPermission, getCurrentUserPermissions } from "@/lib/permissions";
@@ -175,7 +176,16 @@ export default function PropertyDetailsPage() {
   const searchParams = useSearchParams();
   const id = params.id;
   const source = searchParams.get('source');
-  const backUrl = `/properties${source ? `?source=${source}` : ''}`;
+  const returnTo = searchParams.get('returnTo')
+    ? decodeURIComponent(searchParams.get('returnTo')!)
+    : `/properties${source ? `?source=${source}` : ''}`;
+
+  function pushReturn(extra: Record<string, string> = {}) {
+    const [base, search] = returnTo.split('?');
+    const p = new URLSearchParams(search || '');
+    Object.entries(extra).forEach(([k, v]) => p.set(k, v));
+    router.push(`${base}?${p.toString()}`);
+  }
 
   const [activeTab, setActiveTab] = useState('research');
   const [loading, setLoading] = useState(true);
@@ -1003,7 +1013,7 @@ export default function PropertyDetailsPage() {
     <div className="property-details-container">
       <div className="details-header">
         <div className="header-left">
-          <button onClick={() => router.push(wasSaved ? `/properties?action=updated&highlight=${id}${source ? `&source=${source}` : ''}` : backUrl)} className="back-btn">
+          <button onClick={() => wasSaved ? pushReturn({ action: 'updated', highlight: String(id) }) : router.push(returnTo)} className="back-btn">
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div className="header-title-area">
@@ -2009,8 +2019,25 @@ export default function PropertyDetailsPage() {
 
       </div>
 
+      {savedOk && (
+        <div style={{
+          position: 'fixed', bottom: '2rem', right: '2rem',
+          backgroundColor: '#10b981', color: 'white',
+          padding: '1rem 1.5rem', borderRadius: '0.75rem',
+          display: 'flex', alignItems: 'flex-start', gap: '0.75rem',
+          boxShadow: '0 4px 24px rgba(0,0,0,0.18)', zIndex: 9999,
+          animation: 'slideUpFade 0.3s ease-out forwards'
+        }}>
+          <CheckCircle2 className="w-6 h-6 flex-shrink-0" style={{ marginTop: '0.125rem' }} />
+          <div>
+            <h4 style={{ fontWeight: 700, margin: 0, fontSize: '1rem' }}>Successfully Saved</h4>
+            <p style={{ margin: 0, fontSize: '0.875rem', opacity: 0.9, marginTop: '0.25rem' }}>The property record was updated.</p>
+          </div>
+        </div>
+      )}
+
       <div className="form-actions-bar">
-        <button className="btn-secondary" onClick={() => router.push(wasSaved ? `/properties?action=updated&highlight=${id}${source ? `&source=${source}` : ''}` : backUrl)}>
+        <button className="btn-secondary" onClick={() => wasSaved ? pushReturn({ action: 'updated', highlight: String(id) }) : router.push(returnTo)}>
           <X className="w-4 h-4" />
           Exit
         </button>
