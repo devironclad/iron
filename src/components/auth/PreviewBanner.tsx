@@ -18,14 +18,20 @@ export function PreviewBanner() {
     window.location.href = '/access';
   }
 
+  const BANNER_HEIGHT = '36px';
+
   return (
-    <div style={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      right: 0,
-      zIndex: 9999,
-      backgroundColor: '#b45309',
+    <>
+      {/* Spacer in normal flow so page content is not obscured by the fixed banner */}
+      <div style={{ height: BANNER_HEIGHT, flexShrink: 0 }} />
+      <div style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        height: BANNER_HEIGHT,
+        zIndex: 9999,
+        backgroundColor: '#b45309',
       color: '#fff',
       display: 'flex',
       alignItems: 'center',
@@ -57,6 +63,7 @@ export function PreviewBanner() {
         <X className="w-3 h-3" />
         Exit Preview
       </button>
-    </div>
+      </div>
+    </>
   );
 }

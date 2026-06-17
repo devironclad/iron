@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import {
   Users,
   ShieldCheck,
@@ -69,7 +68,6 @@ const RESOURCES = [
 ];
 
 export default function AccessPage() {
-  const router = useRouter();
   const [activeTab, setActiveTab] = useState<"profiles" | "users">("profiles");
   const [profiles, setProfiles] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
