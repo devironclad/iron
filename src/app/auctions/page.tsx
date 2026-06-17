@@ -454,7 +454,11 @@ export default function AuctionsPage() {
         "Address": item.address || "",
         "Zoning": item.zoning || "",
         "Size": item.size || 0,
-        "Observations": item.observation || ""
+        "Observations": item.observation || "",
+        "Appraisal Min ($)": item.appraisal_min || 0,
+        "Appraisal Avg ($)": item.appraisal_avg || 0,
+        "Appraisal Max ($)": item.appraisal_max || 0,
+        "Coordinates": item.coordinates || ""
       }));
 
       const worksheet = XLSX.utils.json_to_sheet(excelData);
@@ -463,9 +467,10 @@ export default function AuctionsPage() {
 
       // Set column widths
       const wscols = [
-        {wch: 10}, {wch: 20}, {wch: 15}, {wch: 15}, {wch: 8}, {wch: 15}, 
+        {wch: 10}, {wch: 20}, {wch: 15}, {wch: 15}, {wch: 8},  {wch: 15},
         {wch: 15}, {wch: 15}, {wch: 15}, {wch: 15}, {wch: 15}, {wch: 15},
-        {wch: 15}, {wch: 15}, {wch: 30}, {wch: 15}, {wch: 10}, {wch: 40}
+        {wch: 15}, {wch: 15}, {wch: 30}, {wch: 15}, {wch: 10}, {wch: 40},
+        {wch: 15}, {wch: 15}, {wch: 15}, {wch: 30}
       ];
       worksheet['!cols'] = wscols;
 
