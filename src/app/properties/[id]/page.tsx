@@ -191,6 +191,7 @@ export default function PropertyDetailsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const originalPropertyRef = useRef<any>(null);
+  const paidBidMounted = useRef(false);
   const [savedOk, setSavedOk] = useState(false);
   const [wasSaved, setWasSaved] = useState(false);
   const [property, setProperty] = useState<any>(null);
@@ -452,7 +453,9 @@ export default function PropertyDetailsPage() {
   ]);
 
   // Auto-seed paid_bid_inv = paid_bid * 2 whenever paid_bid changes (user may still override)
+  // Skip on initial load to preserve manually loaded values in the database
   useEffect(() => {
+    if (!paidBidMounted.current) { paidBidMounted.current = true; return; }
     if (!property) return;
     const auto = (Number(property.paid_bid) || 0) * 2;
     setProperty((prev: any) => ({ ...prev, paid_bid_inv: auto }));
