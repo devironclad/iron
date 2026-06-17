@@ -27,6 +27,8 @@ const CHART_COLORS = ['#ca181a', '#1e293b', '#10b981', '#3b82f6', '#f59e0b', '#8
 export default function Dashboard() {
   const [stats, setStats] = useState({
     totalAssets: 0,
+    ironcladAssets: 0,
+    partnerAssets: 0,
     activeAuctions: 0,
     totalRejecteds: 0,
     priorityStats: [] as any[],
@@ -62,7 +64,7 @@ export default function Dashboard() {
             .range(0, 4999),
           supabase
             .from('ls_assets')
-            .select('id, county_id, ls_county(name, state)')
+            .select('id, county_id, owner_type, ls_county(name, state)')
             .eq('record_type', 'PROPERTY')
             .range(0, 4999),
           supabase
@@ -258,8 +260,13 @@ export default function Dashboard() {
 
         setTicketsStats({ openByCategory, byPriority, overdueCount, avgResolutionHours });
 
+        const ironcladAssets = properties.filter(p => !p.owner_type || p.owner_type !== 'partner').length;
+        const partnerAssets  = properties.filter(p => p.owner_type === 'partner').length;
+
         setStats({
           totalAssets: properties.length,
+          ironcladAssets,
+          partnerAssets,
           activeAuctions: activeAuctionsCount || 0,
           totalRejecteds,
           priorityStats: priorityArray,
@@ -335,6 +342,14 @@ export default function Dashboard() {
             <div className="kpi-info">
               <h3>Total Portfolio</h3>
               <p className="kpi-value">{stats.totalAssets}</p>
+              <div style={{ marginTop: '0.4rem', display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                <span style={{ fontSize: '0.72rem', color: '#64748b' }}>
+                  Ironclad: <strong style={{ color: '#0f172a' }}>{stats.ironcladAssets}</strong>
+                </span>
+                <span style={{ fontSize: '0.72rem', color: '#64748b' }}>
+                  Partners: <strong style={{ color: '#0f172a' }}>{stats.partnerAssets}</strong>
+                </span>
+              </div>
             </div>
           </div>
 
