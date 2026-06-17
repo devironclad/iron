@@ -163,16 +163,21 @@ export default function Dashboard() {
         });
 
         // County Stats (For Donut)
-        const counties: Record<string, { count: number, state: string, countyName: string }> = {};
+        const counties: Record<string, { count: number, ironcladCount: number, partnerCount: number, state: string, countyName: string }> = {};
         properties.forEach(prop => {
           const county = (Array.isArray(prop.ls_county) ? prop.ls_county[0] : prop.ls_county) as any;
           const countyName = county?.name || "Other";
           const state = county?.state || "Other";
           const key = county ? `${county.name}_${state}` : "Other_Other";
           if (!counties[key]) {
-            counties[key] = { count: 0, state, countyName };
+            counties[key] = { count: 0, ironcladCount: 0, partnerCount: 0, state, countyName };
           }
           counties[key].count++;
+          if ((prop as any).owner_type === 'partner') {
+            counties[key].partnerCount++;
+          } else {
+            counties[key].ironcladCount++;
+          }
         });
 
         const countyArray = Object.entries(counties)
@@ -180,6 +185,8 @@ export default function Dashboard() {
             name: data.countyName,
             state: data.state,
             count: data.count,
+            ironcladCount: data.ironcladCount,
+            partnerCount: data.partnerCount,
             color: CHART_COLORS[index % CHART_COLORS.length],
             percentage: properties.length > 0 ? (data.count / properties.length) * 100 : 0
           }))
@@ -188,8 +195,11 @@ export default function Dashboard() {
         // Upcoming Events (Grouped by Date + County)
         const groupedEvents: Record<string, any> = {};
         activeAuctions.forEach(auc => {
-          const rawDate = new Date(auc.auction_date);
-          const dateStr = rawDate.toISOString().split('T')[0];
+          if (!auc.auction_date) return;
+          const dateStr = auc.auction_date.substring(0, 10);
+          const [y, m, d] = dateStr.split('-').map(Number);
+          const rawDate = new Date(y, m - 1, d);
+          if (isNaN(rawDate.getTime())) return;
           const county = (Array.isArray(auc.ls_county) ? auc.ls_county[0] : auc.ls_county) as any;
           const countyName = county?.name || "Multiple Counties";
           const countyId = auc.county_id;
@@ -336,18 +346,40 @@ export default function Dashboard() {
         {/* KPI Cards */}
         <div className="kpi-grid">
           <div className="kpi-card">
-            <div className="kpi-icon-wrapper" style={{ background: 'rgba(202, 24, 26, 0.1)', color: '#ca181a' }}>
+            <div className="kpi-icon-wrapper" style={{ background: '#eff6ff', color: '#1d4ed8' }}>
               <Building2 className="w-6 h-6" />
             </div>
             <div className="kpi-info">
               <h3>Total Portfolio</h3>
               <p className="kpi-value">{stats.totalAssets}</p>
-              <div style={{ marginTop: '0.4rem', display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
-                <span style={{ fontSize: '0.72rem', color: '#64748b' }}>
-                  Ironclad: <strong style={{ color: '#0f172a' }}>{stats.ironcladAssets}</strong>
+              <div style={{ marginTop: '0.5rem', display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                <span style={{
+                  display: 'inline-flex', alignItems: 'center', gap: '0.25rem',
+                  background: '#eff6ff',
+                  color: '#1d4ed8',
+                  border: '1px solid #bfdbfe',
+                  borderRadius: '999px',
+                  padding: '0.15rem 0.55rem',
+                  fontSize: '0.68rem',
+                  fontWeight: 700,
+                  letterSpacing: '0.01em',
+                }}>
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#1d4ed8', display: 'inline-block', flexShrink: 0 }} />
+                  Ironclad · {stats.ironcladAssets}
                 </span>
-                <span style={{ fontSize: '0.72rem', color: '#64748b' }}>
-                  Partners: <strong style={{ color: '#0f172a' }}>{stats.partnerAssets}</strong>
+                <span style={{
+                  display: 'inline-flex', alignItems: 'center', gap: '0.25rem',
+                  background: '#fffbeb',
+                  color: '#b45309',
+                  border: '1px solid #fde68a',
+                  borderRadius: '999px',
+                  padding: '0.15rem 0.55rem',
+                  fontSize: '0.68rem',
+                  fontWeight: 700,
+                  letterSpacing: '0.01em',
+                }}>
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#b45309', display: 'inline-block', flexShrink: 0 }} />
+                  Partners · {stats.partnerAssets}
                 </span>
               </div>
             </div>
@@ -387,7 +419,7 @@ export default function Dashboard() {
                   <div key={w.label} className="chart-row">
                     <div className="chart-label">
                       <span>{w.label} <small style={{ color: 'var(--text-muted)', fontWeight: 400 }}>({w.range})</small></span>
-                      <span>{w.count} auctions</span>
+                      <span>{w.count} assets</span>
                     </div>
                     <div className="chart-bar-bg">
                       <div className="chart-bar-fill" style={{ width: `${w.percentage}%`, backgroundColor: '#3b82f6' }} />
@@ -407,7 +439,7 @@ export default function Dashboard() {
                   <div key={p.name} className="chart-row">
                     <div className="chart-label">
                       <span>{p.name}</span>
-                      <span>{p.count} auctions</span>
+                      <span>{p.count} assets</span>
                     </div>
                     <div className="chart-bar-bg">
                       <div className="chart-bar-fill" style={{ width: `${p.percentage}%`, backgroundColor: p.color }} />
@@ -450,12 +482,32 @@ export default function Dashboard() {
                         {state === "Other" ? "Other Regions" : state}
                       </div>
                       {segs.map((seg, i) => (
-                        <div key={i} className="legend-item">
-                          <div className="legend-color" style={{ background: seg.color }} />
-                          <div className="legend-info">
-                            <span className="legend-name">{seg.name}</span>
-                            <span className="legend-value">{seg.count}</span>
-                          </div>
+                        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.15rem 0' }}>
+                          <div className="legend-color" style={{ background: seg.color, flexShrink: 0 }} />
+                          <span className="legend-name" style={{ flex: 1, minWidth: 0 }}>{seg.name}</span>
+                          <span style={{
+                            display: 'inline-flex', alignItems: 'center', gap: '0.2rem',
+                            background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe',
+                            borderRadius: '999px', padding: '0.1rem 0.45rem',
+                            fontSize: '0.62rem', fontWeight: 700,
+                            width: '90px', justifyContent: 'center', flexShrink: 0,
+                          }}>
+                            <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#1d4ed8', display: 'inline-block', flexShrink: 0 }} />
+                            Ironclad · {(seg as any).ironcladCount}
+                          </span>
+                          <span style={{
+                            display: 'inline-flex', alignItems: 'center', gap: '0.2rem',
+                            background: '#fffbeb', color: '#b45309', border: '1px solid #fde68a',
+                            borderRadius: '999px', padding: '0.1rem 0.45rem',
+                            fontSize: '0.62rem', fontWeight: 700,
+                            width: '82px', justifyContent: 'center', flexShrink: 0,
+                          }}>
+                            <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#b45309', display: 'inline-block', flexShrink: 0 }} />
+                            Partners · {(seg as any).partnerCount}
+                          </span>
+                          <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-primary)', width: '28px', textAlign: 'right', flexShrink: 0 }}>
+                            {seg.count}
+                          </span>
                         </div>
                       ))}
                     </div>

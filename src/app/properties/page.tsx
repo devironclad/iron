@@ -43,6 +43,7 @@ export default function PropertiesPage() {
   const [selectedAmenityType, setSelectedAmenityType] = useState(searchParams.get('amenityType') || "all");
   const [maxDistance, setMaxDistance] = useState(searchParams.get('maxDistance') || "");
   const [maxTime, setMaxTime] = useState(searchParams.get('maxTime') || "");
+  const [selectedInvestor, setSelectedInvestor] = useState(searchParams.get('investor') || "all");
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   const [counties, setCounties] = useState<any[]>([]);
@@ -52,14 +53,16 @@ export default function PropertiesPage() {
     origins: any[],
     auctionTypes: any[],
     amenityTypes: any[],
-    amenityCategories: any[]
+    amenityCategories: any[],
+    investors: any[]
   }>({
     propertyTypes: [],
     priorities: [],
     origins: [],
     auctionTypes: [],
     amenityTypes: [],
-    amenityCategories: []
+    amenityCategories: [],
+    investors: []
   });
 
   const [currentPage, setCurrentPage] = useState(Number(searchParams.get('page')) || 1);
@@ -102,11 +105,12 @@ export default function PropertiesPage() {
     if (selectedAmenityType !== 'all')             p.set('amenityType', selectedAmenityType);
     if (maxDistance)                               p.set('maxDistance', maxDistance);
     if (maxTime)                                   p.set('maxTime', maxTime);
+    if (selectedInvestor !== 'all')                p.set('investor', selectedInvestor);
     p.set('page', String(currentPage));
     router.replace(`?${p.toString()}`, { scroll: false });
   }, [source, searchTerm, selectedState, selectedCounty, selectedPropertyType, selectedPriority,
       selectedOrigin, selectedAuctionType, selectedAcquisitionDate, selectedAmenityCategory,
-      selectedAmenityType, maxDistance, maxTime, currentPage]);
+      selectedAmenityType, maxDistance, maxTime, selectedInvestor, currentPage]);
 
   // Toast — reads window.location.search on mount
   useEffect(() => {
@@ -186,7 +190,7 @@ export default function PropertiesPage() {
   useEffect(() => {
     if (source === 'partners' && currentUserId === null) return;
     fetchProperties();
-  }, [source, currentUserId, selectedCounty, selectedState, selectedPropertyType, selectedPriority, selectedOrigin, selectedAuctionType, selectedAcquisitionDate, selectedAmenityCategory, selectedAmenityType, maxDistance, maxTime, currentPage, searchTerm, counties]);
+  }, [source, currentUserId, selectedCounty, selectedState, selectedPropertyType, selectedPriority, selectedOrigin, selectedAuctionType, selectedAcquisitionDate, selectedAmenityCategory, selectedAmenityType, maxDistance, maxTime, selectedInvestor, currentPage, searchTerm, counties]);
 
   useEffect(() => {
     if (!filterChangeMounted.current) { filterChangeMounted.current = true; return; }
@@ -199,18 +203,19 @@ export default function PropertiesPage() {
   }
 
   async function fetchLookups() {
-    const [propertyTypes, priorities, origins, auctionTypes, amenityTypes, amenityCategories] = await Promise.all([
+    const [propertyTypes, priorities, origins, auctionTypes, amenityTypes, amenityCategories, investors] = await Promise.all([
       supabase.from("ls_property_type").select("id, name").order("name"),
       supabase.from("ls_priority").select("id, name").order("name"),
       supabase.from("ls_origem").select("id, name").order("name"),
       supabase.from("ls_auction_type").select("id, name").order("name"),
       supabase.from("ls_amenity_type").select(`
-        id, 
+        id,
         name,
         category_id,
         ls_amenity_category ( name )
       `).order("name"),
       supabase.from("ls_amenity_category").select("id, name").order("name"),
+      supabase.from("ls_users_metadata").select("id, full_name").eq("user_type", "partner").order("full_name"),
     ]);
 
     setLookups({
@@ -219,7 +224,8 @@ export default function PropertiesPage() {
       origins: origins.data || [],
       auctionTypes: auctionTypes.data || [],
       amenityTypes: amenityTypes.data || [],
-      amenityCategories: amenityCategories.data || []
+      amenityCategories: amenityCategories.data || [],
+      investors: investors.data || []
     });
   }
 
@@ -317,6 +323,10 @@ export default function PropertiesPage() {
 
       if (selectedAcquisitionDate) {
         query = query.gte("acquisition_date", selectedAcquisitionDate);
+      }
+
+      if (selectedInvestor && selectedInvestor !== "all") {
+        query = query.eq("owner_partner_id", selectedInvestor);
       }
 
       if (searchTerm) {
@@ -549,6 +559,18 @@ export default function PropertiesPage() {
               />
             </div>
 
+            <div className="prop-filter-item">
+              <label>Investor</label>
+              <select
+                className="prop-filter-select"
+                value={selectedInvestor}
+                onChange={(e) => setSelectedInvestor(e.target.value)}
+              >
+                <option value="all">All Investors</option>
+                {lookups.investors.map(i => <option key={i.id} value={i.id}>{i.full_name}</option>)}
+              </select>
+            </div>
+
             <div className="prop-filter-item prop-actions-item"></div>
 
             {/* ZONE 2: AMENITY FILTERS */}
@@ -630,6 +652,7 @@ export default function PropertiesPage() {
                 setSelectedAmenityType("all");
                 setMaxDistance("");
                 setMaxTime("");
+                setSelectedInvestor("all");
                 setSearchTerm("");
               }}>
                 Clear All

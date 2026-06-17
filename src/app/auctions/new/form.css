@@ -246,10 +246,15 @@ select.input-field {
   color: var(--text-secondary);
   font-weight: 600;
   pointer-events: none;
+  z-index: 1;
 }
 
 .input-field.currency {
   padding-left: 1.75rem;
+}
+
+.input-field.currency:not(:disabled) {
+  background-color: transparent;
 }
 
 .required-star {

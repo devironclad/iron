@@ -43,6 +43,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { hasPermission, getCurrentUserPermissions } from "@/lib/permissions";
+import { CurrencyInput } from "@/components/ui/CurrencyInput";
 import "../../auctions/new/form.css"; // Keep the styles
 import "./details.css"; // Keep the tabs structure styling
 
@@ -70,105 +71,6 @@ const TABS_CONFIG = [
   { id: 'links',       name: 'Marketing',      icon: LinkIcon,        resource: 'tab:links' },
 ];
 
-const CurrencyInput = ({ 
-  name, 
-  value, 
-  onChange, 
-  placeholder = "0.00", 
-  disabled = false, 
-  style = {}, 
-  className = "" 
-}: { 
-  name: string; 
-  value: any; 
-  onChange: (e: any) => void; 
-  placeholder?: string; 
-  disabled?: boolean; 
-  style?: React.CSSProperties; 
-  className?: string; 
-}) => {
-  const [isFocused, setIsFocused] = useState(false);
-  const [localValue, setLocalValue] = useState("");
-
-  useEffect(() => {
-    if (!isFocused) {
-      if (value === null || value === undefined || value === "") {
-        setLocalValue("");
-      } else {
-        const num = Number(value);
-        if (isNaN(num)) {
-          setLocalValue("");
-        } else {
-          setLocalValue(new Intl.NumberFormat('en-US', {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2
-          }).format(num));
-        }
-      }
-    } else {
-      setLocalValue(value === null || value === undefined ? "" : String(value));
-    }
-  }, [value, isFocused]);
-
-  const handleFocus = () => {
-    setIsFocused(true);
-    setLocalValue(value === null || value === undefined ? "" : String(value));
-  };
-
-  const handleBlur = () => {
-    setIsFocused(false);
-    if (value === null || value === undefined || value === "") {
-      setLocalValue("");
-    } else {
-      const num = Number(value);
-      if (isNaN(num)) {
-        setLocalValue("");
-      } else {
-        setLocalValue(new Intl.NumberFormat('en-US', {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2
-        }).format(num));
-      }
-    }
-  };
-
-  const handleChangeLocal = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
-    setLocalValue(val);
-    
-    const cleanVal = val.replace(/[^0-9.-]/g, '');
-    onChange({
-      target: {
-        name,
-        value: cleanVal,
-        type: 'number'
-      }
-    } as any);
-  };
-
-  return (
-    <div className="currency-input-wrapper" style={{ width: '100%' }}>
-      <span className="currency-symbol">$</span>
-      <input
-        type={isFocused ? "number" : "text"}
-        step="any"
-        name={name}
-        value={localValue}
-        onFocus={handleFocus}
-        onBlur={handleBlur}
-        onChange={handleChangeLocal}
-        placeholder={placeholder}
-        disabled={disabled}
-        className={className || "input-field currency"}
-        style={{
-          ...style,
-          textAlign: isFocused ? 'left' : 'right',
-          paddingRight: isFocused ? '0.75rem' : '1.25rem'
-        }}
-      />
-    </div>
-  );
-};
 
 export default function PropertyDetailsPage() {
   const params = useParams();
@@ -1233,7 +1135,12 @@ export default function PropertyDetailsPage() {
               {!tabCanEdit && <div style={{ margin: '0 1rem 1rem 1rem', display: 'flex', alignItems: 'center', gap: '0.6rem', backgroundColor: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', padding: '0.65rem 1rem' }}><Lock className="w-4 h-4" style={{ color: '#dc2626', flexShrink: 0 }} /><span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#dc2626' }}>This tab is locked for editing based on your profile permissions.</span></div>}
               <fieldset disabled={!tabCanEdit} style={{ border: 'none', padding: 0, margin: 0 }}>
               <div style={{ margin: '0 1rem 1rem 1rem' }}>
-                <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', marginBottom: '1.25rem' }}>Amenities in Region</h3>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', marginBottom: '1.25rem' }}>
+                  <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a', margin: 0 }}>Amenities in Region</h3>
+                  <span style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a' }}>
+                    {amenities.length}
+                  </span>
+                </div>
                 
                 <div style={{ backgroundColor: '#f8fafc', padding: '1.5rem', borderRadius: '0.75rem', marginBottom: '2rem', border: '1px solid #e2e8f0' }}>
                   <h4 style={{ margin: '0 0 1rem 0', fontSize: '0.9rem', fontWeight: 700, color: '#0f172a' }}>Add New Amenity</h4>

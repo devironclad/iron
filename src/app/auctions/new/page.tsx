@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabase";
 import { formatPropId } from "@/lib/utils";
 import { getCurrentUserPermissions, hasPermission } from "@/lib/permissions";
 import { logAudit } from "@/lib/audit";
+import { CurrencyInput } from "@/components/ui/CurrencyInput";
 import "./form.css";
 
 const SECTIONS = [
@@ -1061,54 +1062,33 @@ export default function NewAuctionForm() {
           <div className="form-grid col-3">
             <div className="input-group">
               <label className="input-label">Annual Tax ($) <span className="required-star">*</span></label>
-              <div className="currency-input-wrapper">
-                <span className="currency-symbol">$</span>
-                <input type="number" step="any" name="annual_tax" value={formData.annual_tax} onChange={handleChange} className="input-field currency" placeholder="0.00" />
-              </div>
+              <CurrencyInput name="annual_tax" value={formData.annual_tax} onChange={handleChange} />
             </div>
             <div className="input-group">
               <label className="input-label">Open Bid ($) <span className="required-star">*</span></label>
-              <div className="currency-input-wrapper">
-                <span className="currency-symbol">$</span>
-                <input type="number" step="any" name="open_bid" value={formData.open_bid} onChange={handleChange} className="input-field currency" placeholder="0.00" />
-              </div>
+              <CurrencyInput name="open_bid" value={formData.open_bid} onChange={handleChange} />
             </div>
             <div className="input-group">
               <label className="input-label">County Appraisal ($)</label>
-              <div className="currency-input-wrapper">
-                <span className="currency-symbol">$</span>
-                <input type="number" step="any" name="county_appraisal" value={formData.county_appraisal} onChange={handleChange} className="input-field currency" placeholder="0.00" />
-              </div>
+              <CurrencyInput name="county_appraisal" value={formData.county_appraisal} onChange={handleChange} />
             </div>
 
             <div className="input-group">
               <label className="input-label">Appraisal Min ($)</label>
-              <div className="currency-input-wrapper">
-                <span className="currency-symbol">$</span>
-                <input type="number" step="any" name="appraisal_min" value={formData.appraisal_min} onChange={handleChange} className="input-field currency" placeholder="0.00" />
-              </div>
+              <CurrencyInput name="appraisal_min" value={formData.appraisal_min} onChange={handleChange} />
             </div>
             <div className="input-group">
               <label className="input-label">Appraisal Avg ($)</label>
-              <div className="currency-input-wrapper">
-                <span className="currency-symbol">$</span>
-                <input type="number" step="any" name="appraisal_avg" value={formData.appraisal_avg} onChange={handleChange} className="input-field currency" placeholder="0.00" />
-              </div>
+              <CurrencyInput name="appraisal_avg" value={formData.appraisal_avg} onChange={handleChange} />
             </div>
             <div className="input-group">
               <label className="input-label">Appraisal Max ($)</label>
-              <div className="currency-input-wrapper">
-                <span className="currency-symbol">$</span>
-                <input type="number" step="any" name="appraisal_max" value={formData.appraisal_max} onChange={handleChange} className="input-field currency" placeholder="0.00" />
-              </div>
+              <CurrencyInput name="appraisal_max" value={formData.appraisal_max} onChange={handleChange} />
             </div>
 
             <div className="input-group">
               <label className="input-label">House Price ($)</label>
-              <div className="currency-input-wrapper">
-                <span className="currency-symbol">$</span>
-                <input type="number" step="any" name="house_price" value={formData.house_price} onChange={handleChange} className="input-field currency" placeholder="0.00" />
-              </div>
+              <CurrencyInput name="house_price" value={formData.house_price} onChange={handleChange} />
             </div>
             <div className="input-group">
               <label className="input-label">SqFt Price Reference</label>
@@ -1116,32 +1096,20 @@ export default function NewAuctionForm() {
             </div>
             <div className="input-group">
               <label className="input-label">Residual Land Value ($) (Auto)</label>
-              <div className="currency-input-wrapper">
-                <span className="currency-symbol">$</span>
-                <input type="number" step="any" name="market_value" value={formData.market_value} className="input-field currency locked" placeholder="0.00" readOnly disabled />
-              </div>
+              <CurrencyInput name="market_value" value={formData.market_value} onChange={() => {}} disabled />
             </div>
 
             <div className="input-group">
               <label className="input-label">Min Bid ($) (Auto)</label>
-              <div className="currency-input-wrapper">
-                <span className="currency-symbol">$</span>
-                <input type="number" step="any" name="min_bid" value={formData.min_bid} className="input-field currency locked" placeholder="0.00" readOnly disabled />
-              </div>
+              <CurrencyInput name="min_bid" value={formData.min_bid} onChange={() => {}} disabled />
             </div>
             <div className="input-group">
               <label className="input-label">Max Bid ($) (Auto)</label>
-              <div className="currency-input-wrapper">
-                <span className="currency-symbol">$</span>
-                <input type="number" step="any" name="max_bid" value={formData.max_bid} className="input-field currency locked" placeholder="0.00" readOnly disabled />
-              </div>
+              <CurrencyInput name="max_bid" value={formData.max_bid} onChange={() => {}} disabled />
             </div>
             <div className="input-group">
               <label className="input-label">Internal Max Bid ($)</label>
-              <div className="currency-input-wrapper">
-                <span className="currency-symbol">$</span>
-                <input type="number" step="any" name="max_bid_internal" value={formData.max_bid_internal} onChange={handleChange} className="input-field currency" placeholder="0.00" />
-              </div>
+              <CurrencyInput name="max_bid_internal" value={formData.max_bid_internal} onChange={handleChange} />
             </div>
           </div>
         </section>
