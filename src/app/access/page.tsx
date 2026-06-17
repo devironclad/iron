@@ -691,7 +691,7 @@ export default function AccessPage() {
                                 className="delete-btn-mini"
                                 onClick={() => {
                                   startPreview({ id: u.id, full_name: u.full_name || u.email });
-                                  router.push('/properties?source=partners');
+                                  window.location.href = '/properties?source=partners';
                                 }}
                                 style={{ color: '#b45309' }}
                               >

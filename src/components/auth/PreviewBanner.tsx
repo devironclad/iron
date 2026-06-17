@@ -1,12 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { Eye, X } from "lucide-react";
 import { getPreviewPartner, stopPreview } from "@/lib/impersonation";
 
 export function PreviewBanner() {
-  const router = useRouter();
   const [partner, setPartner] = useState<{ id: string; full_name: string } | null>(null);
 
   useEffect(() => {
@@ -17,8 +15,7 @@ export function PreviewBanner() {
 
   function handleExit() {
     stopPreview();
-    router.push("/access");
-    router.refresh();
+    window.location.href = '/access';
   }
 
   return (
