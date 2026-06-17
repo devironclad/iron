@@ -12,6 +12,7 @@ import {
   Coins, DollarSign, TrendingUp, ImageOff, Gavel, Briefcase
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { getPreviewPartner } from "@/lib/impersonation";
 import { PermissionGuard } from "@/components/auth/PermissionGuard";
 import "./properties.css";
 
@@ -74,7 +75,12 @@ export default function PropertiesPage() {
     const savedMode = localStorage.getItem("propertiesViewMode") as "grid" | "list";
     if (savedMode) setViewMode(savedMode);
 
-    supabase.auth.getUser().then(({ data }) => setCurrentUserId(data.user?.id ?? null));
+    const preview = getPreviewPartner();
+    if (preview) {
+      setCurrentUserId(preview.id);
+    } else {
+      supabase.auth.getUser().then(({ data }) => setCurrentUserId(data.user?.id ?? null));
+    }
     fetchCounties();
     fetchLookups();
   }, []);

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import {
   Users,
   ShieldCheck,
@@ -21,6 +22,7 @@ import {
   Pencil
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { startPreview } from "@/lib/impersonation";
 import { PermissionGuard } from "@/components/auth/PermissionGuard";
 import "./access.css";
 
@@ -67,6 +69,7 @@ const RESOURCES = [
 ];
 
 export default function AccessPage() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<"profiles" | "users">("profiles");
   const [profiles, setProfiles] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
@@ -682,6 +685,19 @@ export default function AccessPage() {
                         </td>
                         <td className="center">
                           <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
+                            {u.user_type === 'partner' && (
+                              <button
+                                title="Preview as this partner"
+                                className="delete-btn-mini"
+                                onClick={() => {
+                                  startPreview({ id: u.id, full_name: u.full_name || u.email });
+                                  router.push('/properties?source=partners');
+                                }}
+                                style={{ color: '#b45309' }}
+                              >
+                                <Eye className="w-4 h-4" />
+                              </button>
+                            )}
                             <button
                               title="Edit user"
                               className="delete-btn-mini"

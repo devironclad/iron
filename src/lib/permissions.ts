@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { getPreviewPartner } from "./impersonation";
 
 export type Permission = {
   can_view: boolean;
@@ -6,18 +7,26 @@ export type Permission = {
 };
 
 /**
- * Fetches the permissions for the currently logged-in user.
+ * Fetches the permissions for the currently logged-in user (or impersonated partner).
  */
 export async function getCurrentUserPermissions(): Promise<Record<string, Permission>> {
-  const { data: { session } } = await supabase.auth.getSession();
-  const user = session?.user;
-  if (!user) return {};
+  const preview = getPreviewPartner();
+  let userId: string | undefined;
+
+  if (preview) {
+    userId = preview.id;
+  } else {
+    const { data: { session } } = await supabase.auth.getSession();
+    userId = session?.user?.id;
+  }
+
+  if (!userId) return {};
 
   // 1. Get the profile for this user
   const { data: profileLink } = await supabase
     .from("ls_user_profiles")
     .select("profile_id")
-    .eq("user_id", user.id)
+    .eq("user_id", userId)
     .single();
 
   if (!profileLink) return {};
