@@ -1429,15 +1429,15 @@ export default function PropertyDetailsPage() {
                     <CurrencyInput name="sale_price" value={property.sale_price} onChange={handleChange} disabled />
                   </div>
                   <div className="input-group">
-                    <label className="input-label">Paid Bid Investor ($) <span style={{ fontSize: '0.7rem', fontWeight: 600, color: '#94a3b8', marginLeft: '0.4rem' }}>auto · editável</span></label>
+                    <label className="input-label">{source === 'partners' ? 'Paid Bid ($)' : 'Paid Bid Investor ($)'} <span style={{ fontSize: '0.7rem', fontWeight: 600, color: '#94a3b8', marginLeft: '0.4rem' }}>auto · editável</span></label>
                     <CurrencyInput name="paid_bid_inv" value={property.paid_bid_inv} onChange={handleChange} disabled={!tabCanEdit} />
                   </div>
                   <div className="input-group">
-                    <label className="input-label">Doc Fees Investor ($) <span style={{ fontSize: '0.7rem', fontWeight: 600, color: '#94a3b8', marginLeft: '0.4rem' }}>auto-calculated</span></label>
+                    <label className="input-label">{source === 'partners' ? 'Doc Fees ($)' : 'Doc Fees Investor ($)'} <span style={{ fontSize: '0.7rem', fontWeight: 600, color: '#94a3b8', marginLeft: '0.4rem' }}>auto-calculated</span></label>
                     <CurrencyInput name="doc_fees_inv" value={property.doc_fees_inv} onChange={handleChange} disabled />
                   </div>
                   <div className="input-group">
-                    <label className="input-label">Closing Fees Investor ($) <span style={{ fontSize: '0.7rem', fontWeight: 600, color: '#94a3b8', marginLeft: '0.4rem' }}>auto-calculated</span></label>
+                    <label className="input-label">{source === 'partners' ? 'Closing Fees ($)' : 'Closing Fees Investor ($)'} <span style={{ fontSize: '0.7rem', fontWeight: 600, color: '#94a3b8', marginLeft: '0.4rem' }}>auto-calculated</span></label>
                     <CurrencyInput name="closing_fess_inv" value={property.closing_fess_inv} onChange={handleChange} disabled />
                   </div>
                   <div className="input-group">
