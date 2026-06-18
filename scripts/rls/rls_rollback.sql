@@ -51,5 +51,7 @@ ALTER TABLE ls_notifications     DISABLE ROW LEVEL SECURITY;
 -- Group H-I: Requests
 ALTER TABLE ls_requests          DISABLE ROW LEVEL SECURITY;
 ALTER TABLE ls_request_comments  DISABLE ROW LEVEL SECURITY;
+ALTER TABLE ls_request_priority  DISABLE ROW LEVEL SECURITY;
+ALTER TABLE ls_request_status    DISABLE ROW LEVEL SECURITY;
 
 COMMIT;
