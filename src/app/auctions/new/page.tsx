@@ -368,6 +368,7 @@ export default function NewAuctionForm() {
         ];
 
     const missing = requiredFields.filter(f => !formData[f.key]);
+    if (!formSelectedState) missing.unshift({ key: '_state', label: 'State' });
 
     if (missing.length > 0) {
       setValidationErrors(missing.map(m => m.label));
@@ -375,7 +376,7 @@ export default function NewAuctionForm() {
       const firstMissing = missing[0].key;
       if (['auction_date', 'origem_id', 'parcel_number', 'case_number', 'auction_type_id', 'auction_model_id'].includes(firstMissing)) {
         scrollToSection('identity');
-      } else if (['county_id', 'legal_description', 'zoning', 'size', 'coordinates', 'address'].includes(firstMissing)) {
+      } else if (['_state', 'county_id', 'legal_description', 'zoning', 'size', 'coordinates', 'address'].includes(firstMissing)) {
         scrollToSection('location');
       } else if (['property_type_id', 'fema_id', 'wetlands_id', 'debit_id', 'gismap_id'].includes(firstMissing)) {
         scrollToSection('attributes');
@@ -949,7 +950,7 @@ export default function NewAuctionForm() {
           
           <div className="form-grid col-3">
             <div className="input-group">
-              <label className="input-label">State</label>
+              <label className="input-label">State <span className="required-star">*</span></label>
               <select 
                 value={formSelectedState} 
                 onChange={(e) => {
