@@ -23,19 +23,18 @@ export async function logAudit(entry: AuditEntry): Promise<void> {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.user) return;
 
-    const userName =
+    const user_name =
       session.user.user_metadata?.full_name ||
       session.user.email ||
       'Unknown';
 
-    await supabase.from('ls_audit_logs').insert({
-      action_type: entry.action_type,
-      asset_id:    entry.asset_id,
-      user_id:     session.user.id,
-      field_name:  entry.field_name  ?? null,
-      old_value:   entry.old_value   ?? null,
-      new_value:   entry.new_value   ?? null,
-      meta: { user_name: userName, ...entry.meta },
+    await fetch('/api/audit', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ ...entry, user_name }),
     });
   } catch {
     // Audit logging must never break the main flow

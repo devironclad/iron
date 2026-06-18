@@ -7,9 +7,9 @@ import NextImage from "next/image";
 import { formatPropId } from "@/lib/utils";
 import {
   Plus, Search, Grid, List, MapPin, Calendar, ExternalLink,
-  ArrowRight, Tag, Loader2, Navigation, ChevronLeft, ChevronRight,
+  ArrowRight, Tag, Loader2, Navigation, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
   Filter, Layers, Maximize, Hash, CheckCircle2, Building2, UserCheck,
-  Coins, DollarSign, TrendingUp, ImageOff, Gavel, Briefcase
+  Coins, DollarSign, TrendingUp, ImageOff, Gavel, Briefcase, ClipboardList
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { getPreviewPartner } from "@/lib/impersonation";
@@ -66,6 +66,7 @@ export default function PropertiesPage() {
   });
 
   const [currentPage, setCurrentPage] = useState(Number(searchParams.get('page')) || 1);
+  const [openRequestsMap, setOpenRequestsMap] = useState<Record<number, number>>({});
 
   // Refs to prevent effects from firing on first mount
   const filterSyncMounted  = useRef(false);
@@ -363,11 +364,28 @@ export default function PropertiesPage() {
       }
       setProperties(data || []);
       setTotalCount(count || 0);
+      fetchOpenRequests((data || []).map((p: any) => p.id));
     } catch (err) {
       console.error("Error fetching properties:", err);
     } finally {
       setLoading(false);
     }
+  }
+
+  async function fetchOpenRequests(ids: number[]) {
+    if (ids.length === 0) return;
+    const { data } = await supabase
+      .from('ls_requests')
+      .select('asset_id, status:ls_request_status!status_id(is_closed)')
+      .in('asset_id', ids);
+    if (!data) return;
+    const map: Record<number, number> = {};
+    for (const req of data) {
+      if (!(req.status as any)?.is_closed) {
+        map[req.asset_id] = (map[req.asset_id] || 0) + 1;
+      }
+    }
+    setOpenRequestsMap(map);
   }
 
   const handleViewModeChange = (mode: "grid" | "list") => {
@@ -738,17 +756,25 @@ export default function PropertiesPage() {
                     </>
                   )}
                 </div>
-                {prop.owner_type === 'partner' ? (
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', backgroundColor: '#fffbeb', color: '#b45309', border: '1px solid #fde68a', padding: '0.2rem 0.55rem', borderRadius: '999px', fontSize: '0.65rem', fontWeight: 700, whiteSpace: 'nowrap' }}>
-                    <UserCheck className="w-3 h-3" />
-                    {prop.owner_partner?.full_name || 'Partner'}
-                  </span>
-                ) : (
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', backgroundColor: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', padding: '0.2rem 0.55rem', borderRadius: '999px', fontSize: '0.65rem', fontWeight: 700, whiteSpace: 'nowrap' }}>
-                    <Building2 className="w-3 h-3" />
-                    IronClad
-                  </span>
-                )}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  {openRequestsMap[prop.id] > 0 && (
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', backgroundColor: '#ca181a', color: '#ffffff', border: '1px solid #ca181a', padding: '0.2rem 0.55rem', borderRadius: '999px', fontSize: '0.65rem', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                      <ClipboardList className="w-3 h-3" />
+                      {openRequestsMap[prop.id]} {openRequestsMap[prop.id] === 1 ? 'Request' : 'Requests'}
+                    </span>
+                  )}
+                  {prop.owner_type === 'partner' ? (
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', backgroundColor: '#fffbeb', color: '#b45309', border: '1px solid #fde68a', padding: '0.2rem 0.55rem', borderRadius: '999px', fontSize: '0.65rem', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                      <UserCheck className="w-3 h-3" />
+                      {prop.owner_partner?.full_name || 'Partner'}
+                    </span>
+                  ) : (
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', backgroundColor: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', padding: '0.2rem 0.55rem', borderRadius: '999px', fontSize: '0.65rem', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                      <Building2 className="w-3 h-3" />
+                      IronClad
+                    </span>
+                  )}
+                </div>
               </div>
 
               {/* ── MAIN BODY: 3 colunas ── */}
@@ -1010,7 +1036,23 @@ export default function PropertiesPage() {
           marginTop: '2rem',
           paddingBottom: '2rem'
         }}>
-          <button 
+          <button
+            onClick={() => setCurrentPage(1)}
+            disabled={currentPage === 1}
+            style={{
+              padding: '0.5rem',
+              borderRadius: '0.5rem',
+              border: '1px solid #e2e8f0',
+              backgroundColor: currentPage === 1 ? '#f8fafc' : 'white',
+              color: currentPage === 1 ? '#cbd5e1' : '#475569',
+              cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center'
+            }}
+          >
+            <ChevronsLeft className="w-5 h-5" />
+          </button>
+
+          <button
             onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
             disabled={currentPage === 1}
             style={{
@@ -1025,12 +1067,12 @@ export default function PropertiesPage() {
           >
             <ChevronLeft className="w-5 h-5" />
           </button>
-          
+
           <span style={{ fontSize: '0.875rem', color: '#64748b', fontWeight: 500 }}>
             Page <strong style={{ color: '#0f172a' }}>{currentPage}</strong> of <strong style={{ color: '#0f172a' }}>{totalPages}</strong>
           </span>
 
-          <button 
+          <button
             onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
             disabled={currentPage === totalPages}
             style={{
@@ -1044,6 +1086,22 @@ export default function PropertiesPage() {
             }}
           >
             <ChevronRight className="w-5 h-5" />
+          </button>
+
+          <button
+            onClick={() => setCurrentPage(totalPages)}
+            disabled={currentPage === totalPages}
+            style={{
+              padding: '0.5rem',
+              borderRadius: '0.5rem',
+              border: '1px solid #e2e8f0',
+              backgroundColor: currentPage === totalPages ? '#f8fafc' : 'white',
+              color: currentPage === totalPages ? '#cbd5e1' : '#475569',
+              cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center'
+            }}
+          >
+            <ChevronsRight className="w-5 h-5" />
           </button>
         </div>
       )}

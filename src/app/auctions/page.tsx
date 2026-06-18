@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { 
   Grid, List, Plus, MapPin, Briefcase, Tag, ExternalLink, Search,
-  Filter, ArrowRight, Loader2, ChevronLeft, ChevronRight,
+  Filter, ArrowRight, Loader2, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
   CheckCircle2, Navigation, Layers, Maximize, Download, Trash2, Hash
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
@@ -995,6 +995,22 @@ export default function AuctionsPage() {
           paddingBottom: '2rem'
         }}>
           <button
+            onClick={() => setCurrentPage(1)}
+            disabled={currentPage === 1}
+            style={{
+              padding: '0.5rem',
+              borderRadius: '0.5rem',
+              border: '1px solid #e2e8f0',
+              backgroundColor: currentPage === 1 ? '#f8fafc' : 'white',
+              color: currentPage === 1 ? '#cbd5e1' : '#475569',
+              cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center'
+            }}
+          >
+            <ChevronsLeft className="w-5 h-5" />
+          </button>
+
+          <button
             onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
             disabled={currentPage === 1}
             style={{
@@ -1028,6 +1044,22 @@ export default function AuctionsPage() {
             }}
           >
             <ChevronRight className="w-5 h-5" />
+          </button>
+
+          <button
+            onClick={() => setCurrentPage(totalPages)}
+            disabled={currentPage === totalPages}
+            style={{
+              padding: '0.5rem',
+              borderRadius: '0.5rem',
+              border: '1px solid #e2e8f0',
+              backgroundColor: currentPage === totalPages ? '#f8fafc' : 'white',
+              color: currentPage === totalPages ? '#cbd5e1' : '#475569',
+              cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center'
+            }}
+          >
+            <ChevronsRight className="w-5 h-5" />
           </button>
         </div>
       )}

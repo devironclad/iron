@@ -151,21 +151,30 @@ export default function AccessPage() {
     }));
   };
 
+  async function getToken(): Promise<string> {
+    const { data: { session } } = await supabase.auth.getSession();
+    return session?.access_token ?? "";
+  }
+
   async function savePermissions() {
     if (!selectedProfile) return;
     setSaving(true);
     setMessage(null);
-
     try {
       const payload = Object.entries(permissions).map(([key, val]) => ({
-        profile_id: selectedProfile.id,
+        profile_id:   selectedProfile.id,
         resource_key: key,
-        can_view: val.can_view,
-        can_edit: val.can_edit
+        can_view:     val.can_view,
+        can_edit:     val.can_edit,
       }));
 
-      const { error } = await supabase.from("ls_permissions").upsert(payload, { onConflict: "profile_id, resource_key" });
-      if (error) throw error;
+      const res = await fetch("/api/access/permissions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${await getToken()}` },
+        body: JSON.stringify({ profile_id: selectedProfile.id, permissions: payload }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error);
       setMessage({ type: 'success', text: "Permissions updated successfully!" });
     } catch (err: any) {
       setMessage({ type: 'error', text: "Error saving permissions: " + err.message });
@@ -177,12 +186,13 @@ export default function AccessPage() {
 
   async function updateUserType(userId: string, userType: string) {
     try {
-      const { error } = await supabase
-        .from("ls_users_metadata")
-        .update({ user_type: userType })
-        .eq("id", userId);
-
-      if (error) throw error;
+      const res = await fetch("/api/access/user-assignment", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${await getToken()}` },
+        body: JSON.stringify({ action: "user_type", user_id: userId, user_type: userType }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error);
 
       setUsers((prev: any[]) => prev.map(u => u.id === userId ? { ...u, user_type: userType } : u));
       setMessage({ type: 'success', text: "User type updated!" });
@@ -196,12 +206,14 @@ export default function AccessPage() {
   async function updateUserProfile(userId: string, profileId: string) {
     setSaving(true);
     try {
-      const { error } = await supabase
-        .from("ls_user_profiles")
-        .upsert({ user_id: userId, profile_id: profileId === "" ? null : profileId });
-      
-      if (error) throw error;
-      
+      const res = await fetch("/api/access/user-assignment", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${await getToken()}` },
+        body: JSON.stringify({ action: "user_profile", user_id: userId, profile_id: profileId || null }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error);
+
       setUsers((prev: any[]) => prev.map(u => u.id === userId ? { ...u, ls_user_profiles: { profile_id: profileId } } : u));
       setMessage({ type: 'success', text: "User profile updated!" });
     } catch (err: any) {

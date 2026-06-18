@@ -309,6 +309,20 @@ export default function Dashboard() {
 
 
   const donutSegments = getDonutSegments();
+
+  const getStateDonutSegments = (segs: any[]) => {
+    const total = segs.reduce((sum: number, s: any) => sum + s.count, 0);
+    if (total === 0) return [];
+    let currentOffset = 0;
+    const circumference = 2 * Math.PI * 20;
+    return segs.map((s: any) => {
+      const pct = (s.count / total) * 100;
+      const strokeDasharray = `${(pct * circumference) / 100} ${circumference}`;
+      const strokeDashoffset = -currentOffset;
+      currentOffset += (pct * circumference) / 100;
+      return { ...s, strokeDasharray, strokeDashoffset };
+    });
+  };
   
   const segmentsByState = useMemo(() => {
     const groups: Record<string, typeof donutSegments> = {};
@@ -359,8 +373,8 @@ export default function Dashboard() {
                   color: '#1d4ed8',
                   border: '1px solid #bfdbfe',
                   borderRadius: '999px',
-                  padding: '0.15rem 0.55rem',
-                  fontSize: '0.68rem',
+                  padding: '0.165rem 0.6rem',
+                  fontSize: '0.75rem',
                   fontWeight: 700,
                   letterSpacing: '0.01em',
                 }}>
@@ -373,8 +387,8 @@ export default function Dashboard() {
                   color: '#b45309',
                   border: '1px solid #fde68a',
                   borderRadius: '999px',
-                  padding: '0.15rem 0.55rem',
-                  fontSize: '0.68rem',
+                  padding: '0.165rem 0.6rem',
+                  fontSize: '0.75rem',
                   fontWeight: 700,
                   letterSpacing: '0.01em',
                 }}>
@@ -449,72 +463,6 @@ export default function Dashboard() {
               </div>
             </section>
 
-            <section className="content-section">
-              <div className="section-header">
-                <h2>Portfolio by County</h2>
-                <PieChart className="w-5 h-5 text-muted" />
-              </div>
-              <div className="donut-chart-wrapper">
-                <div className="donut-container">
-                  <svg width="150" height="150" viewBox="0 0 100 100" className="donut-svg">
-                    {donutSegments.map((seg, i) => (
-                      <circle key={i} cx="50" cy="50" r="35" fill="transparent" stroke={seg.color} strokeWidth="12" strokeDasharray={seg.strokeDasharray} strokeDashoffset={seg.strokeDashoffset} strokeLinecap="round" />
-                    ))}
-                  </svg>
-                  <div className="donut-hole-text">
-                    <span>{stats.totalAssets}</span>
-                    <small>Total</small>
-                  </div>
-                </div>
-                <div className="donut-legend" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', width: '100%' }}>
-                  {segmentsByState.map(([state, segs]) => (
-                    <div key={state} className="legend-state-group" style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                      <div className="legend-state-header" style={{ 
-                        fontSize: '0.75rem', 
-                        fontWeight: 800, 
-                        color: 'var(--text-muted)', 
-                        textTransform: 'uppercase', 
-                        letterSpacing: '0.05em',
-                        borderBottom: '1px solid var(--border-subtle)',
-                        paddingBottom: '2px',
-                        marginBottom: '4px'
-                      }}>
-                        {state === "Other" ? "Other Regions" : state}
-                      </div>
-                      {segs.map((seg, i) => (
-                        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.15rem 0' }}>
-                          <div className="legend-color" style={{ background: seg.color, flexShrink: 0 }} />
-                          <span className="legend-name" style={{ flex: 1, minWidth: 0 }}>{seg.name}</span>
-                          <span style={{
-                            display: 'inline-flex', alignItems: 'center', gap: '0.2rem',
-                            background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe',
-                            borderRadius: '999px', padding: '0.1rem 0.45rem',
-                            fontSize: '0.62rem', fontWeight: 700,
-                            width: '90px', justifyContent: 'center', flexShrink: 0,
-                          }}>
-                            <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#1d4ed8', display: 'inline-block', flexShrink: 0 }} />
-                            Ironclad · {(seg as any).ironcladCount}
-                          </span>
-                          <span style={{
-                            display: 'inline-flex', alignItems: 'center', gap: '0.2rem',
-                            background: '#fffbeb', color: '#b45309', border: '1px solid #fde68a',
-                            borderRadius: '999px', padding: '0.1rem 0.45rem',
-                            fontSize: '0.62rem', fontWeight: 700,
-                            width: '82px', justifyContent: 'center', flexShrink: 0,
-                          }}>
-                            <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#b45309', display: 'inline-block', flexShrink: 0 }} />
-                            Partners · {(seg as any).partnerCount}
-                          </span>
-                          <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-primary)', width: '28px', textAlign: 'right', flexShrink: 0 }}>
-                            {seg.count}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </section>
           </div>
 
           {/* Right Column: Timeline with Links */}
@@ -525,8 +473,8 @@ export default function Dashboard() {
             </div>
             <div className="upcoming-list">
               {stats.upcomingEvents.length > 0 ? stats.upcomingEvents.map((ev, idx) => (
-                <Link 
-                  key={idx} 
+                <Link
+                  key={idx}
                   href={`/auctions?county=${ev.countyId}&date=${ev.dateStr}`}
                   className="event-card"
                   style={{ textDecoration: 'none' }}
@@ -549,6 +497,104 @@ export default function Dashboard() {
             </div>
           </section>
         </div>
+
+        {/* Portfolio by County — full width */}
+        <section className="content-section" style={{ marginTop: '1.5rem' }}>
+          <div className="section-header">
+            <h2>Portfolio by County</h2>
+            <PieChart className="w-5 h-5 text-muted" />
+          </div>
+
+          {/* Donuts row */}
+          <div style={{ display: 'flex', gap: '2.5rem', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'center', paddingBottom: '1.5rem', borderBottom: '1px solid var(--border-subtle)', marginBottom: '1.5rem' }}>
+            {/* Total */}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.4rem' }}>
+              <div className="donut-container">
+                <svg width="150" height="150" viewBox="0 0 100 100" className="donut-svg">
+                  {donutSegments.map((seg, i) => (
+                    <circle key={i} cx="50" cy="50" r="35" fill="transparent" stroke={seg.color} strokeWidth="12" strokeDasharray={seg.strokeDasharray} strokeDashoffset={seg.strokeDashoffset} strokeLinecap="round" />
+                  ))}
+                </svg>
+                <div className="donut-hole-text">
+                  <span>{stats.totalAssets}</span>
+                  <small>Total</small>
+                </div>
+              </div>
+            </div>
+
+            {/* Per-state donuts */}
+            {segmentsByState.map(([state, segs]) => {
+              const stateSegs = getStateDonutSegments(segs);
+              const stateTotal = segs.reduce((sum: number, s: any) => sum + s.count, 0);
+              return (
+                <div key={state} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.3rem' }}>
+                  <div style={{ position: 'relative', width: 90, height: 90 }}>
+                    <svg width="90" height="90" viewBox="0 0 60 60" style={{ transform: 'rotate(-90deg)' }}>
+                      {stateSegs.map((seg: any, i: number) => (
+                        <circle key={i} cx="30" cy="30" r="20" fill="transparent" stroke={seg.color} strokeWidth="8" strokeDasharray={seg.strokeDasharray} strokeDashoffset={seg.strokeDashoffset} strokeLinecap="round" />
+                      ))}
+                    </svg>
+                    <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+                      <span style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1 }}>{stateTotal}</span>
+                    </div>
+                  </div>
+                  <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                    {state === 'Other' ? 'Other' : state}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Legend grid — multi-column to use full width */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem 2.5rem' }}>
+            {segmentsByState.map(([state, segs]) => (
+              <div key={state} className="legend-state-group" style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                <div className="legend-state-header" style={{
+                  fontSize: '0.75rem',
+                  fontWeight: 800,
+                  color: 'var(--text-muted)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em',
+                  borderBottom: '1px solid var(--border-subtle)',
+                  paddingBottom: '2px',
+                  marginBottom: '4px'
+                }}>
+                  {state === "Other" ? "Other Regions" : state}
+                </div>
+                {segs.map((seg, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.15rem 0' }}>
+                    <div className="legend-color" style={{ background: seg.color, flexShrink: 0 }} />
+                    <span className="legend-name" style={{ flex: 1, minWidth: 0 }}>{seg.name}</span>
+                    <span style={{
+                      display: 'inline-flex', alignItems: 'center', gap: '0.2rem',
+                      background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe',
+                      borderRadius: '999px', padding: '0.11rem 0.5rem',
+                      fontSize: '0.68rem', fontWeight: 700,
+                      width: '115px', justifyContent: 'center', flexShrink: 0,
+                    }}>
+                      <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#1d4ed8', display: 'inline-block', flexShrink: 0 }} />
+                      Ironclad · {(seg as any).ironcladCount}
+                    </span>
+                    <span style={{
+                      display: 'inline-flex', alignItems: 'center', gap: '0.2rem',
+                      background: '#fffbeb', color: '#b45309', border: '1px solid #fde68a',
+                      borderRadius: '999px', padding: '0.11rem 0.5rem',
+                      fontSize: '0.68rem', fontWeight: 700,
+                      width: '115px', justifyContent: 'center', flexShrink: 0,
+                    }}>
+                      <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#b45309', display: 'inline-block', flexShrink: 0 }} />
+                      Partners · {(seg as any).partnerCount}
+                    </span>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-primary)', width: '28px', textAlign: 'right', flexShrink: 0 }}>
+                      {seg.count}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </section>
 
         {/* ── Requests & Tickets ── */}
         <div style={{ marginTop: '2.5rem' }}>

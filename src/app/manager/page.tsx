@@ -137,6 +137,11 @@ function ManagerContent() {
     }));
   }
 
+  async function getToken(): Promise<string> {
+    const { data: { session } } = await supabase.auth.getSession();
+    return session?.access_token ?? "";
+  }
+
   async function handleAdd() {
     if (!newItemName.trim() || !selectedTable) return;
     if (!canEditTable(selectedTable)) {
@@ -150,20 +155,18 @@ function ManagerContent() {
     setLoading(true);
     try {
       const payload: any = { name: newItemName };
-      if (selectedTable === "ls_county") {
-        payload.state = newCountyState;
-      } else if (selectedTable === "ls_priority") {
-        payload.color = newPriorityColor;
-      } else if (selectedTable === "ls_amenity_type") {
-        payload.category_id = newCategoryId;
-      }
-      
-      const { error: supabaseError } = await supabase
-        .from(selectedTable)
-        .insert([payload]);
+      if (selectedTable === "ls_county")       payload.state       = newCountyState;
+      else if (selectedTable === "ls_priority") payload.color       = newPriorityColor;
+      else if (selectedTable === "ls_amenity_type") payload.category_id = newCategoryId;
 
-      if (supabaseError) throw supabaseError;
-      
+      const res = await fetch("/api/manager", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${await getToken()}` },
+        body: JSON.stringify({ table: selectedTable, payload }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error);
+
       setNewItemName("");
       setNewPriorityColor("#94a3b8");
       setSuccess("Item added successfully!");
@@ -185,12 +188,14 @@ function ManagerContent() {
     if (!confirm("Are you sure you want to delete this item?")) return;
     setLoading(true);
     try {
-      const { error: supabaseError } = await supabase
-        .from(selectedTable)
-        .delete()
-        .eq('id', id);
+      const res = await fetch("/api/manager", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${await getToken()}` },
+        body: JSON.stringify({ table: selectedTable, id }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error);
 
-      if (supabaseError) throw supabaseError;
       setSuccess("Item deleted!");
       fetchData();
       setTimeout(() => setSuccess(null), 3000);
@@ -210,20 +215,18 @@ function ManagerContent() {
     setLoading(true);
     try {
       const payload: any = { name: editValue };
-      if (selectedTable === "ls_county") {
-        payload.state = editStateValue;
-      } else if (selectedTable === "ls_priority") {
-        payload.color = editPriorityColor;
-      } else if (selectedTable === "ls_amenity_type") {
-        payload.category_id = editCategoryId;
-      }
+      if (selectedTable === "ls_county")            payload.state       = editStateValue;
+      else if (selectedTable === "ls_priority")      payload.color       = editPriorityColor;
+      else if (selectedTable === "ls_amenity_type")  payload.category_id = editCategoryId;
 
-      const { error: supabaseError } = await supabase
-        .from(selectedTable)
-        .update(payload)
-        .eq('id', id);
+      const res = await fetch("/api/manager", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${await getToken()}` },
+        body: JSON.stringify({ table: selectedTable, id, payload }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error);
 
-      if (supabaseError) throw supabaseError;
       setEditingId(null);
       setSuccess("Item updated!");
       fetchData();
