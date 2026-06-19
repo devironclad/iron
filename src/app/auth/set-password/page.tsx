@@ -21,10 +21,29 @@ export default function SetPasswordPage() {
   const router = useRouter();
 
   useEffect(() => {
-    // Session may already exist if the hash tokens were processed before this component mounted
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    async function initSession() {
+      // Extract tokens from URL hash (#access_token=...&refresh_token=...&type=recovery)
+      const hash = window.location.hash.substring(1);
+      const params = new URLSearchParams(hash);
+      const access_token  = params.get("access_token");
+      const refresh_token = params.get("refresh_token");
+
+      if (access_token && refresh_token) {
+        const { data, error } = await supabase.auth.setSession({ access_token, refresh_token });
+        if (data.session && !error) {
+          setSessionReady(true);
+          // Clean up hash from URL without triggering navigation
+          window.history.replaceState(null, "", window.location.pathname);
+          return;
+        }
+      }
+
+      // Fallback: session may already exist (e.g. user refreshed the page)
+      const { data: { session } } = await supabase.auth.getSession();
       if (session) setSessionReady(true);
-    });
+    }
+
+    initSession();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if ((event === "PASSWORD_RECOVERY" || event === "SIGNED_IN") && session) {
