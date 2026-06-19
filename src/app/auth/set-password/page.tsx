@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { Lock, Loader2, ArrowRight, ShieldCheck, KeyRound, CheckCircle2 } from "lucide-react";
@@ -16,8 +16,18 @@ export default function SetPasswordPage() {
   const [password, setPassword]               = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading]                 = useState(false);
+  const [sessionReady, setSessionReady]       = useState(false);
   const [message, setMessage]                 = useState<{ type: "success" | "error"; text: string } | null>(null);
   const router = useRouter();
+
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "PASSWORD_RECOVERY" || event === "SIGNED_IN") {
+        setSessionReady(true);
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, []);
 
   async function handleSetPassword(e: React.FormEvent) {
     e.preventDefault();
@@ -28,6 +38,11 @@ export default function SetPasswordPage() {
     }
     if (password.length < 6) {
       setMessage({ type: "error", text: "Password must be at least 6 characters." });
+      return;
+    }
+
+    if (!sessionReady) {
+      setMessage({ type: "error", text: "Session not ready. Please wait a moment and try again." });
       return;
     }
 
@@ -127,8 +142,8 @@ export default function SetPasswordPage() {
               </div>
             )}
 
-            <button type="submit" className="lf-submit" disabled={loading}>
-              {loading
+            <button type="submit" className="lf-submit" disabled={loading || !sessionReady}>
+              {loading || !sessionReady
                 ? <Loader2 className="w-5 h-5 animate-spin" />
                 : <> Save & Continue <ArrowRight className="w-4 h-4" /> </>
               }
