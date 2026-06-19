@@ -69,19 +69,27 @@ export default function NewRequestPage() {
       const currentUserId = session?.user?.id;
 
       // Find the "Open" status ID
-      const { data: statusRes } = await supabase.from("ls_request_status").select("id").eq("name", "Open").limit(1).single();
-      const openStatusId = statusRes?.id;
+      const { data: statusRes, error: statusError } = await supabase
+        .from("ls_request_status")
+        .select("id")
+        .eq("name", "Open")
+        .limit(1)
+        .single();
+
+      if (statusError || !statusRes?.id) {
+        throw new Error(`Status lookup failed: ${statusError?.message || statusError?.code || "Open status not found"}`);
+      }
 
       const payload = {
         ...formData,
         requester_id: currentUserId,
-        status_id: openStatusId,
+        status_id: statusRes.id,
         assignee_id: formData.assignee_id || null,
         asset_id: formData.asset_id ? Number(formData.asset_id) : null
       };
 
       const { data, error } = await supabase.from("ls_requests").insert(payload).select("id").single();
-      if (error) throw error;
+      if (error) throw new Error(error.message || error.code || JSON.stringify(error));
 
       router.push(`/requests/${data.id}`);
     } catch (error: any) {
