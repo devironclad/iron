@@ -25,6 +25,7 @@ export default function RequestDetailPage(props: { params: Promise<{ id: string 
   
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -108,15 +109,16 @@ export default function RequestDetailPage(props: { params: Promise<{ id: string 
     }
   };
 
-  const handleDelete = async () => {
-    if (!confirm("Are you sure you want to permanently delete this request?")) return;
-    
+  const handleDelete = () => setShowDeleteConfirm(true);
+
+  const confirmDelete = async () => {
+    setShowDeleteConfirm(false);
     try {
       const { error } = await supabase
         .from("ls_requests")
         .delete()
         .eq("id", params.id);
-        
+
       if (error) throw error;
       router.push('/requests');
     } catch (err: any) {
@@ -175,8 +177,7 @@ export default function RequestDetailPage(props: { params: Promise<{ id: string 
         is_system: true
       });
 
-      // Reload
-      fetchData();
+      router.push('/requests');
     } catch (err: any) {
       console.error("Error changing status:", err);
       alert("Error updating status.");
@@ -207,6 +208,41 @@ export default function RequestDetailPage(props: { params: Promise<{ id: string 
 
   return (
     <PermissionGuard resource="page:requests">
+      {showDeleteConfirm && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
+          backgroundColor: 'rgba(15, 23, 42, 0.4)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200
+        }}>
+          <div style={{
+            backgroundColor: 'white', borderRadius: '1.25rem', width: '100%', maxWidth: '400px',
+            padding: '2rem', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.3)',
+            display: 'flex', flexDirection: 'column', gap: '1.25rem'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', color: '#ef4444' }}>
+              <div style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', padding: '0.75rem', borderRadius: '0.75rem' }}>
+                <Trash2 className="w-6 h-6" />
+              </div>
+              <div>
+                <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: '#0f172a' }}>Delete Request</h2>
+                <p style={{ margin: 0, fontSize: '0.875rem', color: '#64748b' }}>This action cannot be undone.</p>
+              </div>
+            </div>
+            <p style={{ color: '#475569', fontSize: '0.95rem', margin: 0, lineHeight: 1.5 }}>
+              Are you sure you want to permanently delete request <strong>REQ-{request.id}</strong>?
+            </p>
+            <div style={{ display: 'flex', gap: '0.75rem' }}>
+              <button onClick={() => setShowDeleteConfirm(false)} className="btn-secondary" style={{ flex: 1, justifyContent: 'center' }}>
+                Cancel
+              </button>
+              <button onClick={confirmDelete} className="primary-btn" style={{ flex: 1, justifyContent: 'center', backgroundColor: '#ef4444', borderColor: '#ef4444' }}>
+                Yes, Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="requests-container" style={{ paddingBottom: '6rem' }}>
         
         <div className="details-header" style={{ marginBottom: '1rem', height: '90px', padding: '0 2.5rem' }}>
