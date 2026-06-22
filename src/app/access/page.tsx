@@ -35,7 +35,6 @@ const RESOURCES = [
   { id: "page:requests", label: "Requests Page", category: "Pages" },
   { id: "page:manager", label: "Manager Page", category: "Pages" },
   { id: "page:access", label: "Access Control Page", category: "Pages" },
-  { id: "page:settings", label: "Settings Page", category: "Pages" },
   { id: "tab:general",      label: "Property: Research Tab",       category: "Property Tabs" },
   { id: "tab:amenities",   label: "Property: Amenities Tab",      category: "Property Tabs" },
   { id: "tab:values",      label: "Property: Values Tab",         category: "Property Tabs" },
@@ -47,7 +46,6 @@ const RESOURCES = [
   { id: "tab:links",       label: "Property: Marketing Tab",      category: "Property Tabs" },
   // Manager Tables
   { id: "table:ls_origem", label: "Manager: Origem", category: "Manager Tables" },
-  { id: "table:ls_status", label: "Manager: Status", category: "Manager Tables" },
   { id: "table:ls_priority", label: "Manager: Priority", category: "Manager Tables" },
   { id: "table:ls_county", label: "Manager: County", category: "Manager Tables" },
   { id: "table:ls_auction_type", label: "Manager: Auction Type", category: "Manager Tables" },

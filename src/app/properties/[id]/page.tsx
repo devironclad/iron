@@ -717,6 +717,57 @@ export default function PropertyDetailsPage() {
     }
   };
 
+  const applyAssetAccumulation = async (allTaxRecords: any[]) => {
+    const eligible = allTaxRecords.filter(t => t.pay_date && t.value !== null);
+
+    const doc_fees = eligible
+      .filter(t => t.type_tax !== 'Closing Fees' && t.perc_iron !== null)
+      .reduce((acc, t) => acc + (Number(t.value) * (Number(t.perc_iron) / 100)), 0);
+
+    const doc_fees_inv = eligible
+      .filter(t => t.type_tax !== 'Closing Fees' && t.perc_inv !== null)
+      .reduce((acc, t) => acc + (Number(t.value) * (Number(t.perc_inv) / 100)), 0);
+
+    const closing_fess_inv = eligible
+      .filter(t => t.type_tax === 'Closing Fees' && t.perc_inv !== null)
+      .reduce((acc, t) => acc + (Number(t.value) * (Number(t.perc_inv) / 100)), 0);
+
+    const strategyItems = [
+      { cost: 'warrantydeedtransfer_stg', toggle: 'tg_warrantydeedtransfer_stg' },
+      { cost: 'titleclaim_action_stg',    toggle: 'tg_titleclaim_action_stg' },
+      { cost: 'surveyor_stg',             toggle: 'tg_surveyor_stg' },
+      { cost: 'land_clearing_stg',        toggle: 'tg_land_clearing_stg' },
+      { cost: 'fencing_gate_stg',         toggle: 'tg_fencing_gate_stg' },
+      { cost: 'preapproval_review_stg',   toggle: 'tg_preapproval_review_stg' },
+    ];
+    const strategySum = strategyItems.reduce((acc, { cost, toggle }) =>
+      acc + (property[toggle] ? (Number(property[cost]) || 0) : 0), 0);
+
+    const investment_total_inv = (Number(property.paid_bid_inv) || 0)
+      + doc_fees_inv
+      + closing_fess_inv
+      + strategySum;
+
+    const devCostItems = [
+      { cost: 'warrantydeedtransfer', toggle: 'tg_warrantydeedtransfer' },
+      { cost: 'titleclaim_action',    toggle: 'tg_titleclaim_action' },
+      { cost: 'surveyor',             toggle: 'tg_surveyor' },
+      { cost: 'land_clearing',        toggle: 'tg_land_clearing' },
+      { cost: 'fencing_gate',         toggle: 'tg_fencing_gate' },
+      { cost: 'preapproval_review',   toggle: 'tg_preapproval_review' },
+    ];
+    const devToggleSum = devCostItems.reduce((acc, { cost, toggle }) =>
+      acc + (property[toggle] ? (Number(property[cost]) || 0) : 0), 0);
+
+    const investment_total = (Number(property.paid_bid) || 0)
+      + devToggleSum
+      + doc_fees;
+
+    const updates = { doc_fees, doc_fees_inv, closing_fess_inv, investment_total_inv, investment_total };
+    await supabase.from('ls_assets').update(updates).eq('id', id);
+    setProperty((prev: any) => ({ ...prev, ...updates }));
+  };
+
   const handleSaveTax = async () => {
     if (!tabCanEdit) {
       alert("You don't have permission to edit this tab.");
@@ -766,39 +817,13 @@ export default function PropertyDetailsPage() {
       type_tax: taxForm.type_tax || null,
     };
 
-    const applyAssetAccumulation = async () => {
-      const { data: allTaxes } = await supabase
-        .from('ls_asset_tax')
-        .select('type_tax, pay_date, value, perc_iron, perc_inv')
-        .eq('asset_id', id);
-
-      if (!allTaxes) return;
-
-      const eligible = allTaxes.filter(t => t.pay_date && t.value !== null);
-
-      const doc_fees = eligible
-        .filter(t => t.type_tax !== 'Closing Fees' && t.perc_iron !== null)
-        .reduce((acc, t) => acc + (Number(t.value) * (Number(t.perc_iron) / 100)), 0);
-
-      const doc_fees_inv = eligible
-        .filter(t => t.type_tax !== 'Closing Fees' && t.perc_inv !== null)
-        .reduce((acc, t) => acc + (Number(t.value) * (Number(t.perc_inv) / 100)), 0);
-
-      const closing_fess_inv = eligible
-        .filter(t => t.type_tax === 'Closing Fees' && t.perc_inv !== null)
-        .reduce((acc, t) => acc + (Number(t.value) * (Number(t.perc_inv) / 100)), 0);
-
-      const updates = { doc_fees, doc_fees_inv, closing_fess_inv };
-      await supabase.from('ls_assets').update(updates).eq('id', id);
-      setProperty((prev: any) => ({ ...prev, ...updates }));
-    };
-
     if (editingTaxId) {
       const original = taxes.find(t => t.id === editingTaxId);
       const { data, error } = await supabase.from('ls_asset_tax').update(payload).eq('id', editingTaxId).select('*').single();
       if (!error && data) {
-        setTaxes(taxes.map(t => t.id === editingTaxId ? data : t));
-        await applyAssetAccumulation();
+        const updatedTaxes = taxes.map(t => t.id === editingTaxId ? data : t);
+        setTaxes(updatedTaxes);
+        await applyAssetAccumulation(updatedTaxes);
         logAudit({
           action_type: 'TAX_EDIT',
           asset_id: Number(id),
@@ -815,8 +840,9 @@ export default function PropertyDetailsPage() {
     } else {
       const { data, error } = await supabase.from('ls_asset_tax').insert([payload]).select('*').single();
       if (!error && data) {
-        setTaxes([data, ...taxes]);
-        await applyAssetAccumulation();
+        const updatedTaxes = [data, ...taxes];
+        setTaxes(updatedTaxes);
+        await applyAssetAccumulation(updatedTaxes);
         logAudit({
           action_type: 'TAX_ADD',
           asset_id: Number(id),
@@ -835,7 +861,11 @@ export default function PropertyDetailsPage() {
   const handleDeleteTax = async (taxId: string) => {
     if (!confirm('Delete this tax record?')) return;
     const { error } = await supabase.from('ls_asset_tax').delete().eq('id', taxId);
-    if (!error) setTaxes(taxes.filter(t => t.id !== taxId));
+    if (!error) {
+      const updatedTaxes = taxes.filter(t => t.id !== taxId);
+      setTaxes(updatedTaxes);
+      await applyAssetAccumulation(updatedTaxes);
+    }
   };
 
   const handleEditTax = (tax: any) => {
@@ -1245,7 +1275,7 @@ export default function PropertyDetailsPage() {
               <fieldset disabled={!tabCanEdit} style={{ border: 'none', padding: 0, margin: 0 }}>
               {/* Group 1: Evolution */}
               <div style={{ margin: '0 1rem 2.5rem 1rem' }}>
-                <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', marginBottom: '1.25rem' }}>Evolution</h3>
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', marginBottom: '1.25rem' }}>Evaluation</h3>
                 <div className="form-grid col-3">
                   {source !== 'partners' && (
                   <div className="input-group">
@@ -1623,6 +1653,18 @@ export default function PropertyDetailsPage() {
                   {renderCostTableRow("Land Clearing", "Tree removal and grading", "land_clearing_stg", "tg_land_clearing_stg", Trees, !tabCanEdit)}
                   {renderCostTableRow("Fencing & Gate", "Perimeter fence and security gate", "fencing_gate_stg", "tg_fencing_gate_stg", Lock, !tabCanEdit)}
                   {renderCostTableRow("Preapproval Review", "Zoning review and compliance", "preapproval_review_stg", "tg_preapproval_review_stg", CheckSquare, !tabCanEdit)}
+                </div>
+              </div>
+
+              <div style={{ margin: '0 1rem 1rem 1rem' }}>
+                <div style={{ gridColumn: '1 / -1', background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)', borderRadius: '12px', padding: '1.25rem 1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: '0 4px 16px rgba(26,26,46,0.25)', border: '2px solid #7c3aed' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: 'rgba(124,58,237,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.1rem', color: '#ffffff' }}>$</div>
+                    <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#c4b5fd', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Total Investment Investor</span>
+                  </div>
+                  <span style={{ fontSize: '1.75rem', fontWeight: 800, color: '#ffffff', letterSpacing: '-0.01em', fontVariantNumeric: 'tabular-nums' }}>
+                    {property.investment_total_inv != null ? `$${Number(property.investment_total_inv).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
+                  </span>
                 </div>
               </div>
               </fieldset>

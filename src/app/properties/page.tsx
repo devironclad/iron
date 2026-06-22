@@ -352,7 +352,7 @@ export default function PropertiesPage() {
       const to = from + ITEMS_PER_PAGE - 1;
 
       const { data, error, count } = await query
-        .order("id", { ascending: false })
+        .order("ref_id", { ascending: false })
         .range(from, to);
 
       if (error) {
@@ -425,7 +425,7 @@ export default function PropertiesPage() {
     ? 'Properties managed by partner Investors.'
     : source === 'partners'
     ? 'Properties managed in partnership.'
-    : 'Manage acquired assets, financials, and detailed characteristics.';
+    : 'Properties owned and managed by Ironclad Group';
 
   return (
     <PermissionGuard anyOf={["page:properties:ironclad", "page:properties:broker", "page:properties:partners"]}>

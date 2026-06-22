@@ -258,8 +258,10 @@ export default function RequestsPage() {
                 {requests.length === 0 ? (
                   <tr>
                     <td colSpan={6} style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
-                      <ClipboardList className="w-10 h-10 mx-auto mb-2 opacity-50" style={{ margin: '0 auto 0.5rem auto' }} />
-                      No requests found matching your filters.
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
+                        <ClipboardList className="w-10 h-10 opacity-50" />
+                        <span>No requests found matching your filters.</span>
+                      </div>
                     </td>
                   </tr>
                 ) : requests.map((req) => (
