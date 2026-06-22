@@ -60,15 +60,15 @@ export default function Dashboard() {
         ] = await Promise.all([
           supabase
             .from('ls_assets')
-            .select('id, auction_date, county_id, ls_priority(name, color), ls_county(name, state)')
+            .select('id, auction_date, county_id, priority_id, ls_priority(name, color), ls_county(name, state)')
             .eq('record_type', 'AUCTION')
             .gte('auction_date', today)
-            .range(0, 4999),
+            .limit(1000),
           supabase
             .from('ls_assets')
             .select('id, county_id, owner_type, ls_county(name, state), owner:ls_users_metadata!owner_partner_id(full_name)')
             .eq('record_type', 'PROPERTY')
-            .range(0, 4999),
+            .limit(1000),
           supabase
             .from('ls_priority')
             .select('id')
@@ -82,6 +82,7 @@ export default function Dashboard() {
               priority:ls_request_priority(name, color),
               status:ls_request_status(is_closed)
             `)
+            .limit(500)
         ]);
 
         const rejectedId = rejectedPriorityRow?.id;
@@ -89,31 +90,8 @@ export default function Dashboard() {
 
         const activeAuctions = (activeAuctionsRaw || []).filter(a => {
           if (!rejectedId) return true;
-          const priority = (Array.isArray(a.ls_priority) ? a.ls_priority[0] : a.ls_priority) as any;
-          return priority?.name !== 'Rejected Property';
+          return a.priority_id !== rejectedId;
         });
-
-        // Server-side counts for KPI cards
-        const activeAuctionsQuery = (() => {
-          let q = supabase
-            .from('ls_assets')
-            .select('id', { count: 'exact', head: true })
-            .eq('record_type', 'AUCTION')
-            .gte('auction_date', today);
-          if (rejectedId) q = q.or(`priority_id.neq.${rejectedId},priority_id.is.null`);
-          return q;
-        })();
-
-        const rejectedsQuery = rejectedId
-          ? supabase.from('ls_assets').select('id', { count: 'exact', head: true }).eq('record_type', 'AUCTION').eq('priority_id', rejectedId)
-          : Promise.resolve({ count: 0, data: null, error: null });
-
-        const [{ count: activeAuctionsCount }, { count: rejectedsCount }] = await Promise.all([
-          activeAuctionsQuery,
-          rejectedsQuery
-        ]);
-
-        const totalRejecteds = rejectedsCount || 0;
 
         // Priority Stats
         const priorities: Record<string, { count: number, color: string }> = {};
@@ -297,7 +275,7 @@ export default function Dashboard() {
           totalAssets: properties.length,
           ironcladAssets,
           partnerAssets,
-          activeAuctions: activeAuctionsCount || 0,
+          activeAuctions: activeAuctions.length,
           openRequests: openTickets.length,
           priorityStats: priorityArray,
           weeklyStats: weeklyArray,
