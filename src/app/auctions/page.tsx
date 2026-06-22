@@ -864,7 +864,7 @@ export default function AuctionsPage() {
 
                 <div style={{ display: 'flex', gap: '0.5rem', marginTop: 'auto' }}>
                   <Link href={`/auctions/new?id=${auction.id}${isRejectedView ? '&from=rejected' : ''}&returnTo=${returnTo}`} className="card-details-btn" style={{ textDecoration: 'none', flex: 1 }}>
-                    Edit Details
+                    View Details
                     <ArrowRight className="w-4 h-4" />
                   </Link>
                   {canEdit && (

@@ -42,7 +42,7 @@ const NAV_ITEMS: NavItem[] = [
     icon: Building2,
     children: [
       { name: "Ironclad", href: "/properties?source=ironclad", resource: "page:properties:ironclad" },
-      { name: "Broker", href: "/properties?source=broker", resource: "page:properties:broker" },
+      { name: "Investors", href: "/properties?source=broker", resource: "page:properties:broker" },
       { name: "Partners", href: "/properties?source=partners", resource: "page:properties:partners" },
     ],
   },

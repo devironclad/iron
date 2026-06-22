@@ -13,7 +13,7 @@ import {
   MapPin,
   ChevronRight,
   PieChart,
-  XCircle,
+  ClipboardList,
   Ticket,
   AlertTriangle,
   Timer
@@ -25,16 +25,18 @@ import "./dashboard.css";
 const CHART_COLORS = ['#ca181a', '#1e293b', '#10b981', '#3b82f6', '#f59e0b', '#8b5cf6'];
 
 export default function Dashboard() {
+  const [activeView, setActiveView] = useState<'properties' | 'auctions' | 'requests' | null>(null);
   const [stats, setStats] = useState({
     totalAssets: 0,
     ironcladAssets: 0,
     partnerAssets: 0,
     activeAuctions: 0,
-    totalRejecteds: 0,
+    openRequests: 0,
     priorityStats: [] as any[],
     weeklyStats: [] as any[],
     countyStats: [] as any[],
-    upcomingEvents: [] as any[]
+    upcomingEvents: [] as any[],
+    ownerStats: [] as { name: string; count: number; percentage: number; isIronclad: boolean }[]
   });
   const [ticketsStats, setTicketsStats] = useState({
     openByCategory: [] as { name: string, color: string, count: number, percentage: number }[],
@@ -64,7 +66,7 @@ export default function Dashboard() {
             .range(0, 4999),
           supabase
             .from('ls_assets')
-            .select('id, county_id, owner_type, ls_county(name, state)')
+            .select('id, county_id, owner_type, ls_county(name, state), owner:ls_users_metadata!owner_partner_id(full_name)')
             .eq('record_type', 'PROPERTY')
             .range(0, 4999),
           supabase
@@ -136,9 +138,13 @@ export default function Dashboard() {
         const now = new Date(currentTime);
         now.setHours(0, 0, 0, 0);
 
+        // Align to start of current calendar week (Sunday = 0)
+        const startOfCurrentWeek = new Date(now);
+        startOfCurrentWeek.setDate(now.getDate() - now.getDay());
+
         for (let i = 0; i < 4; i++) {
-          const start = new Date(now);
-          start.setDate(now.getDate() + (i * 7));
+          const start = new Date(startOfCurrentWeek);
+          start.setDate(startOfCurrentWeek.getDate() + (i * 7));
           const end = new Date(start);
           end.setDate(start.getDate() + 6);
           end.setHours(23, 59, 59, 999);
@@ -273,16 +279,31 @@ export default function Dashboard() {
         const ironcladAssets = properties.filter(p => !p.owner_type || p.owner_type !== 'partner').length;
         const partnerAssets  = properties.filter(p => p.owner_type === 'partner').length;
 
+        // Owner breakdown for bar chart
+        const ownerMap: Record<string, { count: number; isIronclad: boolean }> = {};
+        properties.forEach(p => {
+          const isIronclad = !p.owner_type || p.owner_type !== 'partner';
+          const owner = p as any;
+          const name = isIronclad ? 'Ironclad' : (owner.owner?.full_name || 'Unknown Partner');
+          if (!ownerMap[name]) ownerMap[name] = { count: 0, isIronclad };
+          ownerMap[name].count++;
+        });
+        const ownerMax = Math.max(...Object.values(ownerMap).map(o => o.count), 1);
+        const ownerStats = Object.entries(ownerMap)
+          .map(([name, { count, isIronclad }]) => ({ name, count, isIronclad, percentage: (count / ownerMax) * 100 }))
+          .sort((a, b) => b.count - a.count);
+
         setStats({
           totalAssets: properties.length,
           ironcladAssets,
           partnerAssets,
           activeAuctions: activeAuctionsCount || 0,
-          totalRejecteds,
+          openRequests: openTickets.length,
           priorityStats: priorityArray,
           weeklyStats: weeklyArray,
           countyStats: countyArray,
-          upcomingEvents: upcomingArray
+          upcomingEvents: upcomingArray,
+          ownerStats
         });
       } catch (err) {
         console.error("Dashboard data fetch error:", err);
@@ -359,12 +380,16 @@ export default function Dashboard() {
 
         {/* KPI Cards */}
         <div className="kpi-grid">
-          <div className="kpi-card">
+          <div
+            className="kpi-card"
+            onClick={() => setActiveView('properties')}
+            style={{ cursor: 'pointer', outline: activeView === 'properties' ? '2px solid #1d4ed8' : 'none', transition: 'outline 0.15s' }}
+          >
             <div className="kpi-icon-wrapper" style={{ background: '#eff6ff', color: '#1d4ed8' }}>
               <Building2 className="w-6 h-6" />
             </div>
             <div className="kpi-info">
-              <h3>Total Portfolio</h3>
+              <h3>Assets in Portfolio</h3>
               <p className="kpi-value">{stats.totalAssets}</p>
               <div style={{ marginTop: '0.5rem', display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
                 <span style={{
@@ -399,33 +424,41 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <div className="kpi-card">
+          <div
+            className="kpi-card"
+            onClick={() => setActiveView('auctions')}
+            style={{ cursor: 'pointer', outline: activeView === 'auctions' ? '2px solid #10b981' : 'none', transition: 'outline 0.15s' }}
+          >
             <div className="kpi-icon-wrapper" style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#10b981' }}>
               <Gavel className="w-6 h-6" />
             </div>
             <div className="kpi-info">
-              <h3>Active Asset for Auctions</h3>
+              <h3>Researched Assets</h3>
               <p className="kpi-value">{stats.activeAuctions}</p>
             </div>
           </div>
 
-          <div className="kpi-card">
-            <div className="kpi-icon-wrapper" style={{ background: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b' }}>
-              <XCircle className="w-6 h-6" />
+          <div
+            className="kpi-card"
+            onClick={() => setActiveView('requests')}
+            style={{ cursor: 'pointer', outline: activeView === 'requests' ? '2px solid #ca181a' : 'none', transition: 'outline 0.15s' }}
+          >
+            <div className="kpi-icon-wrapper" style={{ background: 'rgba(202, 24, 26, 0.1)', color: '#ca181a' }}>
+              <ClipboardList className="w-6 h-6" />
             </div>
             <div className="kpi-info">
-              <h3>Rejecteds</h3>
-              <p className="kpi-value">{stats.totalRejecteds}</p>
+              <h3>Active Requests</h3>
+              <p className="kpi-value">{stats.openRequests}</p>
             </div>
           </div>
         </div>
 
         {/* Main Content */}
-        <div className="dashboard-main">
+        {activeView === 'auctions' && <div className="dashboard-main">
           <div className="left-column">
             <section className="content-section compact">
               <div className="section-header">
-                <h2>Assets for auction by week</h2>
+                <h2>Active for auction by week</h2>
                 <Calendar className="w-5 h-5 text-muted" />
               </div>
               <div className="chart-container">
@@ -445,7 +478,7 @@ export default function Dashboard() {
 
             <section className="content-section compact">
               <div className="section-header">
-                <h2>Assets for auction by priority</h2>
+                <h2>Active for auction by priority</h2>
                 <BarChart3 className="w-5 h-5 text-muted" />
               </div>
               <div className="chart-container">
@@ -468,7 +501,7 @@ export default function Dashboard() {
           {/* Right Column: Timeline with Links */}
           <section className="content-section">
             <div className="section-header">
-              <h2>Top Five Asset</h2>
+              <h2>Top 5 Next Auctions</h2>
               <Clock className="w-5 h-5 text-muted" />
             </div>
             <div className="upcoming-list">
@@ -496,10 +529,33 @@ export default function Dashboard() {
               </Link>
             </div>
           </section>
-        </div>
+        </div>}
+
+        {/* Properties by Owner */}
+        {(activeView === 'properties') && (
+          <section className="content-section compact" style={{ marginTop: '1.5rem' }}>
+            <div className="section-header">
+              <h2>Properties by owner</h2>
+              <BarChart3 className="w-5 h-5 text-muted" />
+            </div>
+            <div className="chart-container">
+              {stats.ownerStats.map(o => (
+                <div key={o.name} className="chart-row">
+                  <div className="chart-label">
+                    <span>{o.name}</span>
+                    <span>{o.count} {o.count === 1 ? 'property' : 'properties'}</span>
+                  </div>
+                  <div className="chart-bar-bg">
+                    <div className="chart-bar-fill" style={{ width: `${o.percentage}%`, backgroundColor: o.isIronclad ? '#1d4ed8' : '#475569' }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* Portfolio by County — full width */}
-        <section className="content-section" style={{ marginTop: '1.5rem' }}>
+        {(activeView === 'properties') && <section className="content-section" style={{ marginTop: '1.5rem' }}>
           <div className="section-header">
             <h2>Portfolio by County</h2>
             <PieChart className="w-5 h-5 text-muted" />
@@ -594,10 +650,10 @@ export default function Dashboard() {
               </div>
             ))}
           </div>
-        </section>
+        </section>}
 
         {/* ── Requests & Tickets ── */}
-        <div style={{ marginTop: '2.5rem' }}>
+        {(activeView === 'requests') && <div style={{ marginTop: '2.5rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
             <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border-subtle)' }} />
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', whiteSpace: 'nowrap' }}>
@@ -681,7 +737,7 @@ export default function Dashboard() {
             </div>
 
           </div>
-        </div>
+        </div>}
 
       </div>
     </PermissionGuard>

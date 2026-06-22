@@ -166,26 +166,30 @@ export default function NewAuctionForm() {
   );
 
   useEffect(() => {
+    if (fetchingData) return;
+
+    const container = document.querySelector(".form-content-area");
+    if (!container) return;
+
     const handleScroll = () => {
-      const sections = SECTIONS.map(s => document.getElementById(s.id));
-      const container = document.querySelector(".form-content-area");
-      const scrollPosition = container?.scrollTop || 0;
-      
+      const containerTop = container.getBoundingClientRect().top;
       let currentSection = SECTIONS[0].id;
-      sections.forEach(section => {
-        if (section) {
-          if (section.offsetTop - 100 <= scrollPosition) {
-            currentSection = section.id;
+
+      for (const s of SECTIONS) {
+        const el = document.getElementById(s.id);
+        if (el) {
+          const elTop = el.getBoundingClientRect().top - containerTop;
+          if (elTop <= 120) {
+            currentSection = s.id;
           }
         }
-      });
+      }
       setActiveSection(currentSection);
     };
 
-    const container = document.querySelector(".form-content-area");
-    container?.addEventListener("scroll", handleScroll);
-    return () => container?.removeEventListener("scroll", handleScroll);
-  }, []);
+    container.addEventListener("scroll", handleScroll);
+    return () => container.removeEventListener("scroll", handleScroll);
+  }, [fetchingData]);
 
   // Automatic Calculations for Min Bid, Max Bid and Market Value
   useEffect(() => {

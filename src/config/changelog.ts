@@ -6,9 +6,27 @@ export interface ChangelogItem {
   changes: string[];
 }
 
-export const CURRENT_VERSION = "1.5.0";
+export const CURRENT_VERSION = "1.6.0";
 
 export const CHANGELOG: ChangelogItem[] = [
+  {
+    version: "1.6.0",
+    date: "2026-06-22",
+    title: "Dashboard Drill-Down, Profit Projection in Values & UX Corrections",
+    type: "minor",
+    changes: [
+      "Dashboard now shows only the 3 KPI cards by default; detail sections (Portfolio, Auctions, Requests) expand only when the respective card is clicked.",
+      "Auction detail page scroll-spy fixed: sidebar now highlights the active section as the user scrolls (was broken due to useEffect running before content rendered).",
+      "Profit Projection bar chart added to Properties Values tab, below the Evolution section, with the same tier rules as the property card (AR vs non-AR, Ironclad vs Partner).",
+      "Properties submenu 'Broker' renamed to 'Investors'; page title and subtitle updated to 'Investor Properties' and 'Properties managed by partner Investors.'",
+      "Access Control label updated from 'Properties: Broker' to 'Properties: Investors'.",
+      "Properties Sales tab: 'IronClad' corrected to 'Ironclad' in the Property Owner dropdown.",
+      "Properties Values tab: 'Tax' tab renamed to 'Tax & Fees'.",
+      "Marketing tab: '3D Video' field renamed to '3D Video copy' in the Material section.",
+      "Auction card button renamed from 'Edit Details' to 'View Details'.",
+      "Dashboard label corrections: 'Total Portfolio' → 'Assets in Portfolio', 'Active Asset for Auctions' → 'Researched Assets', 'Open Requests' → 'Active Requests', 'Top Five Asset' → 'Top 5 Next Auctions', 'Assets for auction by week/priority' → 'Active for auction by week/priority'."
+    ]
+  },
   {
     version: "1.5.0",
     date: "2026-06-12",

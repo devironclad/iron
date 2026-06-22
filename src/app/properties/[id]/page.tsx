@@ -65,7 +65,7 @@ const TABS_CONFIG = [
   { id: 'values',      name: 'Values',         icon: TrendingUp,      resource: 'tab:values' },
   { id: 'acquisition', name: 'Development',    icon: Coins,           resource: 'tab:acquisition' },
   { id: 'docs',        name: 'Documentation',  icon: FileText,        resource: 'tab:docs' },
-  { id: 'tax',         name: 'Tax',            icon: Receipt,         resource: 'tab:tax' },
+  { id: 'tax',         name: 'Tax & Fees',     icon: Receipt,         resource: 'tab:tax' },
   { id: 'sales',       name: 'Sales',          icon: ShoppingCart,    resource: 'tab:sales' },
   { id: 'strategy',    name: 'Strategy',       icon: Compass,         resource: 'tab:strategy' },
   { id: 'links',       name: 'Marketing',      icon: LinkIcon,        resource: 'tab:links' },
@@ -1308,7 +1308,80 @@ export default function PropertyDetailsPage() {
                 </div>
               </div>
 
-              {/* Group 2: References */}
+              {/* Group 2: Profit Projection */}
+              <div style={{ margin: '0 1rem 2.5rem 1rem' }}>
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', marginBottom: '1.25rem' }}>Profit Projection</h3>
+                {(() => {
+                  const base = (source === 'partners' ? property.investment_total_inv : property.investment_total) || 0;
+                  const isAR = property.ls_county?.state === 'AR';
+                  const tiers = source === 'partners'
+                    ? (isAR ? [
+                        { label: '+100%', roi: 1.0, fill: 25,  color: '#6ee7b7', textColor: '#065f46' },
+                        { label: '+200%', roi: 2.0, fill: 50,  color: '#34d399', textColor: '#065f46' },
+                        { label: '+300%', roi: 3.0, fill: 75,  color: '#10b981', textColor: '#ffffff' },
+                        { label: '+400%', roi: 4.0, fill: 100, color: '#059669', textColor: '#ffffff' },
+                      ] : [
+                        { label: '+40%',  roi: 0.4, fill: 40,  color: '#6ee7b7', textColor: '#065f46' },
+                        { label: '+60%',  roi: 0.6, fill: 60,  color: '#34d399', textColor: '#065f46' },
+                        { label: '+80%',  roi: 0.8, fill: 80,  color: '#10b981', textColor: '#ffffff' },
+                        { label: '+100%', roi: 1.0, fill: 100, color: '#059669', textColor: '#ffffff' },
+                      ])
+                    : (isAR ? [
+                        { label: '+400%',  roi: 4.0,  fill: 25,  color: '#6ee7b7', textColor: '#065f46' },
+                        { label: '+600%',  roi: 6.0,  fill: 50,  color: '#34d399', textColor: '#065f46' },
+                        { label: '+800%',  roi: 8.0,  fill: 75,  color: '#10b981', textColor: '#ffffff' },
+                        { label: '+1000%', roi: 10.0, fill: 100, color: '#059669', textColor: '#ffffff' },
+                      ] : [
+                        { label: '+40%',  roi: 0.4, fill: 40,  color: '#6ee7b7', textColor: '#065f46' },
+                        { label: '+60%',  roi: 0.6, fill: 60,  color: '#34d399', textColor: '#065f46' },
+                        { label: '+80%',  roi: 0.8, fill: 80,  color: '#10b981', textColor: '#ffffff' },
+                        { label: '+100%', roi: 1.0, fill: 100, color: '#059669', textColor: '#ffffff' },
+                      ]);
+                  const fmt = (v: number) => `$${v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                  return (
+                    <div style={{ maxWidth: '520px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {tiers.map(t => {
+                        const profit = base * t.roi;
+                        return (
+                          <div key={t.label} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                            <div style={{ width: '44px', fontSize: '0.72rem', fontWeight: 700, color: '#64748b', textAlign: 'right', flexShrink: 0 }}>{t.label}</div>
+                            <div style={{ flex: 1, height: '24px', backgroundColor: '#f1f5f9', borderRadius: '6px', overflow: 'hidden', position: 'relative' }}>
+                              <div style={{
+                                width: `${t.fill}%`,
+                                height: '100%',
+                                backgroundColor: t.color,
+                                borderRadius: '6px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'flex-end',
+                                paddingRight: '8px',
+                                transition: 'width 0.4s ease',
+                              }}>
+                                {base > 0 && (
+                                  <span style={{ fontSize: '0.7rem', fontWeight: 700, color: t.textColor, whiteSpace: 'nowrap' }}>
+                                    {fmt(base + profit)}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {base > 0 ? (
+                        <div style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: '4px', paddingLeft: '52px', fontWeight: 500 }}>
+                          Base ({source === 'partners' ? 'Partner Investment' : 'Total Investment'}): {fmt(base)}
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: '0.8rem', color: '#94a3b8', paddingLeft: '52px', fontStyle: 'italic' }}>
+                          Investment total not available yet.
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+              </div>
+
+              {/* Group 3: References */}
               <div style={{ margin: '0 1rem 1rem 1rem' }}>
                 <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', marginBottom: '1.25rem' }}>References</h3>
                 <div className="form-grid col-2">
@@ -1378,7 +1451,7 @@ export default function PropertyDetailsPage() {
                       onChange={(e) => handleOwnerChange(e.target.value)}
                       className="input-field"
                     >
-                      <option value="ironclad">IronClad</option>
+                      <option value="ironclad">Ironclad</option>
                       {partners.map(p => (
                         <option key={p.id} value={p.id}>{p.full_name}</option>
                       ))}
@@ -1575,7 +1648,7 @@ export default function PropertyDetailsPage() {
                   {renderLinkInput("Short Form Copy",    "short_form_copy",    marketing.short_form_copy,    "https://...", undefined, handleMarketingChange)}
                   {renderLinkInput("Before Video",       "before_video",       marketing.before_video,       "https://...", undefined, handleMarketingChange)}
                   {renderLinkInput("After Video",        "after_video",        marketing.after_video,        "https://...", undefined, handleMarketingChange)}
-                  {renderLinkInput("3D Video",           "video_3d",           marketing.video_3d,           "https://...", undefined, handleMarketingChange)}
+                  {renderLinkInput("3D Video copy",      "video_3d",           marketing.video_3d,           "https://...", undefined, handleMarketingChange)}
                 </div>
               </div>
 

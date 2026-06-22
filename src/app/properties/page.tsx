@@ -416,13 +416,13 @@ export default function PropertiesPage() {
   const pageTitle = source === 'ironclad'
     ? 'Ironclad Properties'
     : source === 'broker'
-    ? 'Broker Properties'
+    ? 'Investor Properties'
     : source === 'partners'
     ? 'Partners Properties'
     : 'My Properties';
 
   const pageSubtitle = source === 'broker'
-    ? 'Properties managed by partner brokers.'
+    ? 'Properties managed by partner Investors.'
     : source === 'partners'
     ? 'Properties managed in partnership.'
     : 'Manage acquired assets, financials, and detailed characteristics.';

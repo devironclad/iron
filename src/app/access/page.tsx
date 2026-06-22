@@ -30,7 +30,7 @@ const RESOURCES = [
   { id: "page:auctions", label: "Research: Auctions", category: "Pages" },
   { id: "page:auctions:rejected", label: "Research: Rejecteds", category: "Pages" },
   { id: "page:properties:ironclad", label: "Properties: Ironclad", category: "Pages" },
-  { id: "page:properties:broker", label: "Properties: Broker", category: "Pages" },
+  { id: "page:properties:broker", label: "Properties: Investors", category: "Pages" },
   { id: "page:properties:partners", label: "Properties: Partners", category: "Pages" },
   { id: "page:requests", label: "Requests Page", category: "Pages" },
   { id: "page:manager", label: "Manager Page", category: "Pages" },
