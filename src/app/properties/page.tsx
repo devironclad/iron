@@ -453,7 +453,7 @@ export default function PropertiesPage() {
         
         <div className="bar-actions">
           <div className="totalizer">
-            <strong>{totalCount}</strong> items
+            <strong>{totalCount}</strong> assets
           </div>
           
           <div className="view-toggle">

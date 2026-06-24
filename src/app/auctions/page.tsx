@@ -458,7 +458,12 @@ export default function AuctionsPage() {
         "Appraisal Min ($)": item.appraisal_min || 0,
         "Appraisal Avg ($)": item.appraisal_avg || 0,
         "Appraisal Max ($)": item.appraisal_max || 0,
-        "Coordinates": item.coordinates || ""
+        "Coordinates": item.coordinates || "",
+        "Regrid Link": item.link_regrid || "",
+        "Sources Link": item.link_sources || "",
+        "House Sources Link": item.link_house_sources || "",
+        "Video Link": item.link_video || "",
+        "Google Earth Link": item.link_earth || ""
       }));
 
       const worksheet = XLSX.utils.json_to_sheet(excelData);
@@ -470,7 +475,8 @@ export default function AuctionsPage() {
         {wch: 10}, {wch: 20}, {wch: 15}, {wch: 15}, {wch: 8},  {wch: 15},
         {wch: 15}, {wch: 15}, {wch: 15}, {wch: 15}, {wch: 15}, {wch: 15},
         {wch: 15}, {wch: 15}, {wch: 30}, {wch: 15}, {wch: 10}, {wch: 40},
-        {wch: 15}, {wch: 15}, {wch: 15}, {wch: 30}
+        {wch: 15}, {wch: 15}, {wch: 15}, {wch: 30},
+        {wch: 200}, {wch: 200}, {wch: 200}, {wch: 200}, {wch: 200}
       ];
       worksheet['!cols'] = wscols;
 
@@ -600,7 +606,7 @@ export default function AuctionsPage() {
 
         <div className="bar-actions">
           <div className="totalizer">
-            <strong>{totalCount}</strong> items
+            <strong>{totalCount}</strong> assets
           </div>
 
           <div className="view-toggle">
