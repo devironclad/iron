@@ -22,7 +22,7 @@ import Link from "next/link";
 import { PermissionGuard } from "@/components/auth/PermissionGuard";
 import "./dashboard.css";
 
-const CHART_COLORS = ['#ca181a', '#1e293b', '#10b981', '#3b82f6', '#f59e0b', '#8b5cf6'];
+const CHART_COLORS = ['#273548', '#1e293b', '#10b981', '#3b82f6', '#f59e0b', '#8b5cf6'];
 
 export default function Dashboard() {
   const [activeView, setActiveView] = useState<'properties' | 'auctions' | 'requests' | null>(null);
@@ -98,7 +98,7 @@ export default function Dashboard() {
         activeAuctions.forEach(auc => {
           const priority = (Array.isArray(auc.ls_priority) ? auc.ls_priority[0] : auc.ls_priority) as any;
           const pName = priority?.name || "Unassigned";
-          const pColor = priority?.color || "#ca181a";
+          const pColor = priority?.color || "#273548";
           if (!priorities[pName]) priorities[pName] = { count: 0, color: pColor };
           priorities[pName].count++;
         });
@@ -419,9 +419,9 @@ export default function Dashboard() {
           <div
             className="kpi-card"
             onClick={() => setActiveView('requests')}
-            style={{ cursor: 'pointer', outline: activeView === 'requests' ? '2px solid #ca181a' : 'none', transition: 'outline 0.15s' }}
+            style={{ cursor: 'pointer', outline: activeView === 'requests' ? '2px solid #273548' : 'none', transition: 'outline 0.15s' }}
           >
-            <div className="kpi-icon-wrapper" style={{ background: 'rgba(202, 24, 26, 0.1)', color: '#ca181a' }}>
+            <div className="kpi-icon-wrapper" style={{ background: 'rgba(39, 53, 72, 0.08)', color: '#273548' }}>
               <ClipboardList className="w-6 h-6" />
             </div>
             <div className="kpi-info">

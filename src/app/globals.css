@@ -1,9 +1,9 @@
 :root {
-  /* Color Palette based on Ironcladgroup logo (#CA181A) */
-  --primary: #ca181a;
-  --primary-hover: #a11315;
-  --primary-light: rgba(202, 24, 26, 0.08);
-  --primary-glow: rgba(202, 24, 26, 0.15);
+  /* Color Palette based on Ironclad Tech logo (#273548) */
+  --primary: #273548;
+  --primary-hover: #1e2d3f;
+  --primary-light: rgba(39, 53, 72, 0.08);
+  --primary-glow: rgba(39, 53, 72, 0.15);
 
   /* Light Corporate Backgrounds */
   --bg-base: #f4f7f9; /* Soft professional gray for main background */
@@ -208,7 +208,7 @@ ul {
 .primary-btn:hover {
   background-color: var(--primary-hover);
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(202, 24, 26, 0.2);
+  box-shadow: 0 4px 12px rgba(39, 53, 72, 0.2);
 }
 
 .primary-btn:disabled {
@@ -335,7 +335,7 @@ ul {
 .view-btn.active {
   background-color: var(--primary);
   color: white;
-  box-shadow: 0 4px 8px rgba(202, 24, 26, 0.2);
+  box-shadow: 0 4px 8px rgba(39, 53, 72, 0.2);
 }
 
 /* Scrollbar */

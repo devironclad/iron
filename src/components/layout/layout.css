@@ -9,24 +9,23 @@
 }
 
 .sidebar-header {
-  min-height: 100px; /* Aumentado para acomodar logo maior sem distorção */
-  display: flex;
-  align-items: center;
-  padding: 1.5rem;
+  height: 100px;
+  padding: 0;
   border-bottom: 1px solid var(--border-subtle);
+  overflow: hidden;
 }
 
 .logo-link {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: block;
   width: 100%;
+  height: 100%;
 }
 
 .logo-img {
-  height: 64px; 
-  width: auto;
-  object-fit: contain; /* Garante que não distorça */
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
 }
 
 .logo-icon {
@@ -70,13 +69,13 @@
 }
 
 .nav-item.active {
-  background-color: var(--primary);
+  background-color: #273548;
   color: white;
-  box-shadow: 0 4px 12px rgba(202, 24, 26, 0.25);
+  box-shadow: 0 4px 12px rgba(39, 53, 72, 0.25);
 }
 
 .nav-item.active:hover {
-  background-color: var(--primary-hover);
+  background-color: #1e2d3f;
   color: white;
 }
 
@@ -112,13 +111,13 @@
 }
 
 .nav-parent.parent-active {
-  background-color: var(--primary);
+  background-color: #273548;
   color: white;
-  box-shadow: 0 4px 12px rgba(202, 24, 26, 0.25);
+  box-shadow: 0 4px 12px rgba(39, 53, 72, 0.25);
 }
 
 .nav-parent.parent-active:hover {
-  background-color: var(--primary-hover);
+  background-color: #1e2d3f;
   color: white;
 }
 
@@ -167,7 +166,7 @@
 }
 
 .nav-subitem.active {
-  background-color: rgba(202, 24, 26, 0.1);
+  background-color: rgba(39, 53, 72, 0.08);
   color: var(--primary);
   font-weight: 600;
 }

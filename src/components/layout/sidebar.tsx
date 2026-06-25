@@ -141,7 +141,7 @@ export function Sidebar() {
     <aside className="sidebar">
       <div className="sidebar-header">
         <Link href="/" className="logo-link">
-          <img src="/logo.png" alt="Ironcladgroup" className="logo-img" />
+          <img src="/modelo.png" alt="Ironclad Tech" className="logo-img" />
         </Link>
       </div>
       <nav className="sidebar-nav">
@@ -296,8 +296,8 @@ export function Sidebar() {
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                 <div style={{
-                  backgroundColor: 'rgba(202, 24, 26, 0.1)',
-                  color: '#ca181a',
+                  backgroundColor: 'rgba(39, 53, 72, 0.08)',
+                  color: '#273548',
                   padding: '0.5rem',
                   borderRadius: '0.75rem',
                   display: 'flex',
@@ -345,8 +345,8 @@ export function Sidebar() {
                       width: '12px',
                       height: '12px',
                       borderRadius: '50%',
-                      backgroundColor: item.version === CURRENT_VERSION ? '#ca181a' : '#cbd5e1',
-                      border: item.version === CURRENT_VERSION ? '3px solid rgba(202, 24, 26, 0.2)' : 'none',
+                      backgroundColor: item.version === CURRENT_VERSION ? '#273548' : '#cbd5e1',
+                      border: item.version === CURRENT_VERSION ? '3px solid rgba(39, 53, 72, 0.2)' : 'none',
                       zIndex: 2,
                       marginTop: '4px',
                       flexShrink: 0
@@ -367,8 +367,8 @@ export function Sidebar() {
                       <span style={{
                         fontSize: '0.7rem',
                         fontWeight: 700,
-                        backgroundColor: item.version === CURRENT_VERSION ? 'rgba(202, 24, 26, 0.1)' : '#f1f5f9',
-                        color: item.version === CURRENT_VERSION ? '#ca181a' : '#64748b',
+                        backgroundColor: item.version === CURRENT_VERSION ? 'rgba(39, 53, 72, 0.08)' : '#f1f5f9',
+                        color: item.version === CURRENT_VERSION ? '#273548' : '#64748b',
                         padding: '0.15rem 0.4rem',
                         borderRadius: '0.375rem',
                         whiteSpace: 'nowrap'

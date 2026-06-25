@@ -42,7 +42,7 @@
 .access-tab-btn.active {
   background: var(--primary);
   color: white;
-  box-shadow: 0 4px 10px rgba(202, 24, 26, 0.2);
+  box-shadow: 0 4px 10px rgba(39, 53, 72, 0.2);
 }
 
 .access-tab-btn.active:hover {

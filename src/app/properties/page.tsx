@@ -425,7 +425,7 @@ export default function PropertiesPage() {
     ? 'Properties managed by partner Investors.'
     : source === 'partners'
     ? 'Properties managed in partnership.'
-    : 'Properties owned and managed by Ironclad Group';
+    : 'Properties owned and managed by Ironclad Tech';
 
   return (
     <PermissionGuard anyOf={["page:properties:ironclad", "page:properties:broker", "page:properties:partners"]}>
@@ -758,7 +758,7 @@ export default function PropertiesPage() {
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                   {openRequestsMap[prop.id] > 0 && (
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', backgroundColor: '#ca181a', color: '#ffffff', border: '1px solid #ca181a', padding: '0.2rem 0.55rem', borderRadius: '999px', fontSize: '0.65rem', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', backgroundColor: '#273548', color: '#ffffff', border: '1px solid #273548', padding: '0.2rem 0.55rem', borderRadius: '999px', fontSize: '0.65rem', fontWeight: 700, whiteSpace: 'nowrap' }}>
                       <ClipboardList className="w-3 h-3" />
                       {openRequestsMap[prop.id]} {openRequestsMap[prop.id] === 1 ? 'Request' : 'Requests'}
                     </span>
@@ -783,7 +783,7 @@ export default function PropertiesPage() {
                 {/* COLUNA 1 — Detalhes da propriedade */}
                 <div>
                   <div style={{ marginBottom: '0.75rem' }}>
-                    <div style={{ fontSize: '1.3rem', fontWeight: 800, color: '#ca181a', lineHeight: 1.2 }}>
+                    <div style={{ fontSize: '1.3rem', fontWeight: 800, color: '#273548', lineHeight: 1.2 }}>
                       {prop.owner_type === 'partner'
                         ? (prop.owner_partner?.full_name || 'Partner')
                         : 'IronClad'}

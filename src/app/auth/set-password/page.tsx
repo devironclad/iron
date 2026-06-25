@@ -92,7 +92,7 @@ export default function SetPasswordPage() {
         <div className="login-left-inner">
 
           <div className="login-brand">
-            <img src="/logo.png" alt="Ironcladgroup" className="login-logo" />
+            <img src="/logo.svg" alt="Ironclad Tech" className="login-logo" />
             <div className="login-brand-text">
               <h1 className="login-brand-name">Account <span>Setup</span></h1>
               <p className="login-brand-tagline">
@@ -114,7 +114,7 @@ export default function SetPasswordPage() {
           </ul>
 
           <div className="login-left-footer">
-            <span>© {new Date().getFullYear()} Ironcladgroup. All rights reserved.</span>
+            <span>© {new Date().getFullYear()} Ironclad Tech. All rights reserved.</span>
           </div>
         </div>
 

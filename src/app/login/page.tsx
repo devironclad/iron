@@ -45,7 +45,7 @@ export default function LoginPage() {
 
           {/* Logo + brand */}
           <div className="login-brand">
-            <img src="/logo.png" alt="Ironcladgroup" className="login-logo" />
+            <img src="/logo.svg" alt="Ironclad Tech" className="login-logo" />
             <div className="login-brand-text">
               <h1 className="login-brand-name">Ironclad <span>System</span></h1>
               <p className="login-brand-tagline">
@@ -69,7 +69,7 @@ export default function LoginPage() {
 
           {/* Bottom decoration */}
           <div className="login-left-footer">
-            <span>© {new Date().getFullYear()} Ironcladgroup. All rights reserved.</span>
+            <span>© {new Date().getFullYear()} Ironclad Tech. All rights reserved.</span>
           </div>
         </div>
 
