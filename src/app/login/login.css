@@ -267,7 +267,7 @@
 }
 
 .lf-submit:hover:not(:disabled) {
-  background: #a11315;
+  background: #1e2d3f;
   transform: translateY(-1px);
   box-shadow: 0 6px 20px rgba(39, 53, 72, 0.4);
 }

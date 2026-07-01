@@ -9,7 +9,8 @@ import {
   Plus, Search, Grid, List, MapPin, Calendar, ExternalLink,
   ArrowRight, Tag, Loader2, Navigation, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
   Filter, Layers, Maximize, Hash, CheckCircle2, Building2, UserCheck,
-  Coins, DollarSign, TrendingUp, ImageOff, Gavel, Briefcase, ClipboardList
+  Coins, DollarSign, TrendingUp, ImageOff, Gavel, Briefcase, ClipboardList,
+  Copy, Check
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { getPreviewPartner } from "@/lib/impersonation";
@@ -410,6 +411,44 @@ export default function PropertiesPage() {
     return text.length > limit ? text.substring(0, limit) + '...' : text;
   };
 
+  const [copiedId, setCopiedId] = useState<number | null>(null);
+
+  const copyProperty = (prop: any) => {
+    const fmt = (v: number | null | undefined) =>
+      v != null
+        ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(v)
+        : 'N/A';
+    const state = prop.ls_county?.state || '';
+    const county = prop.ls_county?.name || '';
+    const coords = prop.coordinates || '';
+    const mapsUrl = coords
+      ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(coords)}`
+      : '';
+
+    const lines = [
+      `${state} - ${county}`,
+      `📍 Address: ${prop.address || 'N/A'}`,
+      `🏷️ Parcel: ${prop.parcel_number || 'N/A'}`,
+      `🏞️ Property Type: ${prop.ls_property_type?.name || 'N/A'}`,
+      `📐 Size: ${prop.size != null ? `${prop.size} acres` : 'N/A'}`,
+      `📍 Coordinates: ${coords || 'N/A'}`,
+      `💵 Open Bid: ${fmt(prop.open_bid)}`,
+      ``,
+      `📈 Appraisal:`,
+      `* Appraisal Min: ${fmt(prop.appraisal_min)}`,
+      `* Appraisal Avg: ${fmt(prop.appraisal_avg)}`,
+      `* Appraisal Max: ${fmt(prop.appraisal_max)}`,
+      ``,
+    ];
+    if (prop.link_regrid) lines.push(`🔗 Link Regrid: ${prop.link_regrid}`);
+    if (mapsUrl) lines.push(`🗺️ Link Google Maps: ${mapsUrl}`);
+
+    navigator.clipboard.writeText(lines.join('\n')).then(() => {
+      setCopiedId(prop.id);
+      setTimeout(() => setCopiedId(null), 2000);
+    });
+  };
+
   const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE);
 
 
@@ -743,6 +782,23 @@ export default function PropertiesPage() {
                   }}>
                     {formatPropId(prop.ref_id, prop.id)}
                   </span>
+                  <button
+                    onClick={e => { e.stopPropagation(); copyProperty(prop); }}
+                    title="Copy property info"
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: '0.25rem',
+                      background: 'var(--bg-base)', border: '1px solid var(--border-subtle)',
+                      borderRadius: '5px', padding: '2px 7px', cursor: 'pointer',
+                      fontSize: '0.68rem', fontWeight: 600,
+                      color: copiedId === prop.id ? '#10b981' : 'var(--text-muted)',
+                      transition: 'color 0.15s',
+                    }}
+                  >
+                    {copiedId === prop.id
+                      ? <><Check style={{ width: '11px', height: '11px' }} /> Copied!</>
+                      : <><Copy style={{ width: '11px', height: '11px' }} /> Copy</>
+                    }
+                  </button>
                   {prop.ls_origem?.name && (
                     <>
                       <span style={{ color: '#cbd5e1' }}>•</span>

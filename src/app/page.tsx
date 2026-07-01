@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { PermissionGuard } from "@/components/auth/PermissionGuard";
+import { AuctionCalendar, type CalendarDayData } from "@/components/dashboard/AuctionCalendar";
 import "./dashboard.css";
 
 const CHART_COLORS = ['#273548', '#1e293b', '#10b981', '#3b82f6', '#f59e0b', '#8b5cf6'];
@@ -36,7 +37,8 @@ export default function Dashboard() {
     weeklyStats: [] as any[],
     countyStats: [] as any[],
     upcomingEvents: [] as any[],
-    ownerStats: [] as { name: string; count: number; percentage: number; isIronclad: boolean }[]
+    ownerStats: [] as { name: string; count: number; percentage: number; isIronclad: boolean }[],
+    calendarData: {} as Record<string, CalendarDayData>
   });
   const [ticketsStats, setTicketsStats] = useState({
     openByCategory: [] as { name: string, color: string, count: number, percentage: number }[],
@@ -206,6 +208,22 @@ export default function Dashboard() {
           .sort((a: any, b: any) => a.date.getTime() - b.date.getTime())
           .slice(0, 5);
 
+        // Calendar Data (grouped by date → county)
+        const calendarData: Record<string, CalendarDayData> = {};
+        activeAuctions.forEach(auc => {
+          if (!auc.auction_date) return;
+          const ds = auc.auction_date.substring(0, 10);
+          const county = (Array.isArray(auc.ls_county) ? auc.ls_county[0] : auc.ls_county) as any;
+          const countyName = county?.name || 'Unknown';
+          const countyState = county?.state || '';
+          const countyId = auc.county_id;
+          if (!calendarData[ds]) calendarData[ds] = { total: 0, counties: [] };
+          calendarData[ds].total++;
+          const existing = calendarData[ds].counties.find(c => c.name === countyName);
+          if (existing) { existing.count++; }
+          else { calendarData[ds].counties.push({ name: countyName, state: countyState, count: 1, countyId }); }
+        });
+
         // Tickets
         const tickets = ticketsData || [];
 
@@ -281,7 +299,8 @@ export default function Dashboard() {
           weeklyStats: weeklyArray,
           countyStats: countyArray,
           upcomingEvents: upcomingArray,
-          ownerStats
+          ownerStats,
+          calendarData
         });
       } catch (err) {
         console.error("Dashboard data fetch error:", err);
@@ -434,25 +453,7 @@ export default function Dashboard() {
         {/* Main Content */}
         {activeView === 'auctions' && <div className="dashboard-main">
           <div className="left-column">
-            <section className="content-section compact">
-              <div className="section-header">
-                <h2>Active for auction by week</h2>
-                <Calendar className="w-5 h-5 text-muted" />
-              </div>
-              <div className="chart-container">
-                {stats.weeklyStats.map(w => (
-                  <div key={w.label} className="chart-row">
-                    <div className="chart-label">
-                      <span>{w.label} <small style={{ color: 'var(--text-muted)', fontWeight: 400 }}>({w.range})</small></span>
-                      <span>{w.count} assets</span>
-                    </div>
-                    <div className="chart-bar-bg">
-                      <div className="chart-bar-fill" style={{ width: `${w.percentage}%`, backgroundColor: '#3b82f6' }} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
+            <AuctionCalendar calendarData={stats.calendarData} compact />
 
             <section className="content-section compact">
               <div className="section-header">

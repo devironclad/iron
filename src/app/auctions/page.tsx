@@ -6,7 +6,8 @@ import Link from "next/link";
 import { 
   Grid, List, Plus, MapPin, Briefcase, Tag, ExternalLink, Search,
   Filter, ArrowRight, Loader2, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
-  CheckCircle2, Navigation, Layers, Maximize, Download, Trash2, Hash
+  CheckCircle2, Navigation, Layers, Maximize, Download, Trash2, Hash,
+  Copy, Check
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { getCurrentUserPermissions, hasPermission, Permission } from "@/lib/permissions";
@@ -28,6 +29,7 @@ export default function AuctionsPage() {
   const [highlightId, setHighlightId] = useState<number | null>(null);
   const [totalCount, setTotalCount] = useState(0);
   const [auctionToDelete, setAuctionToDelete] = useState<{id: number, parcel: string} | null>(null);
+  const [copiedId, setCopiedId] = useState<number | null>(null);
 
   // Filters & Pagination — initialized from URL so they survive navigation
   const [searchTerm, setSearchTerm] = useState(searchParams.get('q') || "");
@@ -510,6 +512,42 @@ export default function AuctionsPage() {
     return text.length > limit ? text.substring(0, limit) + '...' : text;
   };
 
+  const copyAuction = (auction: any) => {
+    const fmt = (v: number | null | undefined) =>
+      v != null
+        ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(v)
+        : 'N/A';
+    const state = auction.ls_county?.state || '';
+    const county = auction.ls_county?.name || '';
+    const coords = auction.coordinates || '';
+    const mapsUrl = coords
+      ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(coords)}`
+      : '';
+
+    const lines = [
+      `${state} - ${county}`,
+      `📍 Address: ${auction.address || 'N/A'}`,
+      `🏷️ Parcel: ${auction.parcel_number || 'N/A'}`,
+      `🏞️ Property Type: ${auction.ls_property_type?.name || 'N/A'}`,
+      `📐 Size: ${auction.size != null ? `${auction.size} acres` : 'N/A'}`,
+      `📍 Coordinates: ${coords || 'N/A'}`,
+      `💵 Open Bid: ${fmt(auction.open_bid)}`,
+      ``,
+      `📈 Appraisal:`,
+      `* Appraisal Min: ${fmt(auction.appraisal_min)}`,
+      `* Appraisal Avg: ${fmt(auction.appraisal_avg)}`,
+      `* Appraisal Max: ${fmt(auction.appraisal_max)}`,
+      ``,
+    ];
+    if (auction.link_regrid) lines.push(`🔗 Link Regrid: ${auction.link_regrid}`);
+    if (mapsUrl) lines.push(`🗺️ Link Google Maps: ${mapsUrl}`);
+
+    navigator.clipboard.writeText(lines.join('\n')).then(() => {
+      setCopiedId(auction.id);
+      setTimeout(() => setCopiedId(null), 2000);
+    });
+  };
+
   const paginatedAuctions = auctions;
   const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE);
 
@@ -799,6 +837,23 @@ export default function AuctionsPage() {
                 <div className="card-top">
                   <div className="card-top-left" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
                     <span className="card-label">ID: {auction.id}</span>
+                    <button
+                      onClick={e => { e.stopPropagation(); copyAuction(auction); }}
+                      title="Copy auction info"
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', gap: '0.25rem',
+                        background: 'var(--bg-base)', border: '1px solid var(--border-subtle)',
+                        borderRadius: '5px', padding: '2px 7px', cursor: 'pointer',
+                        fontSize: '0.68rem', fontWeight: 600,
+                        color: copiedId === auction.id ? '#10b981' : 'var(--text-muted)',
+                        transition: 'color 0.15s',
+                      }}
+                    >
+                      {copiedId === auction.id
+                        ? <><Check style={{ width: '11px', height: '11px' }} /> Copied!</>
+                        : <><Copy style={{ width: '11px', height: '11px' }} /> Copy</>
+                      }
+                    </button>
                   </div>
                   <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
                     {auction.ls_priority?.name && (
