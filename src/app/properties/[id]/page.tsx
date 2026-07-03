@@ -130,7 +130,8 @@ export default function PropertyDetailsPage() {
   });
 
   // Derive the correct resource key based on where the user came from
-  const propertiesResource = source === 'broker' ? 'page:properties:broker' : source === 'partners' ? 'page:properties:partners' : 'page:properties:ironclad';
+  const propertiesResource = source === 'broker' ? 'page:properties:broker' : (source === 'partners' || source === 'all-partners') ? 'page:properties:partners' : 'page:properties:ironclad';
+  const isPartnerView = source === 'partners' || source === 'all-partners';
   const canEdit = permissions !== null && hasPermission(permissions, propertiesResource, 'edit');
 
   const visibleTabs = useMemo(() => {
@@ -551,8 +552,8 @@ export default function PropertyDetailsPage() {
   };
 
   const handleSave = async () => {
-    if (!canEdit) {
-      alert("You don't have permission to edit properties.");
+    if (!tabCanEdit) {
+      alert("You don't have permission to edit this tab.");
       return;
     }
 
@@ -1277,13 +1278,13 @@ export default function PropertyDetailsPage() {
               <div style={{ margin: '0 1rem 2.5rem 1rem' }}>
                 <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', marginBottom: '1.25rem' }}>Evaluation</h3>
                 <div className="form-grid col-3">
-                  {source !== 'partners' && (
+                  {!isPartnerView && (
                   <div className="input-group">
                     <label className="input-label">Open Bid ($)</label>
                     <CurrencyInput name="open_bid" value={property.open_bid} onChange={handleChange} disabled />
                   </div>
                   )}
-                  {source !== 'partners' && (
+                  {!isPartnerView && (
                   <div className="input-group">
                     <label className="input-label">County Appraisal ($)</label>
                     <CurrencyInput name="county_appraisal" value={property.county_appraisal} onChange={handleChange} disabled={!tabCanEdit} />
@@ -1317,19 +1318,19 @@ export default function PropertyDetailsPage() {
                     <label className="input-label">SqFt Price Reference</label>
                     <input type="number" step="any" name="sqft_price_reference" value={property.sqft_price_reference} onChange={handleChange} className="input-field" placeholder="0.00" />
                   </div>
-                  {source !== 'partners' && (
+                  {!isPartnerView && (
                   <div className="input-group">
                     <label className="input-label">Min Bid ($)</label>
                     <CurrencyInput name="min_bid" value={property.min_bid} onChange={handleChange} disabled={!tabCanEdit} />
                   </div>
                   )}
-                  {source !== 'partners' && (
+                  {!isPartnerView && (
                   <div className="input-group">
                     <label className="input-label">Max Bid ($)</label>
                     <CurrencyInput name="max_bid" value={property.max_bid} onChange={handleChange} disabled={!tabCanEdit} />
                   </div>
                   )}
-                  {source !== 'partners' && (
+                  {!isPartnerView && (
                   <div className="input-group">
                     <label className="input-label">Max Bid Internal ($)</label>
                     <CurrencyInput name="max_bid_internal" value={property.max_bid_internal} onChange={handleChange} disabled={!tabCanEdit} />
@@ -1342,9 +1343,9 @@ export default function PropertyDetailsPage() {
               <div style={{ margin: '0 1rem 2.5rem 1rem' }}>
                 <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', marginBottom: '1.25rem' }}>Profit Projection</h3>
                 {(() => {
-                  const base = (source === 'partners' ? property.investment_total_inv : property.investment_total) || 0;
+                  const base = (isPartnerView ? property.investment_total_inv : property.investment_total) || 0;
                   const isAR = property.ls_county?.state === 'AR';
-                  const tiers = source === 'partners'
+                  const tiers = isPartnerView
                     ? (isAR ? [
                         { label: '+100%', roi: 1.0, fill: 25,  color: '#6ee7b7', textColor: '#065f46' },
                         { label: '+200%', roi: 2.0, fill: 50,  color: '#34d399', textColor: '#065f46' },
@@ -1399,7 +1400,7 @@ export default function PropertyDetailsPage() {
                       })}
                       {base > 0 ? (
                         <div style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: '4px', paddingLeft: '52px', fontWeight: 500 }}>
-                          Base ({source === 'partners' ? 'Partner Investment' : 'Total Investment'}): {fmt(base)}
+                          Base ({isPartnerView ? 'Partner Investment' : 'Total Investment'}): {fmt(base)}
                         </div>
                       ) : (
                         <div style={{ fontSize: '0.8rem', color: '#94a3b8', paddingLeft: '52px', fontStyle: 'italic' }}>
@@ -1439,15 +1440,15 @@ export default function PropertyDetailsPage() {
                     <CurrencyInput name="sale_price" value={property.sale_price} onChange={handleChange} disabled />
                   </div>
                   <div className="input-group">
-                    <label className="input-label">{source === 'partners' ? 'Paid Bid ($)' : 'Paid Bid Investor ($)'} <span style={{ fontSize: '0.7rem', fontWeight: 600, color: '#94a3b8', marginLeft: '0.4rem' }}>auto · editável</span></label>
+                    <label className="input-label">{isPartnerView ? 'Paid Bid ($)' : 'Paid Bid Investor ($)'} <span style={{ fontSize: '0.7rem', fontWeight: 600, color: '#94a3b8', marginLeft: '0.4rem' }}>auto · editável</span></label>
                     <CurrencyInput name="paid_bid_inv" value={property.paid_bid_inv} onChange={handleChange} disabled={!tabCanEdit} />
                   </div>
                   <div className="input-group">
-                    <label className="input-label">{source === 'partners' ? 'Doc Fees ($)' : 'Doc Fees Investor ($)'} <span style={{ fontSize: '0.7rem', fontWeight: 600, color: '#94a3b8', marginLeft: '0.4rem' }}>auto-calculated</span></label>
+                    <label className="input-label">{isPartnerView ? 'Doc Fees ($)' : 'Doc Fees Investor ($)'} <span style={{ fontSize: '0.7rem', fontWeight: 600, color: '#94a3b8', marginLeft: '0.4rem' }}>auto-calculated</span></label>
                     <CurrencyInput name="doc_fees_inv" value={property.doc_fees_inv} onChange={handleChange} disabled />
                   </div>
                   <div className="input-group">
-                    <label className="input-label">{source === 'partners' ? 'Closing Fees ($)' : 'Closing Fees Investor ($)'} <span style={{ fontSize: '0.7rem', fontWeight: 600, color: '#94a3b8', marginLeft: '0.4rem' }}>auto-calculated</span></label>
+                    <label className="input-label">{isPartnerView ? 'Closing Fees ($)' : 'Closing Fees Investor ($)'} <span style={{ fontSize: '0.7rem', fontWeight: 600, color: '#94a3b8', marginLeft: '0.4rem' }}>auto-calculated</span></label>
                     <CurrencyInput name="closing_fess_inv" value={property.closing_fess_inv} onChange={handleChange} disabled />
                   </div>
                   <div className="input-group">
@@ -1471,7 +1472,7 @@ export default function PropertyDetailsPage() {
               </div>
 
               {/* Ownership */}
-              {source !== 'partners' && <div style={{ margin: '0 1rem 1rem 1rem' }}>
+              {!isPartnerView && <div style={{ margin: '0 1rem 1rem 1rem' }}>
                 <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', marginBottom: '1.25rem' }}>Ownership</h3>
                 <div className="form-grid col-3">
                   <div className="input-group">
@@ -1498,7 +1499,7 @@ export default function PropertyDetailsPage() {
               </div>}
 
               {/* Sale Status */}
-              {source !== 'partners' && <div style={{ margin: '0 1rem 1.5rem 1rem' }}>
+              {!isPartnerView && <div style={{ margin: '0 1rem 1.5rem 1rem' }}>
                 <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', marginBottom: '1.25rem' }}>Sale Status</h3>
 
                 <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.5rem' }}>
@@ -1825,7 +1826,7 @@ export default function PropertyDetailsPage() {
               <div style={{ margin: '0 1rem 1rem 1rem' }}>
                 <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', marginBottom: '1.25rem' }}>Deeds, Surveys and Plans</h3>
                 <div className="form-grid col-2">
-                  {source !== 'partners' && renderLinkInput("Tax Deed Link", "tax_deed", property.tax_deed, "https://...")}
+                  {!isPartnerView && renderLinkInput("Tax Deed Link", "tax_deed", property.tax_deed, "https://...")}
                   {renderLinkInput("Warranty Deed Link", "warranty_deed", property.warranty_deed, "https://...")}
                   {renderLinkInput("Survey Link", "survey", property.survey, "https://...")}
                   {renderLinkInput("Site Plan Link", "site_plan", property.site_plan, "https://...")}
@@ -2082,16 +2083,16 @@ export default function PropertyDetailsPage() {
         <button
           className="primary-btn"
           onClick={handleSave}
-          disabled={saving || savedOk || !canEdit || !tabCanEdit}
-          title={!canEdit || !tabCanEdit ? "You don't have permission to edit this tab." : undefined}
+          disabled={saving || savedOk || !tabCanEdit}
+          title={!tabCanEdit ? "You don't have permission to edit this tab." : undefined}
           style={
             savedOk ? { backgroundColor: '#10b981', cursor: 'default' } :
-            (!canEdit || !tabCanEdit) ? { backgroundColor: '#94a3b8', cursor: 'not-allowed', opacity: 0.7 } :
+            !tabCanEdit ? { backgroundColor: '#94a3b8', cursor: 'not-allowed', opacity: 0.7 } :
             undefined
           }
         >
           {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-          {saving ? "Saving..." : savedOk ? "Saved!" : (!canEdit || !tabCanEdit) ? "Read Only" : "Save Changes"}
+          {saving ? "Saving..." : savedOk ? "Saved!" : !tabCanEdit ? "Read Only" : "Save Changes"}
         </button>
       </div>
     </div>

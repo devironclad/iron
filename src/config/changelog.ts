@@ -6,9 +6,29 @@ export interface ChangelogItem {
   changes: string[];
 }
 
-export const CURRENT_VERSION = "1.6.0";
+export const CURRENT_VERSION = "1.7.0";
 
 export const CHANGELOG: ChangelogItem[] = [
+  {
+    version: "1.7.0",
+    date: "2026-07-03",
+    title: "Marketing View, Auction Calendar & Brand Refresh",
+    type: "minor",
+    changes: [
+      "New Properties > Marketing submenu: displays all properties across all partners with partner-level field restrictions (investment, ROI, profit projection tiers).",
+      "Access Control updated with 'Properties: Marketing' permission resource (page:properties:all-partners).",
+      "Tab-level edit permissions: users with only a specific tab permission (e.g. tab:links) can now save that tab without requiring page-level edit access.",
+      "isPartnerView flag unified — Partners and Marketing views share the same field restriction logic across list and detail pages.",
+      "Auction Calendar added to Dashboard Researched Assets view: shows upcoming auction dates grouped by county with daily breakdown panel.",
+      "Copy Month button on Auction Calendar: copies a plain-text schedule of all auctions in the current month to the clipboard.",
+      "Copy button added to Auction and Property cards: exports key fields (address, parcel, size, coordinates, bids, appraisals, links) in emoji-formatted plain text.",
+      "Rebranded to Ironclad Tech with navy color palette (#273548); login, sidebar, and UI components updated.",
+      "Dashboard: replaced 'Active for auction by week' bar chart with the compact Auction Calendar in the left column.",
+      "Performance: dashboard queries optimized and database indexes added for auction_date and id on ls_assets.",
+      "auction_date column type changed from timestamp to date to fix ID ordering within the same auction day.",
+      "DB index created: idx_ls_assets_auction_date_id on (auction_date ASC, id ASC)."
+    ]
+  },
   {
     version: "1.6.0",
     date: "2026-06-22",

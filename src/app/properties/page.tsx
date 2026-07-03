@@ -19,7 +19,7 @@ import "./properties.css";
 
 export default function PropertiesPage() {
   const searchParams = useSearchParams();
-  const source = searchParams.get('source') as 'ironclad' | 'broker' | 'partners' | null;
+  const source = searchParams.get('source') as 'ironclad' | 'broker' | 'partners' | 'all-partners' | null;
   const router = useRouter();
 
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -452,22 +452,28 @@ export default function PropertiesPage() {
   const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE);
 
 
+  const isPartnerView = source === 'partners' || source === 'all-partners';
+
   const pageTitle = source === 'ironclad'
     ? 'Ironclad Properties'
     : source === 'broker'
     ? 'Investor Properties'
     : source === 'partners'
     ? 'Partners Properties'
+    : source === 'all-partners'
+    ? 'Marketing Properties'
     : 'My Properties';
 
   const pageSubtitle = source === 'broker'
     ? 'Properties managed by partner Investors.'
     : source === 'partners'
     ? 'Properties managed in partnership.'
+    : source === 'all-partners'
+    ? 'All properties managed across all partners.'
     : 'Properties owned and managed by Ironclad Tech';
 
   return (
-    <PermissionGuard anyOf={["page:properties:ironclad", "page:properties:broker", "page:properties:partners"]}>
+    <PermissionGuard anyOf={["page:properties:ironclad", "page:properties:broker", "page:properties:partners", "page:properties:all-partners"]}>
       <div className="properties-container">
       {/* Header */}
       <div className="page-header">
@@ -887,7 +893,7 @@ export default function PropertiesPage() {
                     <div>
                       <div style={{ fontSize: '0.6rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Investment</div>
                       <div style={{ fontSize: '0.95rem', fontWeight: 800, color: '#0f172a', lineHeight: 1.2 }}>
-                        {source === 'partners'
+                        {isPartnerView
                           ? (prop.investment_total_inv != null ? formatCurrency(prop.investment_total_inv) : '—')
                           : (prop.investment_total != null ? formatCurrency(prop.investment_total) : '—')}
                       </div>
@@ -909,7 +915,7 @@ export default function PropertiesPage() {
 
                   {/* ROI */}
                   {(() => {
-                    const inv = source === 'partners' ? prop.investment_total_inv : prop.investment_total;
+                    const inv = isPartnerView ? prop.investment_total_inv : prop.investment_total;
                     const sale = prop.sale_price;
                     const roi = inv != null && sale != null && inv > 0 ? (((sale - inv) / inv) * 100) : null;
                     return (
@@ -938,9 +944,9 @@ export default function PropertiesPage() {
                       Profit Projection
                     </div>
                     {(() => {
-                      const base = (source === 'partners' ? prop.investment_total_inv : prop.investment_total) || 0;
+                      const base = (isPartnerView ? prop.investment_total_inv : prop.investment_total) || 0;
                       const isAR = prop.ls_county?.state === 'AR';
-                      const tiers = source === 'partners'
+                      const tiers = isPartnerView
                         ? (isAR ? [
                           { label: '+100%', roi: 1.0, fill: 25,  color: '#6ee7b7', textColor: '#065f46' },
                           { label: '+200%', roi: 2.0, fill: 50,  color: '#34d399', textColor: '#065f46' },
@@ -994,7 +1000,7 @@ export default function PropertiesPage() {
                           })}
                           {base > 0 && (
                             <div style={{ fontSize: '0.6rem', color: '#94a3b8', marginTop: '2px', paddingLeft: '40px', fontWeight: 500 }}>
-                              Base ({source === 'partners' ? 'Partner Investment' : 'Total Investment'}): {formatCurrency(base)}
+                              Base ({isPartnerView ? 'Partner Investment' : 'Total Investment'}): {formatCurrency(base)}
                             </div>
                           )}
                         </div>
