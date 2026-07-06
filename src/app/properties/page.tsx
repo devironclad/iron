@@ -15,6 +15,7 @@ import {
 import { supabase } from "@/lib/supabase";
 import { getPreviewPartner } from "@/lib/impersonation";
 import { PermissionGuard } from "@/components/auth/PermissionGuard";
+import { getCurrentUserPermissions, hasPermission, Permission } from "@/lib/permissions";
 import "./properties.css";
 
 export default function PropertiesPage() {
@@ -23,6 +24,7 @@ export default function PropertiesPage() {
   const router = useRouter();
 
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [userPermissions, setUserPermissions] = useState<Record<string, Permission> | null>(null);
   const [properties, setProperties] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
@@ -88,6 +90,7 @@ export default function PropertiesPage() {
     }
     fetchCounties();
     fetchLookups();
+    getCurrentUserPermissions().then(setUserPermissions);
   }, []);
 
   // Sync filters → URL (skip on first mount to preserve URL params from returnTo)
@@ -412,6 +415,7 @@ export default function PropertiesPage() {
   };
 
   const [copiedId, setCopiedId] = useState<number | null>(null);
+  const canCopyProperty = hasPermission(userPermissions, 'action:copy_property');
 
   const copyProperty = (prop: any) => {
     const fmt = (v: number | null | undefined) =>
@@ -788,6 +792,7 @@ export default function PropertiesPage() {
                   }}>
                     {formatPropId(prop.ref_id, prop.id)}
                   </span>
+                  {canCopyProperty && (
                   <button
                     onClick={e => { e.stopPropagation(); copyProperty(prop); }}
                     title="Copy property info"
@@ -805,6 +810,7 @@ export default function PropertiesPage() {
                       : <><Copy style={{ width: '11px', height: '11px' }} /> Copy</>
                     }
                   </button>
+                  )}
                   {prop.ls_origem?.name && (
                     <>
                       <span style={{ color: '#cbd5e1' }}>•</span>

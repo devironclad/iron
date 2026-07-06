@@ -64,6 +64,8 @@ const RESOURCES = [
   { id: "table:ls_request_category", label: "Manager: Request Category", category: "Manager Tables" },
   // Actions
   { id: "action:export_auctions", label: "Action: Export Auctions Data", category: "Actions" },
+  { id: "action:copy_property", label: "Action: Copy Property Info", category: "Actions" },
+  { id: "action:copy_auction", label: "Action: Copy Auction Info", category: "Actions" },
 ];
 
 export default function AccessPage() {

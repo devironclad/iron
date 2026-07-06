@@ -366,6 +366,7 @@ export default function AuctionsPage() {
   }
 
   const canEdit = userPermissions !== null && hasPermission(userPermissions, 'page:auctions', 'edit');
+  const canCopyAuction = hasPermission(userPermissions, 'action:copy_auction');
 
   const handleDelete = (id: number, parcel: string) => {
     if (!canEdit) { alert("You don't have permission to delete auctions."); return; }
@@ -837,23 +838,25 @@ export default function AuctionsPage() {
                 <div className="card-top">
                   <div className="card-top-left" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
                     <span className="card-label">ID: {auction.id}</span>
-                    <button
-                      onClick={e => { e.stopPropagation(); copyAuction(auction); }}
-                      title="Copy auction info"
-                      style={{
-                        display: 'inline-flex', alignItems: 'center', gap: '0.25rem',
-                        background: 'var(--bg-base)', border: '1px solid var(--border-subtle)',
-                        borderRadius: '5px', padding: '2px 7px', cursor: 'pointer',
-                        fontSize: '0.68rem', fontWeight: 600,
-                        color: copiedId === auction.id ? '#10b981' : 'var(--text-muted)',
-                        transition: 'color 0.15s',
-                      }}
-                    >
-                      {copiedId === auction.id
-                        ? <><Check style={{ width: '11px', height: '11px' }} /> Copied!</>
-                        : <><Copy style={{ width: '11px', height: '11px' }} /> Copy</>
-                      }
-                    </button>
+                    {canCopyAuction && (
+                      <button
+                        onClick={e => { e.stopPropagation(); copyAuction(auction); }}
+                        title="Copy auction info"
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', gap: '0.25rem',
+                          background: 'var(--bg-base)', border: '1px solid var(--border-subtle)',
+                          borderRadius: '5px', padding: '2px 7px', cursor: 'pointer',
+                          fontSize: '0.68rem', fontWeight: 600,
+                          color: copiedId === auction.id ? '#10b981' : 'var(--text-muted)',
+                          transition: 'color 0.15s',
+                        }}
+                      >
+                        {copiedId === auction.id
+                          ? <><Check style={{ width: '11px', height: '11px' }} /> Copied!</>
+                          : <><Copy style={{ width: '11px', height: '11px' }} /> Copy</>
+                        }
+                      </button>
+                    )}
                   </div>
                   <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
                     {auction.ls_priority?.name && (
