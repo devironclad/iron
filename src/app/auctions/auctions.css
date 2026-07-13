@@ -227,6 +227,10 @@
   color: var(--text-secondary);
 }
 
+.detail-item-full {
+  grid-column: 1 / -1;
+}
+
 .detail-icon {
   color: var(--text-muted);
 }

@@ -873,16 +873,10 @@ export default function AuctionsPage() {
                 <h3 className="card-parcel">{auction.ls_county?.name || 'Unknown County'} {auction.ls_county?.state && `(${auction.ls_county.state})`}</h3>
 
                 <div className="card-details-grid">
-                  <div className="detail-item">
+                  <div className="detail-item detail-item-full">
                     <MapPin className="w-4 h-4 detail-icon flex-shrink-0" />
                     <span title={auction.address || 'Address not provided'}>
                       {truncateText(auction.address || 'Address not provided', 30)}
-                    </span>
-                  </div>
-                  <div className="detail-item">
-                    <Navigation className="w-4 h-4 detail-icon flex-shrink-0" />
-                    <span title={auction.coordinates || 'No coordinates'}>
-                      {truncateText(auction.coordinates || 'No coordinates', 30)}
                     </span>
                   </div>
                   <div className="detail-item">
@@ -903,6 +897,12 @@ export default function AuctionsPage() {
                     <Hash className="w-4 h-4 detail-icon" />
                     <span title={auction.parcel_number || 'No Parcel Number'}>
                       {auction.parcel_number || 'No Parcel Number'}
+                    </span>
+                  </div>
+                  <div className="detail-item">
+                    <Navigation className="w-4 h-4 detail-icon flex-shrink-0" />
+                    <span title={auction.coordinates || 'No coordinates'}>
+                      {truncateText(auction.coordinates || 'No coordinates', 30)}
                     </span>
                   </div>
                   <div className="detail-item link-item">
