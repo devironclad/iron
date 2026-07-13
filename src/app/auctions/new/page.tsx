@@ -128,9 +128,10 @@ export default function NewAuctionForm() {
 
       const fetchAuctionData = async () => {
         if (!editId) return;
-        const { data, error } = await supabase.from("ls_assets").select("*").eq("id", editId).single();
+        const { data, error } = await supabase.from("ls_assets").select("*, ls_county(state)").eq("id", editId).single();
         if (data && !error) {
-          const formattedData = { ...data };
+          const { ls_county, ...rest } = data as any;
+          const formattedData = { ...rest };
           if (formattedData.auction_date) {
             formattedData.auction_date = new Date(formattedData.auction_date).toISOString().slice(0, 16);
           }
@@ -141,11 +142,8 @@ export default function NewAuctionForm() {
             if (formattedData[key] === null) formattedData[key] = "";
           });
           setFormData((prev: any) => ({ ...prev, ...formattedData }));
-          
-          if (formattedData.county_id && results.ls_county) {
-            const county = results.ls_county.find((c: any) => c.id.toString() === formattedData.county_id.toString());
-            if (county) setFormSelectedState(county.state);
-          }
+
+          if (ls_county?.state) setFormSelectedState(ls_county.state);
         }
       };
 

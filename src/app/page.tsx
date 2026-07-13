@@ -26,7 +26,7 @@ import "./dashboard.css";
 const CHART_COLORS = ['#273548', '#1e293b', '#10b981', '#3b82f6', '#f59e0b', '#8b5cf6'];
 
 export default function Dashboard() {
-  const [activeView, setActiveView] = useState<'properties' | 'auctions' | 'requests' | null>(null);
+  const [activeView, setActiveView] = useState<'properties' | 'auctions' | 'requests' | null>('properties');
   const [stats, setStats] = useState({
     totalAssets: 0,
     ironcladAssets: 0,
@@ -312,28 +312,19 @@ export default function Dashboard() {
     fetchDashboardData();
   }, []);
 
-  const getDonutSegments = () => {
+  // Portfolio by County — drill-down: Total → by State → by County
+  const [countyDrill, setCountyDrill] = useState<{ level: 'total' | 'state' | 'county'; state: string | null }>({ level: 'total', state: null });
+
+  // Properties by Owner — collapsed to the Ironclad row until expanded
+  const [ownerExpanded, setOwnerExpanded] = useState(false);
+
+  const getRingSegments = (segs: { count: number; color: string }[]) => {
+    const total = segs.reduce((sum, s) => sum + s.count, 0);
+    if (total === 0) return [];
     let currentOffset = 0;
     const radius = 35;
     const circumference = 2 * Math.PI * radius;
-
-    return stats.countyStats.map((c) => {
-      const strokeDasharray = `${(c.percentage * circumference) / 100} ${circumference}`;
-      const strokeDashoffset = -currentOffset;
-      currentOffset += (c.percentage * circumference) / 100;
-      return { ...c, strokeDasharray, strokeDashoffset };
-    });
-  };
-
-
-  const donutSegments = getDonutSegments();
-
-  const getStateDonutSegments = (segs: any[]) => {
-    const total = segs.reduce((sum: number, s: any) => sum + s.count, 0);
-    if (total === 0) return [];
-    let currentOffset = 0;
-    const circumference = 2 * Math.PI * 20;
-    return segs.map((s: any) => {
+    return segs.map(s => {
       const pct = (s.count / total) * 100;
       const strokeDasharray = `${(pct * circumference) / 100} ${circumference}`;
       const strokeDashoffset = -currentOffset;
@@ -341,16 +332,30 @@ export default function Dashboard() {
       return { ...s, strokeDasharray, strokeDashoffset };
     });
   };
-  
-  const segmentsByState = useMemo(() => {
-    const groups: Record<string, typeof donutSegments> = {};
-    donutSegments.forEach(seg => {
-      const stateName = seg.state || "Other";
-      if (!groups[stateName]) groups[stateName] = [];
-      groups[stateName].push(seg);
+
+  // Aggregate the existing per-county stats up to state level
+  const stateStats = useMemo(() => {
+    const map: Record<string, { name: string; count: number; ironcladCount: number; partnerCount: number }> = {};
+    stats.countyStats.forEach(c => {
+      const key = c.state || "Other";
+      if (!map[key]) map[key] = { name: key, count: 0, ironcladCount: 0, partnerCount: 0 };
+      map[key].count += c.count;
+      map[key].ironcladCount += c.ironcladCount;
+      map[key].partnerCount += c.partnerCount;
     });
-    return Object.entries(groups).sort(([a], [b]) => a.localeCompare(b));
-  }, [donutSegments]);
+    return Object.values(map)
+      .sort((a, b) => b.count - a.count)
+      .map((s, i) => ({ ...s, color: CHART_COLORS[i % CHART_COLORS.length] }));
+  }, [stats.countyStats]);
+
+  // Counties belonging to the currently drilled-into state
+  const selectedStateCounties = useMemo(() => {
+    if (!countyDrill.state) return [];
+    return stats.countyStats
+      .filter(c => (c.state || "Other") === countyDrill.state)
+      .sort((a, b) => b.count - a.count)
+      .map((c, i) => ({ ...c, color: CHART_COLORS[i % CHART_COLORS.length] }));
+  }, [stats.countyStats, countyDrill.state]);
 
   if (loading) {
     return (
@@ -380,7 +385,7 @@ export default function Dashboard() {
           <div
             className="kpi-card"
             onClick={() => setActiveView('properties')}
-            style={{ cursor: 'pointer', outline: activeView === 'properties' ? '2px solid #1d4ed8' : 'none', transition: 'outline 0.15s' }}
+            style={{ cursor: 'pointer', outline: activeView === 'properties' ? '2px solid #273548' : 'none', transition: 'outline 0.15s' }}
           >
             <div className="kpi-icon-wrapper" style={{ background: '#eff6ff', color: '#1d4ed8' }}>
               <Building2 className="w-6 h-6" />
@@ -424,7 +429,7 @@ export default function Dashboard() {
           <div
             className="kpi-card"
             onClick={() => setActiveView('auctions')}
-            style={{ cursor: 'pointer', outline: activeView === 'auctions' ? '2px solid #10b981' : 'none', transition: 'outline 0.15s' }}
+            style={{ cursor: 'pointer', outline: activeView === 'auctions' ? '2px solid #273548' : 'none', transition: 'outline 0.15s' }}
           >
             <div className="kpi-icon-wrapper" style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#10b981' }}>
               <Gavel className="w-6 h-6" />
@@ -510,43 +515,63 @@ export default function Dashboard() {
           </section>
         </div>}
 
-        {/* Properties by Owner */}
-        {(activeView === 'properties') && (
-          <section className="content-section compact" style={{ marginTop: '1.5rem' }}>
-            <div className="section-header">
-              <h2>Properties by owner</h2>
-              <BarChart3 className="w-5 h-5 text-muted" />
-            </div>
-            <div className="chart-container">
-              {stats.ownerStats.map(o => (
-                <div key={o.name} className="chart-row">
-                  <div className="chart-label">
-                    <span>{o.name}</span>
-                    <span>{o.count} {o.count === 1 ? 'property' : 'properties'}</span>
-                  </div>
-                  <div className="chart-bar-bg">
-                    <div className="chart-bar-fill" style={{ width: `${o.percentage}%`, backgroundColor: o.isIronclad ? '#1d4ed8' : '#475569' }} />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* Portfolio by County — full width */}
+        {/* Portfolio by County — drill-down: Total → by State → by County */}
         {(activeView === 'properties') && <section className="content-section" style={{ marginTop: '1.5rem' }}>
           <div className="section-header">
             <h2>Portfolio by County</h2>
             <PieChart className="w-5 h-5 text-muted" />
           </div>
 
-          {/* Donuts row */}
-          <div style={{ display: 'flex', gap: '2.5rem', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'center', paddingBottom: '1.5rem', borderBottom: '1px solid var(--border-subtle)', marginBottom: '1.5rem' }}>
-            {/* Total */}
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.4rem' }}>
+          {/* Breadcrumb */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '1.5rem', fontSize: '0.8rem' }}>
+            <span
+              onClick={() => setCountyDrill({ level: 'total', state: null })}
+              style={{ cursor: 'pointer', fontWeight: countyDrill.level === 'total' ? 800 : 600, color: countyDrill.level === 'total' ? 'var(--text-primary)' : 'var(--text-muted)' }}
+            >
+              Total
+            </span>
+            {countyDrill.level !== 'total' && (
+              <>
+                <ChevronRight className="w-3.5 h-3.5 text-muted" />
+                <span
+                  onClick={() => setCountyDrill({ level: 'state', state: null })}
+                  style={{ cursor: 'pointer', fontWeight: countyDrill.level === 'state' ? 800 : 600, color: countyDrill.level === 'state' ? 'var(--text-primary)' : 'var(--text-muted)' }}
+                >
+                  By State
+                </span>
+              </>
+            )}
+            {countyDrill.level === 'county' && (
+              <>
+                <ChevronRight className="w-3.5 h-3.5 text-muted" />
+                <span style={{ fontWeight: 800, color: 'var(--text-primary)' }}>{countyDrill.state}</span>
+              </>
+            )}
+          </div>
+
+          <div style={{ display: 'flex', gap: '2.5rem', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'center' }}>
+            {/* Ring — content depends on drill level */}
+            {countyDrill.level === 'total' && (
+              <div
+                className="donut-container"
+                onClick={() => setCountyDrill({ level: 'state', state: null })}
+                style={{ cursor: 'pointer' }}
+                title="Click to view by State"
+              >
+                <svg width="150" height="150" viewBox="0 0 100 100" className="donut-svg">
+                  <circle cx="50" cy="50" r="35" fill="transparent" stroke="#273548" strokeWidth="12" strokeLinecap="round" />
+                </svg>
+                <div className="donut-hole-text">
+                  <span>{stats.totalAssets}</span>
+                  <small>Total</small>
+                </div>
+              </div>
+            )}
+
+            {countyDrill.level === 'state' && (
               <div className="donut-container">
                 <svg width="150" height="150" viewBox="0 0 100 100" className="donut-svg">
-                  {donutSegments.map((seg, i) => (
+                  {getRingSegments(stateStats).map((seg, i) => (
                     <circle key={i} cx="50" cy="50" r="35" fill="transparent" stroke={seg.color} strokeWidth="12" strokeDasharray={seg.strokeDasharray} strokeDashoffset={seg.strokeDashoffset} strokeLinecap="round" />
                   ))}
                 </svg>
@@ -555,52 +580,37 @@ export default function Dashboard() {
                   <small>Total</small>
                 </div>
               </div>
-            </div>
+            )}
 
-            {/* Per-state donuts */}
-            {segmentsByState.map(([state, segs]) => {
-              const stateSegs = getStateDonutSegments(segs);
-              const stateTotal = segs.reduce((sum: number, s: any) => sum + s.count, 0);
-              return (
-                <div key={state} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.3rem' }}>
-                  <div style={{ position: 'relative', width: 90, height: 90 }}>
-                    <svg width="90" height="90" viewBox="0 0 60 60" style={{ transform: 'rotate(-90deg)' }}>
-                      {stateSegs.map((seg: any, i: number) => (
-                        <circle key={i} cx="30" cy="30" r="20" fill="transparent" stroke={seg.color} strokeWidth="8" strokeDasharray={seg.strokeDasharray} strokeDashoffset={seg.strokeDashoffset} strokeLinecap="round" />
-                      ))}
-                    </svg>
-                    <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
-                      <span style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1 }}>{stateTotal}</span>
-                    </div>
-                  </div>
-                  <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                    {state === 'Other' ? 'Other' : state}
-                  </span>
+            {countyDrill.level === 'county' && (
+              <div className="donut-container">
+                <svg width="150" height="150" viewBox="0 0 100 100" className="donut-svg">
+                  {getRingSegments(selectedStateCounties).map((seg, i) => (
+                    <circle key={i} cx="50" cy="50" r="35" fill="transparent" stroke={seg.color} strokeWidth="12" strokeDasharray={seg.strokeDasharray} strokeDashoffset={seg.strokeDashoffset} strokeLinecap="round" />
+                  ))}
+                </svg>
+                <div className="donut-hole-text">
+                  <span>{selectedStateCounties.reduce((sum, c) => sum + c.count, 0)}</span>
+                  <small>{countyDrill.state}</small>
                 </div>
-              );
-            })}
-          </div>
+              </div>
+            )}
 
-          {/* Legend grid — multi-column to use full width */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem 2.5rem' }}>
-            {segmentsByState.map(([state, segs]) => (
-              <div key={state} className="legend-state-group" style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                <div className="legend-state-header" style={{
-                  fontSize: '0.75rem',
-                  fontWeight: 800,
-                  color: 'var(--text-muted)',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.05em',
-                  borderBottom: '1px solid var(--border-subtle)',
-                  paddingBottom: '2px',
-                  marginBottom: '4px'
-                }}>
-                  {state === "Other" ? "Other Regions" : state}
-                </div>
-                {segs.map((seg, i) => (
-                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.15rem 0' }}>
-                    <div className="legend-color" style={{ background: seg.color, flexShrink: 0 }} />
-                    <span className="legend-name" style={{ flex: 1, minWidth: 0 }}>{seg.name}</span>
+            {/* Legend — states or counties, depending on level */}
+            {countyDrill.level !== 'total' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', minWidth: '320px', flex: 1 }}>
+                {(countyDrill.level === 'state' ? stateStats : selectedStateCounties).map((item: any, i: number) => (
+                  <div
+                    key={i}
+                    className="county-legend-row"
+                    onClick={() => { if (countyDrill.level === 'state') setCountyDrill({ level: 'county', state: item.name }); }}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0.5rem 0.6rem',
+                      borderRadius: '8px', cursor: countyDrill.level === 'state' ? 'pointer' : 'default',
+                    }}
+                  >
+                    <div className="legend-color" style={{ background: item.color, flexShrink: 0 }} />
+                    <span className="legend-name" style={{ flex: 1, minWidth: 0 }}>{item.name}</span>
                     <span style={{
                       display: 'inline-flex', alignItems: 'center', gap: '0.2rem',
                       background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe',
@@ -609,7 +619,7 @@ export default function Dashboard() {
                       width: '115px', justifyContent: 'center', flexShrink: 0,
                     }}>
                       <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#1d4ed8', display: 'inline-block', flexShrink: 0 }} />
-                      Ironclad · {(seg as any).ironcladCount}
+                      Ironclad · {item.ironcladCount}
                     </span>
                     <span style={{
                       display: 'inline-flex', alignItems: 'center', gap: '0.2rem',
@@ -619,17 +629,60 @@ export default function Dashboard() {
                       width: '115px', justifyContent: 'center', flexShrink: 0,
                     }}>
                       <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#b45309', display: 'inline-block', flexShrink: 0 }} />
-                      Partners · {(seg as any).partnerCount}
+                      Partners · {item.partnerCount}
                     </span>
                     <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-primary)', width: '28px', textAlign: 'right', flexShrink: 0 }}>
-                      {seg.count}
+                      {item.count}
                     </span>
+                    {countyDrill.level === 'state' && <ChevronRight className="w-4 h-4 text-muted" style={{ flexShrink: 0 }} />}
                   </div>
                 ))}
               </div>
-            ))}
+            )}
           </div>
         </section>}
+
+        {/* Properties by Owner */}
+        {(activeView === 'properties') && (
+          <section className="content-section compact" style={{ marginTop: '1.5rem' }}>
+            <div className="section-header">
+              <h2>Properties by owner</h2>
+              <BarChart3 className="w-5 h-5 text-muted" />
+            </div>
+            <div className="chart-container">
+              {stats.ownerStats.filter(o => o.isIronclad).map(o => (
+                <div
+                  key={o.name}
+                  className="chart-row"
+                  onClick={() => setOwnerExpanded(v => !v)}
+                  style={{ cursor: 'pointer' }}
+                >
+                  <div className="chart-label">
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+                      <ChevronRight className="w-3.5 h-3.5 text-muted" style={{ transform: ownerExpanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }} />
+                      {o.name}
+                    </span>
+                    <span>{o.count} {o.count === 1 ? 'property' : 'properties'}</span>
+                  </div>
+                  <div className="chart-bar-bg">
+                    <div className="chart-bar-fill" style={{ width: `${o.percentage}%`, backgroundColor: '#1d4ed8' }} />
+                  </div>
+                </div>
+              ))}
+              {ownerExpanded && stats.ownerStats.filter(o => !o.isIronclad).map(o => (
+                <div key={o.name} className="chart-row">
+                  <div className="chart-label">
+                    <span style={{ paddingLeft: '1.15rem' }}>{o.name}</span>
+                    <span>{o.count} {o.count === 1 ? 'property' : 'properties'}</span>
+                  </div>
+                  <div className="chart-bar-bg">
+                    <div className="chart-bar-fill" style={{ width: `${o.percentage}%`, backgroundColor: '#475569' }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* ── Requests & Tickets ── */}
         {(activeView === 'requests') && <div style={{ marginTop: '2.5rem' }}>

@@ -429,6 +429,10 @@
   font-weight: 700;
 }
 
+.county-legend-row:hover {
+  background: var(--bg-base);
+}
+
 
 @media (max-width: 1024px) {
   .dashboard-main {
