@@ -246,6 +246,7 @@ export default function RequestsPage() {
             <table className="requests-table">
               <thead>
                 <tr>
+                  <th>ID</th>
                   <th>Title</th>
                   <th>Requester</th>
                   <th>Assignee</th>
@@ -257,7 +258,7 @@ export default function RequestsPage() {
               <tbody>
                 {requests.length === 0 ? (
                   <tr>
-                    <td colSpan={6} style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
+                    <td colSpan={7} style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
                         <ClipboardList className="w-10 h-10 opacity-50" />
                         <span>No requests found matching your filters.</span>
@@ -266,6 +267,7 @@ export default function RequestsPage() {
                   </tr>
                 ) : requests.map((req) => (
                   <tr key={req.id}>
+                    <td style={{ color: 'var(--text-muted)', fontWeight: 600 }}>REQ-{req.id}</td>
                     <td style={{ fontWeight: 600, maxWidth: '250px' }}>
                       <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {req.title}
