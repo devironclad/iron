@@ -6,6 +6,7 @@ import { X, Save, Loader2, ArrowLeft } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { formatPropId } from "@/lib/utils";
 import { PermissionGuard } from "@/components/auth/PermissionGuard";
+import { getCurrentUserPermissions, hasPermission, Permission } from "@/lib/permissions";
 
 // We can reuse the form.css from auctions if it matches the global style, 
 // or define inline classes. We will import global CSS but use custom inline styles for uniqueness if needed.
@@ -23,6 +24,8 @@ export default function NewRequestPage() {
   });
 
   const [relateProperty, setRelateProperty] = useState(false);
+  const [permissions, setPermissions] = useState<Record<string, Permission> | null>(null);
+  const canEdit = permissions !== null && hasPermission(permissions, 'page:requests', 'edit');
 
   const [formData, setFormData] = useState({
     title: "",
@@ -50,6 +53,7 @@ export default function NewRequestPage() {
       });
     }
     fetchLookups();
+    getCurrentUserPermissions().then(setPermissions);
   }, []);
 
   const handleChange = (e: any) => {
@@ -58,6 +62,10 @@ export default function NewRequestPage() {
   };
 
   const handleSubmit = async () => {
+    if (!canEdit) {
+      alert("You don't have permission to create requests.");
+      return;
+    }
     if (!formData.title || !formData.category_id || !formData.priority_id) {
       alert("Please fill in the required fields: Title, Category, and Priority.");
       return;
@@ -225,9 +233,15 @@ export default function NewRequestPage() {
             <X className="w-4 h-4" />
             Cancel
           </button>
-          <button className="primary-btn" onClick={handleSubmit} disabled={loading}>
+          <button
+            className="primary-btn"
+            onClick={handleSubmit}
+            disabled={loading || !canEdit}
+            title={!canEdit ? "You don't have permission to create requests." : undefined}
+            style={!canEdit ? { backgroundColor: '#94a3b8', cursor: 'not-allowed', opacity: 0.7 } : undefined}
+          >
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-            {loading ? "Creating..." : "Create Request"}
+            {loading ? "Creating..." : !canEdit ? "Read Only" : "Create Request"}
           </button>
         </div>
 

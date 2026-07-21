@@ -1,11 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { userHasPermission } from "@/lib/server-permissions";
 
 export async function POST(request: NextRequest) {
   try {
     const token = request.headers.get("Authorization")?.replace("Bearer ", "");
     const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
     if (authError || !user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    if (!(await userHasPermission(user.id, "page:access", "edit"))) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
 
     const { profile_id, permissions } = await request.json();
     if (!profile_id || !Array.isArray(permissions)) {

@@ -1,36 +1,52 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { 
-  Plus, Search, Filter, Loader2, ArrowRight,
+import {
+  Plus, Search, Loader2, ArrowRight,
   ClipboardList, Calendar, Clock, Trash2, CheckCircle2
 } from "lucide-react";
+import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 import { PermissionGuard } from "@/components/auth/PermissionGuard";
+import { getCurrentUserPermissions, hasPermission, Permission } from "@/lib/permissions";
 import "./requests.css";
 
+type LookupItem = { id: string; name: string; color?: string; is_closed?: boolean };
+type UserOption = { id: string; full_name: string };
+
+type RequestRow = {
+  id: number;
+  title: string;
+  due_date: string;
+  asset_id?: number | null;
+  requester_id?: string | null;
+  requester?: { full_name?: string; avatar_url?: string } | null;
+  assignee?: { full_name?: string; avatar_url?: string } | null;
+  category?: { name?: string; color?: string } | null;
+  status?: { name?: string; color?: string; is_closed?: boolean } | null;
+};
+
 export default function RequestsPage() {
-  const [requests, setRequests] = useState<any[]>([]);
+  const [requests, setRequests] = useState<RequestRow[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [requestToDelete, setRequestToDelete] = useState<any | null>(null);
+  const [requestToDelete, setRequestToDelete] = useState<RequestRow | null>(null);
   const [toastMsg, setToastMsg] = useState<{ title: string, desc: string } | null>(null);
-  
-  // Lookups for filters
-  const [statuses, setStatuses] = useState<any[]>([]);
-  const [categories, setCategories] = useState<any[]>([]);
-  const [priorities, setPriorities] = useState<any[]>([]);
-  
-  const [selectedStatus, setSelectedStatus] = useState("all");
-  const [selectedPriority, setSelectedPriority] = useState("all");
-  const [selectedCategory, setSelectedCategory] = useState("all");
-  
-  const [showMyTasks, setShowMyTasks] = useState(false);
-  const [currentUser, setCurrentUser] = useState<any>(null);
 
-  const router = useRouter();
+  // Lookups for filters
+  const [statuses, setStatuses] = useState<LookupItem[]>([]);
+  const [categories, setCategories] = useState<LookupItem[]>([]);
+  const [requesters, setRequesters] = useState<UserOption[]>([]);
+
+  const [selectedStatus, setSelectedStatus] = useState("all");
+  const [selectedRequester, setSelectedRequester] = useState("all");
+  const [selectedCategory, setSelectedCategory] = useState("all");
+
+  const [showMyTasks, setShowMyTasks] = useState(false);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [userPermissions, setUserPermissions] = useState<Record<string, Permission> | null>(null);
 
   useEffect(() => {
     fetchLookups();
@@ -39,22 +55,24 @@ export default function RequestsPage() {
       setCurrentUser(session?.user ?? null);
     }
     initCurrentUser();
+    getCurrentUserPermissions().then(setUserPermissions);
   }, []);
 
   useEffect(() => {
     fetchRequests();
-  }, [searchTerm, selectedStatus, selectedPriority, selectedCategory, showMyTasks, currentUser]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchTerm, selectedStatus, selectedRequester, selectedCategory, showMyTasks, currentUser]);
 
   async function fetchLookups() {
-    const [statRes, catRes, priRes] = await Promise.all([
+    const [statRes, catRes, reqRes] = await Promise.all([
       supabase.from("ls_request_status").select("*").order("name"),
       supabase.from("ls_request_category").select("*").order("name"),
-      supabase.from("ls_request_priority").select("*").order("name")
+      supabase.from("ls_users_metadata").select("id, full_name").eq("user_type", "employee").order("full_name")
     ]);
-    
+
     setStatuses(statRes.data || []);
     setCategories(catRes.data || []);
-    setPriorities(priRes.data || []);
+    setRequesters(reqRes.data || []);
   }
 
   async function fetchRequests() {
@@ -65,26 +83,26 @@ export default function RequestsPage() {
         requester:ls_users_metadata!requester_id(full_name, avatar_url),
         assignee:ls_users_metadata!assignee_id(full_name, avatar_url),
         category:ls_request_category(name, color),
-        priority:ls_request_priority(name, color),
         status:ls_request_status(name, color, is_closed)
-      `).order('created_at', { ascending: false });
+      `, { count: "exact" }).order('created_at', { ascending: false });
 
       if (selectedStatus !== "all") query = query.eq("status_id", selectedStatus);
-      if (selectedPriority !== "all") query = query.eq("priority_id", selectedPriority);
+      if (selectedRequester !== "all") query = query.eq("requester_id", selectedRequester);
       if (selectedCategory !== "all") query = query.eq("category_id", selectedCategory);
-      
+
       if (showMyTasks && currentUser) {
         query = query.eq("assignee_id", currentUser.id);
       }
-      
+
       if (searchTerm) {
         query = query.ilike('title', `%${searchTerm}%`);
       }
 
-      const { data, error } = await query.limit(50);
-      
+      const { data, error, count } = await query.limit(50);
+
       if (error) throw error;
       setRequests(data || []);
+      setTotalCount(count || 0);
     } catch (err) {
       console.error("Error fetching requests:", err);
     } finally {
@@ -92,12 +110,15 @@ export default function RequestsPage() {
     }
   }
 
-  const handleDelete = (req: any) => {
+  const canEdit = userPermissions !== null && hasPermission(userPermissions, 'page:requests', 'edit');
+
+  const handleDelete = (req: RequestRow) => {
+    if (!canEdit) { alert("You don't have permission to delete requests."); return; }
     setRequestToDelete(req);
   };
 
   const confirmDelete = async () => {
-    if (!requestToDelete) return;
+    if (!requestToDelete || !canEdit) return;
     
     try {
       const { error } = await supabase
@@ -121,7 +142,7 @@ export default function RequestsPage() {
     return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
-  const isOverdue = (dateStr: string, isClosed: boolean) => {
+  const isOverdue = (dateStr: string, isClosed: boolean | undefined) => {
     if (!dateStr || isClosed) return false;
     return new Date(dateStr) < new Date();
   };
@@ -153,7 +174,7 @@ export default function RequestsPage() {
               </div>
               
               <p style={{ color: '#475569', fontSize: '0.95rem', margin: 0, lineHeight: 1.5 }}>
-                Are you absolutely sure you want to permanently delete <strong>"{requestToDelete.title}"</strong>? This action cannot be undone.
+                Are you absolutely sure you want to permanently delete <strong>&quot;{requestToDelete.title}&quot;</strong>? This action cannot be undone.
               </p>
 
               <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem' }}>
@@ -183,10 +204,12 @@ export default function RequestsPage() {
             <p className="page-subtitle">Manage tickets, tasks, and cross-department approvals.</p>
           </div>
           <div style={{ display: 'flex', gap: '0.75rem' }}>
-            <Link href="/requests/new" className="primary-btn" style={{ textDecoration: 'none' }}>
-              <Plus className="w-5 h-5" />
-              New Request
-            </Link>
+            {canEdit && (
+              <Link href="/requests/new" className="primary-btn" style={{ textDecoration: 'none' }}>
+                <Plus className="w-5 h-5" />
+                New Request
+              </Link>
+            )}
           </div>
         </div>
 
@@ -204,6 +227,10 @@ export default function RequestsPage() {
           </div>
 
           <div className="bar-actions">
+            <div className="totalizer">
+              <strong>{totalCount}</strong> requests
+            </div>
+
             <div className="view-toggle">
               <button 
                 onClick={() => setShowMyTasks(false)} 
@@ -229,9 +256,9 @@ export default function RequestsPage() {
               {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
             
-            <select className="auc-filter-select" value={selectedPriority} onChange={e => setSelectedPriority(e.target.value)}>
-              <option value="all">All Priorities</option>
-              {priorities.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            <select className="auc-filter-select" value={selectedRequester} onChange={e => setSelectedRequester(e.target.value)}>
+              <option value="all">All Requesters</option>
+              {requesters.map(r => <option key={r.id} value={r.id}>{r.full_name}</option>)}
             </select>
           </div>
         </div>
@@ -329,7 +356,7 @@ export default function RequestsPage() {
                         >
                           <ArrowRight className="w-3.5 h-3.5" />
                         </Link>
-                        {req.requester_id === currentUser?.id && (
+                        {canEdit && req.requester_id === currentUser?.id && (
                           <button 
                             onClick={() => handleDelete(req)}
                             className="btn-secondary"

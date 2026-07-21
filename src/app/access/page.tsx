@@ -23,6 +23,7 @@ import {
 import { supabase } from "@/lib/supabase";
 import { startPreview } from "@/lib/impersonation";
 import { PermissionGuard } from "@/components/auth/PermissionGuard";
+import { getCurrentUserPermissions, hasPermission, Permission } from "@/lib/permissions";
 import "./access.css";
 
 const RESOURCES = [
@@ -85,9 +86,12 @@ export default function AccessPage() {
   const [editError, setEditError] = useState<string | null>(null);
   const [deletingUser, setDeletingUser] = useState<any | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [userPermissions, setUserPermissions] = useState<Record<string, Permission> | null>(null);
+  const canEdit = userPermissions !== null && hasPermission(userPermissions, 'page:access', 'edit');
 
   useEffect(() => {
     fetchData();
+    getCurrentUserPermissions().then(setUserPermissions);
   }, []);
 
   async function fetchData() {
@@ -143,6 +147,7 @@ export default function AccessPage() {
   }
 
   const togglePermission = (resourceKey: string, type: 'can_view' | 'can_edit') => {
+    if (!canEdit) return;
     setPermissions((prev: any) => ({
       ...prev,
       [resourceKey]: {
@@ -158,7 +163,7 @@ export default function AccessPage() {
   }
 
   async function savePermissions() {
-    if (!selectedProfile) return;
+    if (!selectedProfile || !canEdit) return;
     setSaving(true);
     setMessage(null);
     try {
@@ -186,6 +191,7 @@ export default function AccessPage() {
   }
 
   async function updateUserType(userId: string, userType: string) {
+    if (!canEdit) return;
     try {
       const res = await fetch("/api/access/user-assignment", {
         method: "PATCH",
@@ -205,6 +211,7 @@ export default function AccessPage() {
   }
 
   async function updateUserProfile(userId: string, profileId: string) {
+    if (!canEdit) return;
     setSaving(true);
     try {
       const res = await fetch("/api/access/user-assignment", {
@@ -226,7 +233,7 @@ export default function AccessPage() {
   }
 
   async function handleCreateUser() {
-    if (!newUser.email || !newUser.full_name) return;
+    if (!newUser.email || !newUser.full_name || !canEdit) return;
     setSaving(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -268,6 +275,7 @@ export default function AccessPage() {
   }
 
   async function handleSendInvite(userId: string, email: string) {
+    if (!canEdit) return;
     setInvitingUserId(userId);
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -303,7 +311,7 @@ export default function AccessPage() {
   }
 
   async function handleEditUser() {
-    if (!editingUser || !editForm.full_name || !editForm.email) return;
+    if (!editingUser || !editForm.full_name || !editForm.email || !canEdit) return;
     setSaving(true);
     setEditError(null);
     try {
@@ -346,7 +354,7 @@ export default function AccessPage() {
   }
 
   async function handleDeleteUser() {
-    if (!deletingUser) return;
+    if (!deletingUser || !canEdit) return;
     setConfirmingDelete(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -447,9 +455,14 @@ export default function AccessPage() {
                       <p>Define what this profile can see and do in the system.</p>
                     </div>
                   </div>
-                  <button className="save-btn" onClick={savePermissions} disabled={saving}>
+                  <button
+                    className="save-btn"
+                    onClick={savePermissions}
+                    disabled={saving || !canEdit}
+                    title={!canEdit ? "You don't have permission to edit access control." : undefined}
+                  >
                     {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                    Save Changes
+                    {canEdit ? "Save Changes" : "Read Only"}
                   </button>
                 </div>
 
@@ -476,20 +489,22 @@ export default function AccessPage() {
                           <td className="resource-name">{r.label}</td>
                           <td className="center">
                             <label className="permission-toggle">
-                              <input 
-                                type="checkbox" 
-                                checked={permissions[r.id]?.can_view || false} 
+                              <input
+                                type="checkbox"
+                                checked={permissions[r.id]?.can_view || false}
                                 onChange={() => togglePermission(r.id, 'can_view')}
+                                disabled={!canEdit}
                               />
                               <div className="toggle-slider"><Eye className="w-3 h-3 icon-view" /></div>
                             </label>
                           </td>
                           <td className="center">
                             <label className="permission-toggle edit">
-                              <input 
-                                type="checkbox" 
-                                checked={permissions[r.id]?.can_edit || false} 
+                              <input
+                                type="checkbox"
+                                checked={permissions[r.id]?.can_edit || false}
                                 onChange={() => togglePermission(r.id, 'can_edit')}
+                                disabled={!canEdit}
                               />
                               <div className="toggle-slider"><Edit3 className="w-3 h-3 icon-edit" /></div>
                             </label>
@@ -502,20 +517,22 @@ export default function AccessPage() {
                           <td className="resource-name">{r.label}</td>
                           <td className="center">
                             <label className="permission-toggle">
-                              <input 
-                                type="checkbox" 
-                                checked={permissions[r.id]?.can_view || false} 
+                              <input
+                                type="checkbox"
+                                checked={permissions[r.id]?.can_view || false}
                                 onChange={() => togglePermission(r.id, 'can_view')}
+                                disabled={!canEdit}
                               />
                               <div className="toggle-slider"><Eye className="w-3 h-3 icon-view" /></div>
                             </label>
                           </td>
                           <td className="center">
                             <label className="permission-toggle edit">
-                              <input 
-                                type="checkbox" 
-                                checked={permissions[r.id]?.can_edit || false} 
+                              <input
+                                type="checkbox"
+                                checked={permissions[r.id]?.can_edit || false}
                                 onChange={() => togglePermission(r.id, 'can_edit')}
+                                disabled={!canEdit}
                               />
                               <div className="toggle-slider"><Edit3 className="w-3 h-3 icon-edit" /></div>
                             </label>
@@ -528,20 +545,22 @@ export default function AccessPage() {
                           <td className="resource-name">{r.label}</td>
                           <td className="center">
                             <label className="permission-toggle">
-                              <input 
-                                type="checkbox" 
-                                checked={permissions[r.id]?.can_view || false} 
+                              <input
+                                type="checkbox"
+                                checked={permissions[r.id]?.can_view || false}
                                 onChange={() => togglePermission(r.id, 'can_view')}
+                                disabled={!canEdit}
                               />
                               <div className="toggle-slider"><Eye className="w-3 h-3 icon-view" /></div>
                             </label>
                           </td>
                           <td className="center">
                             <label className="permission-toggle edit">
-                              <input 
-                                type="checkbox" 
-                                checked={permissions[r.id]?.can_edit || false} 
+                              <input
+                                type="checkbox"
+                                checked={permissions[r.id]?.can_edit || false}
                                 onChange={() => togglePermission(r.id, 'can_edit')}
+                                disabled={!canEdit}
                               />
                               <div className="toggle-slider"><Edit3 className="w-3 h-3 icon-edit" /></div>
                             </label>
@@ -554,20 +573,22 @@ export default function AccessPage() {
                           <td className="resource-name">{r.label}</td>
                           <td className="center">
                             <label className="permission-toggle">
-                              <input 
-                                type="checkbox" 
-                                checked={permissions[r.id]?.can_view || false} 
+                              <input
+                                type="checkbox"
+                                checked={permissions[r.id]?.can_view || false}
                                 onChange={() => togglePermission(r.id, 'can_view')}
+                                disabled={!canEdit}
                               />
                               <div className="toggle-slider"><Eye className="w-3 h-3 icon-view" /></div>
                             </label>
                           </td>
                           <td className="center">
                             <label className="permission-toggle edit">
-                              <input 
-                                type="checkbox" 
-                                checked={permissions[r.id]?.can_edit || false} 
+                              <input
+                                type="checkbox"
+                                checked={permissions[r.id]?.can_edit || false}
                                 onChange={() => togglePermission(r.id, 'can_edit')}
+                                disabled={!canEdit}
                               />
                               <div className="toggle-slider"><Edit3 className="w-3 h-3 icon-edit" /></div>
                             </label>
@@ -597,10 +618,12 @@ export default function AccessPage() {
                   <p>Assign profiles to registered users to control their access levels.</p>
                 </div>
               </div>
-              <button className="save-btn" onClick={() => setShowAddUserModal(true)}>
-                <Plus className="w-4 h-4" />
-                Add New User
-              </button>
+              {canEdit && (
+                <button className="save-btn" onClick={() => setShowAddUserModal(true)}>
+                  <Plus className="w-4 h-4" />
+                  Add New User
+                </button>
+              )}
             </div>
 
             {message && (
@@ -652,6 +675,7 @@ export default function AccessPage() {
                             className="profile-select"
                             value={u.user_type || "employee"}
                             onChange={(e) => updateUserType(u.id, e.target.value)}
+                            disabled={!canEdit}
                           >
                             <option value="employee">Employee</option>
                             <option value="partner">Partner</option>
@@ -662,7 +686,7 @@ export default function AccessPage() {
                             className="profile-select"
                             value={u.ls_user_profiles?.profile_id || ""}
                             onChange={(e) => updateUserProfile(u.id, e.target.value)}
-                            disabled={saving}
+                            disabled={saving || !canEdit}
                           >
                             <option value="">No Profile (No Access)</option>
                             {profiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -676,9 +700,9 @@ export default function AccessPage() {
                             </div>
                           ) : (
                             <button
-                              title="Send invite email"
+                              title={canEdit ? "Send invite email" : "You don't have permission to invite users."}
                               onClick={() => handleSendInvite(u.id, u.email)}
-                              disabled={invitingUserId === u.id}
+                              disabled={invitingUserId === u.id || !canEdit}
                               style={{
                                 display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
                                 padding: '0.3rem 0.75rem', borderRadius: '6px', fontSize: '0.75rem',
@@ -709,21 +733,25 @@ export default function AccessPage() {
                                 <Eye className="w-4 h-4" />
                               </button>
                             )}
-                            <button
-                              title="Edit user"
-                              className="delete-btn-mini"
-                              onClick={() => openEditModal(u)}
-                              style={{ color: '#64748b' }}
-                            >
-                              <Pencil className="w-4 h-4" />
-                            </button>
-                            <button
-                              title="Delete user"
-                              className="delete-btn-mini"
-                              onClick={() => setDeletingUser(u)}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                            {canEdit && (
+                              <button
+                                title="Edit user"
+                                className="delete-btn-mini"
+                                onClick={() => openEditModal(u)}
+                                style={{ color: '#64748b' }}
+                              >
+                                <Pencil className="w-4 h-4" />
+                              </button>
+                            )}
+                            {canEdit && (
+                              <button
+                                title="Delete user"
+                                className="delete-btn-mini"
+                                onClick={() => setDeletingUser(u)}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>

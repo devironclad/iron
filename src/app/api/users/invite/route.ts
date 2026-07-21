@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { createClient } from "@supabase/supabase-js";
+import { userHasPermission } from "@/lib/server-permissions";
 
 export async function POST(request: NextRequest) {
   try {
@@ -12,6 +13,10 @@ export async function POST(request: NextRequest) {
 
     if (authError || !caller) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    if (!(await userHasPermission(caller.id, "page:access", "edit"))) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const { user_id, email } = await request.json();

@@ -6,6 +6,7 @@ import { ArrowLeft, Send, MessageSquareText, Info, Loader2, Save, Trash2, AlertT
 import { supabase } from "@/lib/supabase";
 import { formatPropId } from "@/lib/utils";
 import { PermissionGuard } from "@/components/auth/PermissionGuard";
+import { getCurrentUserPermissions, hasPermission, Permission } from "@/lib/permissions";
 import "../../auctions/new/form.css";
 import "../../properties/[id]/details.css";
 import "../requests.css";
@@ -26,9 +27,12 @@ export default function RequestDetailPage(props: { params: Promise<{ id: string 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [permissions, setPermissions] = useState<Record<string, Permission> | null>(null);
+  const canEdit = permissions !== null && hasPermission(permissions, 'page:requests', 'edit');
 
   useEffect(() => {
     fetchData();
+    getCurrentUserPermissions().then(setPermissions);
   }, [params.id]);
 
   useEffect(() => {
@@ -86,7 +90,7 @@ export default function RequestDetailPage(props: { params: Promise<{ id: string 
   }
 
   const handlePostComment = async () => {
-    if (!newComment.trim() || !currentUser) return;
+    if (!newComment.trim() || !currentUser || !canEdit) return;
     
     setSaving(true);
     try {
@@ -109,9 +113,13 @@ export default function RequestDetailPage(props: { params: Promise<{ id: string 
     }
   };
 
-  const handleDelete = () => setShowDeleteConfirm(true);
+  const handleDelete = () => {
+    if (!canEdit) { alert("You don't have permission to delete requests."); return; }
+    setShowDeleteConfirm(true);
+  };
 
   const confirmDelete = async () => {
+    if (!canEdit) return;
     setShowDeleteConfirm(false);
     try {
       const { error } = await supabase
@@ -128,7 +136,7 @@ export default function RequestDetailPage(props: { params: Promise<{ id: string 
   };
 
   const handleMarkInProgress = async () => {
-    if (!currentUser) return;
+    if (!currentUser || !canEdit) return;
     setSaving(true);
     try {
       const { data: statusRow } = await supabase
@@ -155,7 +163,7 @@ export default function RequestDetailPage(props: { params: Promise<{ id: string 
   };
 
   const handleStatusChange = async () => {
-    if (selectedStatus === request.status_id || !currentUser) return;
+    if (selectedStatus === request.status_id || !currentUser || !canEdit) return;
     
     setSaving(true);
     try {
@@ -270,7 +278,7 @@ export default function RequestDetailPage(props: { params: Promise<{ id: string 
           </div>
         </div>
 
-        {request.assignee_id === currentUser?.id && request.status?.name === "Open" && (
+        {canEdit && request.assignee_id === currentUser?.id && request.status?.name === "Open" && (
           <div style={{
             display: 'flex', alignItems: 'center', gap: '1rem',
             backgroundColor: '#fffbeb', border: '1.5px solid #f59e0b',
@@ -398,9 +406,10 @@ export default function RequestDetailPage(props: { params: Promise<{ id: string 
                 className="input-field"
                 style={{ flex: 1, resize: 'none', borderRadius: '0.75rem', backgroundColor: '#f8fafc' }}
                 rows={2}
-                placeholder="Type a message or internal note..."
+                placeholder={canEdit ? "Type a message or internal note..." : "You don't have permission to comment."}
                 value={newComment}
                 onChange={e => setNewComment(e.target.value)}
+                disabled={!canEdit}
                 onKeyDown={e => {
                   if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
@@ -408,11 +417,11 @@ export default function RequestDetailPage(props: { params: Promise<{ id: string 
                   }
                 }}
               />
-              <button 
-                className="btn-slate" 
+              <button
+                className="btn-slate"
                 style={{ height: '100%', padding: '0 1.25rem', borderRadius: '0.75rem' }}
                 onClick={handlePostComment}
-                disabled={saving || !newComment.trim()}
+                disabled={saving || !newComment.trim() || !canEdit}
               >
                 {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
               </button>
@@ -427,7 +436,7 @@ export default function RequestDetailPage(props: { params: Promise<{ id: string 
             Back to Requests
           </button>
 
-          {request.requester_id === currentUser?.id && (
+          {canEdit && request.requester_id === currentUser?.id && (
             <button 
               className="btn-secondary" 
               onClick={handleDelete} 
@@ -442,21 +451,24 @@ export default function RequestDetailPage(props: { params: Promise<{ id: string 
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#475569' }}>Status:</span>
-            <select 
-              className="req-filter-select" 
+            <select
+              className="req-filter-select"
               style={{ width: '180px', height: '38px', padding: '0 0.5rem', borderRadius: '0.5rem', border: '1px solid #cbd5e1', backgroundColor: '#f8fafc', fontSize: '0.85rem' }}
               value={selectedStatus}
               onChange={e => setSelectedStatus(e.target.value)}
+              disabled={!canEdit}
             >
               {statuses.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
-            <button 
-              className="primary-btn" 
-              onClick={handleStatusChange} 
-              disabled={saving || selectedStatus === request.status_id}
+            <button
+              className="primary-btn"
+              onClick={handleStatusChange}
+              disabled={saving || selectedStatus === request.status_id || !canEdit}
+              title={!canEdit ? "You don't have permission to update requests." : undefined}
+              style={!canEdit ? { backgroundColor: '#94a3b8', cursor: 'not-allowed', opacity: 0.7 } : undefined}
             >
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-              Update Status
+              {canEdit ? "Update Status" : "Read Only"}
             </button>
           </div>
         </div>
