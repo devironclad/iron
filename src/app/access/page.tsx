@@ -18,7 +18,8 @@ import {
   UserCircle,
   X,
   Send,
-  Pencil
+  Pencil,
+  KeyRound
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { startPreview } from "@/lib/impersonation";
@@ -81,6 +82,7 @@ export default function AccessPage() {
   const [showAddUserModal, setShowAddUserModal] = useState(false);
   const [newUser, setNewUser] = useState({ full_name: '', email: '', user_type: 'employee', profile_id: '' });
   const [invitingUserId, setInvitingUserId] = useState<string | null>(null);
+  const [resettingUserId, setResettingUserId] = useState<string | null>(null);
   const [editingUser, setEditingUser] = useState<any | null>(null);
   const [editForm, setEditForm] = useState({ full_name: '', email: '' });
   const [editError, setEditError] = useState<string | null>(null);
@@ -300,6 +302,34 @@ export default function AccessPage() {
       setMessage({ type: 'error', text: "Error sending invite: " + err.message });
     } finally {
       setInvitingUserId(null);
+      setTimeout(() => setMessage(null), 4000);
+    }
+  }
+
+  async function handleResetPassword(userId: string, email: string) {
+    if (!canEdit) return;
+    if (!confirm(`Send a password reset email to ${email}?`)) return;
+    setResettingUserId(userId);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+
+      const res = await fetch("/api/users/reset-password", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session?.access_token}`,
+        },
+        body: JSON.stringify({ email }),
+      });
+
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error);
+
+      setMessage({ type: 'success', text: `Password reset email sent to ${email}.` });
+    } catch (err: any) {
+      setMessage({ type: 'error', text: "Error sending password reset: " + err.message });
+    } finally {
+      setResettingUserId(null);
       setTimeout(() => setMessage(null), 4000);
     }
   }
@@ -876,6 +906,21 @@ export default function AccessPage() {
                   value={editForm.email}
                   onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
                 />
+              </div>
+              <div className="form-group">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 block">Password</label>
+                <button
+                  type="button"
+                  className="save-btn"
+                  style={{ justifyContent: 'center', background: 'transparent', border: '1px solid #334155', color: '#94a3b8', width: '100%' }}
+                  disabled={resettingUserId === editingUser.id}
+                  onClick={() => handleResetPassword(editingUser.id, editingUser.email)}
+                >
+                  {resettingUserId === editingUser.id
+                    ? <Loader2 className="w-4 h-4 animate-spin" />
+                    : <KeyRound className="w-4 h-4" />}
+                  Send password reset email
+                </button>
               </div>
             </div>
 
