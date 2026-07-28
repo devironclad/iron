@@ -43,6 +43,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { hasPermission, getCurrentUserPermissions } from "@/lib/permissions";
+import { getPreviewPartner } from "@/lib/impersonation";
 import { CurrencyInput } from "@/components/ui/CurrencyInput";
 import "../../auctions/new/form.css"; // Keep the styles
 import "./details.css"; // Keep the tabs structure styling
@@ -129,22 +130,36 @@ export default function PropertyDetailsPage() {
     time: ''
   });
 
+  // Read-only browsing of an Ironclad-owned property the partner doesn't own
+  // yet (linked from /properties/ironclad-opportunities). Data for this mode
+  // comes from the sanitized API route, never the raw ls_assets row.
+  const isIroncladOpportunity = source === 'ironclad-opportunity';
+
   // Derive the correct resource key based on where the user came from
-  const propertiesResource = source === 'broker' ? 'page:properties:broker' : (source === 'partners' || source === 'all-partners') ? 'page:properties:partners' : 'page:properties:ironclad';
-  const isPartnerView = source === 'partners' || source === 'all-partners';
-  const canEdit = permissions !== null && hasPermission(permissions, propertiesResource, 'edit');
+  const propertiesResource = isIroncladOpportunity
+    ? 'page:properties:ironclad-opportunities'
+    : source === 'broker' ? 'page:properties:broker' : (source === 'partners' || source === 'all-partners') ? 'page:properties:partners' : 'page:properties:ironclad';
+  const isPartnerView = isIroncladOpportunity || source === 'partners' || source === 'all-partners';
+  const canEdit = !isIroncladOpportunity && permissions !== null && hasPermission(permissions, propertiesResource, 'edit');
 
   const visibleTabs = useMemo(() => {
-    if (permissions && Object.keys(permissions).length > 0) {
-      return TABS_CONFIG.filter(tab => {
-        const p = permissions[tab.resource];
-        // If no permission entry exists for this resource, default to visible.
-        // Only hide if an entry exists AND can_view is explicitly false.
-        return p === undefined ? true : p.can_view;
-      });
-    }
-    return TABS_CONFIG;
-  }, [permissions]);
+    const base = permissions && Object.keys(permissions).length > 0
+      ? TABS_CONFIG.filter(tab => {
+          const p = permissions[tab.resource];
+          // If no permission entry exists for this resource, default to visible.
+          // Only hide if an entry exists AND can_view is explicitly false.
+          return p === undefined ? true : p.can_view;
+        })
+      : TABS_CONFIG;
+    if (!isIroncladOpportunity) return base;
+    // Only "Development" is blocked: it's the one tab that shows Paid Bid,
+    // Doc Fees, and Total Investment straight from the real ls_assets row
+    // with no isPartnerView masking at all (unlike Values/Sales, which
+    // already branch on isPartnerView, and Strategy/Documentation/Tax,
+    // which only ever touch the already-sanitized _inv/_stg fields or
+    // render empty since no tax records are fetched for this view).
+    return base.filter(tab => tab.id !== 'acquisition');
+  }, [permissions, isIroncladOpportunity]);
 
   // Whether the current active tab allows editing.
   // Tab-level permissions are INDEPENDENT of page-level:
@@ -153,27 +168,86 @@ export default function PropertyDetailsPage() {
   // Uses tab.resource (from TABS_CONFIG) as the key, not `tab:${activeTab}`,
   // because some tabs share a resource key (e.g. 'research' maps to 'tab:general').
   const tabCanEdit = useMemo(() => {
+    if (isIroncladOpportunity) return false; // always read-only here, regardless of profile permissions
     if (!permissions) return false;
     const activeTabConfig = TABS_CONFIG.find(t => t.id === activeTab);
     const resourceKey = activeTabConfig?.resource ?? `tab:${activeTab}`;
     const tabPerm = permissions[resourceKey];
     if (tabPerm !== undefined) return tabPerm.can_edit;
     return canEdit; // no tab-specific rule → inherit page-level
-  }, [permissions, activeTab, canEdit]);
+  }, [permissions, activeTab, canEdit, isIroncladOpportunity]);
+
+  // Loads property/amenities/marketing for the read-only Ironclad
+  // Opportunities view via the sanitized server route (never the raw
+  // ls_assets row — see src/app/api/properties/ironclad-opportunities/[id]/route.ts).
+  async function loadIroncladOpportunityData() {
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
+    const preview = getPreviewPartner();
+    const qs = preview ? `?previewPartnerId=${encodeURIComponent(preview.id)}` : '';
+
+    const res = await fetch(`/api/properties/ironclad-opportunities/${id}${qs}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const json = await res.json();
+
+    if (res.ok && json.property) {
+      const formatted = { ...json.property };
+      if (formatted.acquisition_date) formatted.acquisition_date = new Date(formatted.acquisition_date).toISOString().slice(0, 16);
+      Object.keys(formatted).forEach(key => {
+        if (formatted[key] === null) formatted[key] = "";
+      });
+      setProperty(formatted);
+      originalPropertyRef.current = { ...formatted };
+
+      const sortedAmenities = (json.amenities || []).sort((a: any, b: any) => {
+        const catA = a.ls_amenity_type?.ls_amenity_category?.name || '';
+        const catB = b.ls_amenity_type?.ls_amenity_category?.name || '';
+        if (catA !== catB) return catA.localeCompare(catB);
+        return (a.ls_amenity_type?.name || '').localeCompare(b.ls_amenity_type?.name || '');
+      });
+      setAmenities(sortedAmenities);
+
+      if (json.marketing) {
+        const mktFormatted: any = {};
+        MARKETING_FIELDS.forEach(f => { mktFormatted[f] = json.marketing[f] ?? ''; });
+        setMarketing(mktFormatted);
+      }
+    }
+    setTaxes([]);
+    setPartners([]);
+  }
 
   useEffect(() => {
     async function loadData() {
       setLoading(true);
-      
+
       const tables = [
-        "ls_origem", "ls_priority", "ls_county", 
-        "ls_auction_type", "ls_auction_model", "ls_property_type", 
-        "ls_fema", "ls_wetlands", "ls_debit", "ls_gismap", 
+        "ls_origem", "ls_priority", "ls_county",
+        "ls_auction_type", "ls_auction_model", "ls_property_type",
+        "ls_fema", "ls_wetlands", "ls_debit", "ls_gismap",
         "ls_property_access", "ls_road_access", "ls_ref_construction"
       ];
 
-      const [permsResult, propertyResult, partnersResult] = await Promise.all([
-        getCurrentUserPermissions(),
+      setPermissions(await getCurrentUserPermissions());
+
+      if (isIroncladOpportunity) {
+        await loadIroncladOpportunityData();
+
+        const lookupResults: Record<string, any[]> = {};
+        await Promise.all(tables.map(table => {
+          const columns = table === "ls_county" ? "id, name, state" : "id, name";
+          return supabase.from(table).select(columns).order("name").then(({ data }) => {
+            lookupResults[table] = data || [];
+          });
+        }));
+        setLookups(lookupResults);
+
+        setLoading(false);
+        return;
+      }
+
+      const [propertyResult, partnersResult] = await Promise.all([
         supabase.from('ls_assets').select(`
           *,
           ls_county ( name, state ),
@@ -184,14 +258,12 @@ export default function PropertyDetailsPage() {
       ]);
       setPartners(partnersResult.data || []);
 
-      setPermissions(permsResult);
-
       if (propertyResult.data) {
         const formatted = { ...propertyResult.data };
         if (formatted.auction_date) formatted.auction_date = new Date(formatted.auction_date).toISOString().slice(0, 16);
         if (formatted.acquisition_date) formatted.acquisition_date = new Date(formatted.acquisition_date).toISOString().slice(0, 16);
         if (formatted.tax_pay_dead) formatted.tax_pay_dead = new Date(formatted.tax_pay_dead).toISOString().slice(0, 10);
-        
+
         Object.keys(formatted).forEach(key => {
           if (formatted[key] === null) formatted[key] = "";
         });
@@ -247,9 +319,9 @@ export default function PropertyDetailsPage() {
 
       setLoading(false);
     }
-    
+
     if (id) loadData();
-  }, [id]);
+  }, [id, isIroncladOpportunity]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
@@ -332,7 +404,7 @@ export default function PropertyDetailsPage() {
 
   // Auto-calculate investment_total = paid_bid + active cost toggles + doc_fees
   useEffect(() => {
-    if (!property) return;
+    if (!property || isIroncladOpportunity) return;
     const costItems = [
       { cost: 'warrantydeedtransfer', toggle: 'tg_warrantydeedtransfer' },
       { cost: 'titleclaim_action',    toggle: 'tg_titleclaim_action' },
@@ -358,7 +430,7 @@ export default function PropertyDetailsPage() {
   // Auto-seed paid_bid_inv = paid_bid * 2 whenever paid_bid changes (user may still override)
   // Skip on initial load to preserve manually loaded values in the database
   useEffect(() => {
-    if (!property) return;
+    if (!property || isIroncladOpportunity) return;
     if (!paidBidMounted.current) { paidBidMounted.current = true; return; }
     const auto = (Number(property.paid_bid) || 0) * 2;
     setProperty((prev: any) => ({ ...prev, paid_bid_inv: auto }));
@@ -366,7 +438,7 @@ export default function PropertyDetailsPage() {
 
   // Auto-calculate investment_total_inv = paid_bid_inv + doc_fees_inv + closing_fess_inv + active strategy cost toggles
   useEffect(() => {
-    if (!property) return;
+    if (!property || isIroncladOpportunity) return;
     const strategyItems = [
       { cost: 'warrantydeedtransfer_stg', toggle: 'tg_warrantydeedtransfer_stg' },
       { cost: 'titleclaim_action_stg',    toggle: 'tg_titleclaim_action_stg' },
@@ -396,7 +468,7 @@ export default function PropertyDetailsPage() {
 
   // Auto-calculate financed_owner = (monthly_installment * 72) + investment_total
   useEffect(() => {
-    if (!property) return;
+    if (!property || isIroncladOpportunity) return;
     const pmt = Number(property.monthly_installment) || 0;
     const inv = Number(property.investment_total) || 0;
     if (pmt <= 0) {
@@ -409,7 +481,7 @@ export default function PropertyDetailsPage() {
 
   // Auto-calculate monthly_installment using PMT formula: rate=12% a.a., n=72 months, PV=(sale_price - investment_total)
   useEffect(() => {
-    if (!property) return;
+    if (!property || isIroncladOpportunity) return;
     const pv = (Number(property.sale_price) || 0) - (Number(property.investment_total) || 0);
     if (pv <= 0) {
       setProperty((prev: any) => ({ ...prev, monthly_installment: null }));
@@ -423,7 +495,7 @@ export default function PropertyDetailsPage() {
 
   // Auto-calculate sale_price based on state (FL/GA vs others) + active cost toggles with markup
   useEffect(() => {
-    if (!property) return;
+    if (!property || isIroncladOpportunity) return;
     const state = property.ls_county?.state;
     const isFlGa = state === 'FL' || state === 'GA';
 
@@ -454,7 +526,7 @@ export default function PropertyDetailsPage() {
 
   // Auto-calculate market_value (Residual Land Value) = house_price × 25% (FL/GA) or 20% (others)
   useEffect(() => {
-    if (!property) return;
+    if (!property || isIroncladOpportunity) return;
     const housePrice = Number(property.house_price) || 0;
     if (!housePrice) {
       setProperty((prev: any) => ({ ...prev, market_value: '' }));

@@ -8,7 +8,7 @@ export async function POST(request: NextRequest) {
     const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
     if (authError || !user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    if (!(await userHasPermission(user.id, "page:access", "edit"))) {
+    if (!(await userHasPermission(user.id, "page:access:profiles", "edit"))) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

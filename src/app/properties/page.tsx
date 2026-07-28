@@ -10,7 +10,7 @@ import {
   ArrowRight, Tag, Loader2, Navigation, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
   Filter, Layers, Maximize, Hash, CheckCircle2, Building2, UserCheck,
   Coins, DollarSign, TrendingUp, ImageOff, Gavel, Briefcase, ClipboardList,
-  Copy, Check
+  Copy, Check, HandCoins, X
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { getPreviewPartner } from "@/lib/impersonation";
@@ -47,6 +47,7 @@ export default function PropertiesPage() {
   const [maxDistance, setMaxDistance] = useState(searchParams.get('maxDistance') || "");
   const [maxTime, setMaxTime] = useState(searchParams.get('maxTime') || "");
   const [selectedInvestor, setSelectedInvestor] = useState(searchParams.get('investor') || "all");
+  const [showPartnerInterestOnly, setShowPartnerInterestOnly] = useState(searchParams.get('partnerInterest') === '1');
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   const [counties, setCounties] = useState<any[]>([]);
@@ -70,6 +71,9 @@ export default function PropertiesPage() {
 
   const [currentPage, setCurrentPage] = useState(Number(searchParams.get('page')) || 1);
   const [openRequestsMap, setOpenRequestsMap] = useState<Record<number, number>>({});
+  const [partnerInterestMap, setPartnerInterestMap] = useState<Record<number, number>>({});
+  const [partnerInterestDetails, setPartnerInterestDetails] = useState<Record<number, Array<{ id: string; partnerName: string; createdAt: string | null; requestId: number | null }>>>({});
+  const [openInterestPopoverId, setOpenInterestPopoverId] = useState<number | null>(null);
 
   // Refs to prevent effects from firing on first mount
   const filterSyncMounted  = useRef(false);
@@ -111,11 +115,12 @@ export default function PropertiesPage() {
     if (maxDistance)                               p.set('maxDistance', maxDistance);
     if (maxTime)                                   p.set('maxTime', maxTime);
     if (selectedInvestor !== 'all')                p.set('investor', selectedInvestor);
+    if (showPartnerInterestOnly)                   p.set('partnerInterest', '1');
     p.set('page', String(currentPage));
     router.replace(`?${p.toString()}`, { scroll: false });
   }, [source, searchTerm, selectedState, selectedCounty, selectedPropertyType, selectedPriority,
       selectedOrigin, selectedAuctionType, selectedAcquisitionDate, selectedAmenityCategory,
-      selectedAmenityType, maxDistance, maxTime, selectedInvestor, currentPage]);
+      selectedAmenityType, maxDistance, maxTime, selectedInvestor, showPartnerInterestOnly, currentPage]);
 
   // Toast — reads window.location.search on mount
   useEffect(() => {
@@ -195,12 +200,24 @@ export default function PropertiesPage() {
   useEffect(() => {
     if (source === 'partners' && currentUserId === null) return;
     fetchProperties();
-  }, [source, currentUserId, selectedCounty, selectedState, selectedPropertyType, selectedPriority, selectedOrigin, selectedAuctionType, selectedAcquisitionDate, selectedAmenityCategory, selectedAmenityType, maxDistance, maxTime, selectedInvestor, currentPage, searchTerm, counties]);
+  }, [source, currentUserId, selectedCounty, selectedState, selectedPropertyType, selectedPriority, selectedOrigin, selectedAuctionType, selectedAcquisitionDate, selectedAmenityCategory, selectedAmenityType, maxDistance, maxTime, selectedInvestor, showPartnerInterestOnly, currentPage, searchTerm, counties]);
 
   useEffect(() => {
     if (!filterChangeMounted.current) { filterChangeMounted.current = true; return; }
     setCurrentPage(1);
-  }, [source, searchTerm, selectedCounty, selectedState, selectedPropertyType, selectedPriority, selectedOrigin, selectedAuctionType, selectedAcquisitionDate, selectedAmenityCategory, selectedAmenityType, maxDistance, maxTime]);
+  }, [source, searchTerm, selectedCounty, selectedState, selectedPropertyType, selectedPriority, selectedOrigin, selectedAuctionType, selectedAcquisitionDate, selectedAmenityCategory, selectedAmenityType, maxDistance, maxTime, showPartnerInterestOnly]);
+
+  // Close the partner-interest popover when clicking anywhere outside it.
+  useEffect(() => {
+    if (openInterestPopoverId === null) return;
+    const handleClick = (e: MouseEvent) => {
+      if (!(e.target as HTMLElement).closest('[data-interest-popover]')) {
+        setOpenInterestPopoverId(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [openInterestPopoverId]);
 
   async function fetchCounties() {
     const { data } = await supabase.from("ls_county").select("id, name, state").order("name");
@@ -252,6 +269,10 @@ export default function PropertiesPage() {
     if (selectedState !== 'all' && counties.length === 0) return;
     setLoading(true);
     try {
+      const extraJoins: string[] = [];
+      if (selectedAmenityType !== 'all') extraJoins.push('ls_asset_amenities!inner(*)');
+      if (source === 'ironclad' && showPartnerInterestOnly) extraJoins.push('ls_asset_partner_interest!inner(id)');
+
       let query = supabase
         .from("ls_assets")
         .select(`
@@ -263,7 +284,7 @@ export default function PropertiesPage() {
           ls_origem(name),
           ls_auction_type(name),
           owner_partner:ls_users_metadata!owner_partner_id(full_name)
-          ${selectedAmenityType !== 'all' ? ', ls_asset_amenities!inner(*)' : ''}
+          ${extraJoins.length ? ', ' + extraJoins.join(', ') : ''}
         `, { count: "exact" })
         .eq("record_type", "PROPERTY");
 
@@ -318,6 +339,13 @@ export default function PropertiesPage() {
         }
       }
 
+      if (source === 'ironclad' && showPartnerInterestOnly) {
+        // Only ACTIVE (unresolved) interest counts — once the linked
+        // request closes, the DB trigger resolves it and it should drop
+        // out of this filter automatically.
+        query = query.is("ls_asset_partner_interest.resolved_at", null);
+      }
+
       if (selectedOrigin && selectedOrigin !== "all") {
         query = query.eq("origem_id", selectedOrigin);
       }
@@ -369,6 +397,7 @@ export default function PropertiesPage() {
       setProperties(data || []);
       setTotalCount(count || 0);
       fetchOpenRequests((data || []).map((p: any) => p.id));
+      if (source === 'ironclad') fetchPartnerInterestCounts((data || []).map((p: any) => p.id));
     } catch (err) {
       console.error("Error fetching properties:", err);
     } finally {
@@ -390,6 +419,33 @@ export default function PropertiesPage() {
       }
     }
     setOpenRequestsMap(map);
+  }
+
+  async function fetchPartnerInterestCounts(ids: number[]) {
+    if (ids.length === 0) { setPartnerInterestMap({}); setPartnerInterestDetails({}); return; }
+    // Only active (unresolved) interest — once the linked request is closed,
+    // the DB trigger stamps resolved_at and it drops out of this view
+    // automatically (see rls_patch_6_auto_resolve_partner_interest.sql).
+    const { data } = await supabase
+      .from('ls_asset_partner_interest')
+      .select('id, asset_id, request_id, created_at, partner:ls_users_metadata!partner_id(full_name)')
+      .in('asset_id', ids)
+      .is('resolved_at', null)
+      .order('created_at', { ascending: false });
+    if (!data) return;
+    const map: Record<number, number> = {};
+    const details: Record<number, Array<{ id: string; partnerName: string; createdAt: string | null; requestId: number | null }>> = {};
+    for (const row of data as any[]) {
+      map[row.asset_id] = (map[row.asset_id] || 0) + 1;
+      (details[row.asset_id] ||= []).push({
+        id: row.id,
+        partnerName: row.partner?.full_name || 'Unknown Partner',
+        createdAt: row.created_at,
+        requestId: row.request_id,
+      });
+    }
+    setPartnerInterestMap(map);
+    setPartnerInterestDetails(details);
   }
 
   const handleViewModeChange = (mode: "grid" | "list") => {
@@ -638,6 +694,38 @@ export default function PropertiesPage() {
               </select>
             </div>
 
+            {source === 'ironclad' && (
+              <div className="prop-filter-item">
+                <label>Has Purchase Interest</label>
+                <button
+                  type="button"
+                  onClick={() => setShowPartnerInterestOnly(v => !v)}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
+                    height: '42px', padding: '0 0.75rem', borderRadius: '0.5rem',
+                    border: `2px solid ${showPartnerInterestOnly ? '#0f172a' : '#e2e8f0'}`,
+                    backgroundColor: showPartnerInterestOnly ? '#0f172a' : 'white',
+                    color: showPartnerInterestOnly ? 'white' : '#64748b',
+                    fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer',
+                  }}
+                >
+                  <span style={{
+                    width: '30px', height: '16px', borderRadius: '999px',
+                    backgroundColor: showPartnerInterestOnly ? '#22c55e' : '#cbd5e1',
+                    position: 'relative', transition: 'background 0.15s', flexShrink: 0,
+                  }}>
+                    <span style={{
+                      position: 'absolute', top: '2px', left: '2px', width: '12px', height: '12px',
+                      borderRadius: '50%', backgroundColor: 'white',
+                      transform: showPartnerInterestOnly ? 'translateX(14px)' : 'translateX(0)',
+                      transition: 'transform 0.15s',
+                    }} />
+                  </span>
+                  {showPartnerInterestOnly ? 'Yes' : 'All'}
+                </button>
+              </div>
+            )}
+
             <div className="prop-filter-item prop-actions-item"></div>
 
             {/* ZONE 2: AMENITY FILTERS */}
@@ -720,6 +808,7 @@ export default function PropertiesPage() {
                 setMaxDistance("");
                 setMaxTime("");
                 setSelectedInvestor("all");
+                setShowPartnerInterestOnly(false);
                 setSearchTerm("");
               }}>
                 Clear All
@@ -830,6 +919,40 @@ export default function PropertiesPage() {
                       <ClipboardList className="w-3 h-3" />
                       {openRequestsMap[prop.id]} {openRequestsMap[prop.id] === 1 ? 'Request' : 'Requests'}
                     </span>
+                  )}
+                  {source === 'ironclad' && partnerInterestMap[prop.id] > 0 && (
+                    <div data-interest-popover style={{ position: 'relative', display: 'inline-block' }}>
+                      <button
+                        onClick={() => setOpenInterestPopoverId(id => id === prop.id ? null : prop.id)}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', backgroundColor: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0', padding: '0.2rem 0.55rem', borderRadius: '999px', fontSize: '0.65rem', fontWeight: 700, whiteSpace: 'nowrap', cursor: 'pointer' }}
+                      >
+                        <HandCoins className="w-3 h-3" />
+                        {partnerInterestMap[prop.id]} {partnerInterestMap[prop.id] === 1 ? 'Partner Interest' : 'Partner Interests'}
+                      </button>
+                      {openInterestPopoverId === prop.id && (
+                        <div style={{
+                          position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: 50,
+                          width: '260px', backgroundColor: 'white', border: '1px solid #e2e8f0',
+                          borderRadius: '0.75rem', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.15)',
+                          padding: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.25rem',
+                        }}>
+                          {(partnerInterestDetails[prop.id] || []).map((entry, i) => (
+                            <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem', padding: '0.5rem 0.6rem', borderRadius: '0.5rem', backgroundColor: '#f8fafc' }}>
+                              <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#0f172a' }}>{entry.partnerName}</span>
+                              <span style={{ fontSize: '0.68rem', color: '#94a3b8' }}>{formatDate(entry.createdAt)}</span>
+                              {entry.requestId != null && (
+                                <Link
+                                  href={`/requests/${entry.requestId}`}
+                                  style={{ fontSize: '0.7rem', fontWeight: 600, color: '#10b981', textDecoration: 'none', marginTop: '0.15rem' }}
+                                >
+                                  View Request →
+                                </Link>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   )}
                   {prop.owner_type === 'partner' ? (
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', backgroundColor: '#fffbeb', color: '#b45309', border: '1px solid #fde68a', padding: '0.2rem 0.55rem', borderRadius: '999px', fontSize: '0.65rem', fontWeight: 700, whiteSpace: 'nowrap' }}>

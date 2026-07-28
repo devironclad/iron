@@ -19,6 +19,11 @@ CREATE TABLE ls_gismap (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), name VARC
 CREATE TABLE ls_property_access (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), name VARCHAR(255) NOT NULL);
 CREATE TABLE ls_road_access (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), name VARCHAR(255) NOT NULL);
 CREATE TABLE ls_ref_construction (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), name VARCHAR(255) NOT NULL);
+-- ls_safety_index, ls_financial_rating (patch 8): mesmo formato simples
+-- (id, name), seeded com Low/Medium/High, usados na tela de Auctions,
+-- seção "Property Attributes" — ver rls_patch_8_safety_financial_fields.sql
+CREATE TABLE IF NOT EXISTS ls_safety_index (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), name VARCHAR(255) NOT NULL);
+CREATE TABLE IF NOT EXISTS ls_financial_rating (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), name VARCHAR(255) NOT NULL);
 
 -- Optional: Initial Seed Data for Statuses and Priorities (Examples)
 -- INSERT INTO ls_status (name) VALUES ('Auction'), ('Property'), ('Archived');
@@ -197,6 +202,13 @@ CREATE TRIGGER tr_ls_assets_updated_at
 BEFORE UPDATE ON ls_assets
 FOR EACH ROW
 EXECUTE FUNCTION set_updated_at();
+
+-- Safety Index / Financial Rating / Mobile Home Allowed (patch 8) — used on
+-- the Auctions screen, "Property Attributes" section.
+ALTER TABLE ls_assets
+  ADD COLUMN IF NOT EXISTS safety_index_id UUID REFERENCES ls_safety_index(id),
+  ADD COLUMN IF NOT EXISTS financial_rating_id UUID REFERENCES ls_financial_rating(id),
+  ADD COLUMN IF NOT EXISTS mobile_home_allowed BOOLEAN DEFAULT FALSE;
 
 
 -- ==============================================================================
@@ -456,6 +468,43 @@ FOR EACH ROW EXECUTE FUNCTION notify_on_request_assignment();
 -- INSERT INTO ls_request_category (name) VALUES ('General Support'), ('Property Valuation'), ('Legal Review'), ('Financial Approval');
 -- INSERT INTO ls_request_priority (name, sla_days, color) VALUES ('Low', 5, '#22c55e'), ('Medium', 3, '#eab308'), ('High', 2, '#f97316'), ('Critical', 1, '#ef4444');
 -- INSERT INTO ls_request_status (name, color, is_closed) VALUES ('Open', '#3b82f6', FALSE), ('In Progress', '#eab308', FALSE), ('Waiting on Requester', '#f97316', FALSE), ('Resolved', '#22c55e', TRUE), ('Cancelled', '#94a3b8', TRUE);
+
+-- ==============================================================================
+-- 11. PARTNER PURCHASE INTEREST MODULE
+-- Parceiros navegam propriedades da Ironclad (menu "Ironclad Opportunities")
+-- e podem registrar interesse de compra. Vários parceiros podem se
+-- interessar pela mesma propriedade, por isso é uma tabela própria e não
+-- uma coluna em ls_assets. RLS/policy/seeds vivem em
+-- scripts/rls/rls_patch_4_asset_partner_interest.sql — parceiros não têm
+-- nenhum acesso direto (leitura ou escrita) a esta tabela; tudo passa por
+-- API routes server-side (supabaseAdmin), que também criam um ls_requests
+-- correspondente (categoria "Purchase Interest") para a equipe acompanhar.
+--
+-- resolved_at (patch 6): quando o chamado vinculado (request_id) atinge um
+-- status com is_closed = true, um trigger em ls_requests preenche esta
+-- coluna automaticamente — "interesse ativo" = resolved_at IS NULL. O
+-- histórico é preservado (nunca é deletado). Por isso a unicidade de
+-- (asset_id, partner_id) é um índice único PARCIAL (só entre linhas ativas),
+-- não mais uma constraint UNIQUE simples — ver rls_patch_6.
+-- A função do trigger é SECURITY DEFINER (patch 7): sem isso, quando um
+-- FUNCIONÁRIO (não supabaseAdmin) fecha o chamado pela tela de Requests, a
+-- policy de UPDATE inexistente nesta tabela bloqueia silenciosamente a
+-- escrita do trigger — mesma classe de problema já resolvida antes para
+-- ls_notifications (rls_patch_3), mas aqui resolvida via SECURITY DEFINER
+-- em vez de policy pública, pra não abrir escrita direta pra parceiros.
+-- ==============================================================================
+
+CREATE TABLE IF NOT EXISTS ls_asset_partner_interest (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    asset_id BIGINT NOT NULL REFERENCES ls_assets(id) ON DELETE CASCADE,
+    partner_id UUID NOT NULL REFERENCES ls_users_metadata(id) ON DELETE CASCADE,
+    message TEXT,
+    request_id BIGINT REFERENCES ls_requests(id) ON DELETE SET NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+    resolved_at TIMESTAMP WITH TIME ZONE
+);
+-- UNIQUE INDEX (asset_id, partner_id) WHERE resolved_at IS NULL — ver rls_patch_6
+-- ALTER TABLE ls_asset_partner_interest ENABLE ROW LEVEL SECURITY; -- ver rls_patch_4
 
 -- ==============================================================================
 -- 11. MARKETING MODULE

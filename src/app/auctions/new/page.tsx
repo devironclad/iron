@@ -76,6 +76,9 @@ export default function NewAuctionForm() {
     prop_access_id: "",
     road_access_id: "",
     ref_construction_id: "",
+    safety_index_id: "",
+    financial_rating_id: "",
+    mobile_home_allowed: false,
     inperson_visit: false,
     market_value: "",
     annual_tax: "",
@@ -112,10 +115,11 @@ export default function NewAuctionForm() {
       setFetchingData(true);
       
       const tables = [
-        "ls_origem", "ls_priority", "ls_county", 
-        "ls_auction_type", "ls_auction_model", "ls_property_type", 
-        "ls_fema", "ls_wetlands", "ls_debit", "ls_gismap", 
-        "ls_property_access", "ls_road_access", "ls_ref_construction"
+        "ls_origem", "ls_priority", "ls_county",
+        "ls_auction_type", "ls_auction_model", "ls_property_type",
+        "ls_fema", "ls_wetlands", "ls_debit", "ls_gismap",
+        "ls_property_access", "ls_road_access", "ls_ref_construction",
+        "ls_safety_index", "ls_financial_rating"
       ];
       
       const results: Record<string, any[]> = {};
@@ -420,10 +424,11 @@ export default function NewAuctionForm() {
       });
 
       const uuidFields = [
-        'origem_id', 'priority_id', 'county_id', 
-        'auction_type_id', 'auction_model_id', 'property_type_id', 
-        'fema_id', 'wetlands_id', 'debit_id', 'gismap_id', 
-        'prop_access_id', 'road_access_id', 'ref_construction_id'
+        'origem_id', 'priority_id', 'county_id',
+        'auction_type_id', 'auction_model_id', 'property_type_id',
+        'fema_id', 'wetlands_id', 'debit_id', 'gismap_id',
+        'prop_access_id', 'road_access_id', 'ref_construction_id',
+        'safety_index_id', 'financial_rating_id'
       ];
       
       uuidFields.forEach(field => {
@@ -540,10 +545,11 @@ export default function NewAuctionForm() {
       payload.acquisition_date = new Date().toISOString();
 
       const uuidFields = [
-        'origem_id', 'priority_id', 'county_id', 
-        'auction_type_id', 'auction_model_id', 'property_type_id', 
-        'fema_id', 'wetlands_id', 'debit_id', 'gismap_id', 
-        'prop_access_id', 'road_access_id', 'ref_construction_id'
+        'origem_id', 'priority_id', 'county_id',
+        'auction_type_id', 'auction_model_id', 'property_type_id',
+        'fema_id', 'wetlands_id', 'debit_id', 'gismap_id',
+        'prop_access_id', 'road_access_id', 'ref_construction_id',
+        'safety_index_id', 'financial_rating_id'
       ];
       uuidFields.forEach(field => {
         if (!payload[field]) payload[field] = null;
@@ -1052,6 +1058,24 @@ export default function NewAuctionForm() {
                 {lookups.ls_debit?.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
               </select>
             </div>
+            <div className="input-group">
+              <label className="input-label">Safety Index</label>
+              <select name="safety_index_id" value={formData.safety_index_id} onChange={handleChange} className="input-field">
+                <option value="">Select Safety Index...</option>
+                {lookups.ls_safety_index?.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+              </select>
+            </div>
+            <div className="input-group">
+              <label className="input-label">Financial Rating</label>
+              <select name="financial_rating_id" value={formData.financial_rating_id} onChange={handleChange} className="input-field">
+                <option value="">Select Financial Rating...</option>
+                {lookups.ls_financial_rating?.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="checkbox-group" style={{ marginTop: "1.5rem" }}>
+            <input type="checkbox" id="mobile_home_allowed" name="mobile_home_allowed" checked={formData.mobile_home_allowed} onChange={handleChange as any} className="checkbox-input" />
+            <label htmlFor="mobile_home_allowed" className="checkbox-label">Mobile Home Allowed</label>
           </div>
         </section>
 

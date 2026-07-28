@@ -6,6 +6,7 @@ const ALLOWED_TABLES = new Set([
   "ls_auction_model", "ls_property_type", "ls_fema", "ls_wetlands", "ls_debit",
   "ls_gismap", "ls_property_access", "ls_road_access", "ls_ref_construction",
   "ls_amenity_category", "ls_amenity_type", "ls_request_category",
+  "ls_safety_index", "ls_financial_rating",
 ]);
 
 async function authenticate(request: NextRequest) {

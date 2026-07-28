@@ -35,9 +35,12 @@ const RESOURCES = [
   { id: "page:properties:broker", label: "Properties: Investors", category: "Pages" },
   { id: "page:properties:partners", label: "Properties: Partners", category: "Pages" },
   { id: "page:properties:all-partners", label: "Properties: Marketing", category: "Pages" },
+  { id: "page:properties:ironclad-opportunities", label: "Properties: Ironclad Opportunities", category: "Pages" },
   { id: "page:requests", label: "Requests Page", category: "Pages" },
   { id: "page:manager", label: "Manager Page", category: "Pages" },
   { id: "page:access", label: "Access Control Page", category: "Pages" },
+  { id: "page:access:profiles", label: "Access: Profiles & Permissions", category: "Pages" },
+  { id: "page:access:users", label: "Access: User Management", category: "Pages" },
   { id: "tab:general",      label: "Property: Research Tab",       category: "Property Tabs" },
   { id: "tab:amenities",   label: "Property: Amenities Tab",      category: "Property Tabs" },
   { id: "tab:values",      label: "Property: Values Tab",         category: "Property Tabs" },
@@ -64,6 +67,8 @@ const RESOURCES = [
   { id: "table:ls_amenity_category", label: "Manager: Amenity Categories", category: "Manager Tables" },
   { id: "table:ls_amenity_type", label: "Manager: Amenity Types", category: "Manager Tables" },
   { id: "table:ls_request_category", label: "Manager: Request Category", category: "Manager Tables" },
+  { id: "table:ls_safety_index", label: "Manager: Safety Index", category: "Manager Tables" },
+  { id: "table:ls_financial_rating", label: "Manager: Financial Rating", category: "Manager Tables" },
   // Actions
   { id: "action:export_auctions", label: "Action: Export Auctions Data", category: "Actions" },
   { id: "action:copy_property", label: "Action: Copy Property Info", category: "Actions" },
@@ -89,12 +94,29 @@ export default function AccessPage() {
   const [deletingUser, setDeletingUser] = useState<any | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [userPermissions, setUserPermissions] = useState<Record<string, Permission> | null>(null);
-  const canEdit = userPermissions !== null && hasPermission(userPermissions, 'page:access', 'edit');
+
+  // Each Access sub-page has its own view/edit permission, independent of
+  // the other — a profile can e.g. view Profiles & Permissions read-only
+  // while having full edit rights on User Management, or no access at all
+  // to one of them.
+  const canViewProfilesTab = userPermissions !== null && hasPermission(userPermissions, 'page:access:profiles', 'view');
+  const canEditProfilesTab = userPermissions !== null && hasPermission(userPermissions, 'page:access:profiles', 'edit');
+  const canViewUsersTab = userPermissions !== null && hasPermission(userPermissions, 'page:access:users', 'view');
+  const canEditUsersTab = userPermissions !== null && hasPermission(userPermissions, 'page:access:users', 'edit');
 
   useEffect(() => {
     fetchData();
     getCurrentUserPermissions().then(setUserPermissions);
   }, []);
+
+  // Once permissions load, land on whichever sub-page the profile can
+  // actually view (in case it only has one of the two granted).
+  useEffect(() => {
+    if (userPermissions === null) return;
+    if (activeTab === 'profiles' && !canViewProfilesTab && canViewUsersTab) setActiveTab('users');
+    else if (activeTab === 'users' && !canViewUsersTab && canViewProfilesTab) setActiveTab('profiles');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userPermissions]);
 
   async function fetchData() {
     setLoading(true);
@@ -102,7 +124,7 @@ export default function AccessPage() {
       // Fetch Profiles
       const { data: profData } = await supabase.from("ls_profiles").select("*").order("name");
       setProfiles(profData || []);
-      
+
       if (profData && profData.length > 0 && !selectedProfile) {
         handleSelectProfile(profData[0]);
       }
@@ -115,7 +137,7 @@ export default function AccessPage() {
           ls_user_profiles(profile_id)
         `)
         .order("full_name", { ascending: true });
-      
+
       if (userError) {
         console.error("Error fetching users:", JSON.stringify(userError, null, 2));
       }
@@ -130,12 +152,12 @@ export default function AccessPage() {
   async function handleSelectProfile(profile: any) {
     setSelectedProfile(profile);
     setLoading(true);
-    
+
     const { data } = await supabase
       .from("ls_permissions")
       .select("*")
       .eq("profile_id", profile.id);
-    
+
     const permMap: any = {};
     RESOURCES.forEach(r => {
       const found = data?.find(p => p.resource_key === r.id);
@@ -149,7 +171,7 @@ export default function AccessPage() {
   }
 
   const togglePermission = (resourceKey: string, type: 'can_view' | 'can_edit') => {
-    if (!canEdit) return;
+    if (!canEditProfilesTab) return;
     setPermissions((prev: any) => ({
       ...prev,
       [resourceKey]: {
@@ -165,7 +187,7 @@ export default function AccessPage() {
   }
 
   async function savePermissions() {
-    if (!selectedProfile || !canEdit) return;
+    if (!selectedProfile || !canEditProfilesTab) return;
     setSaving(true);
     setMessage(null);
     try {
@@ -193,7 +215,7 @@ export default function AccessPage() {
   }
 
   async function updateUserType(userId: string, userType: string) {
-    if (!canEdit) return;
+    if (!canEditUsersTab) return;
     try {
       const res = await fetch("/api/access/user-assignment", {
         method: "PATCH",
@@ -213,7 +235,7 @@ export default function AccessPage() {
   }
 
   async function updateUserProfile(userId: string, profileId: string) {
-    if (!canEdit) return;
+    if (!canEditUsersTab) return;
     setSaving(true);
     try {
       const res = await fetch("/api/access/user-assignment", {
@@ -235,7 +257,7 @@ export default function AccessPage() {
   }
 
   async function handleCreateUser() {
-    if (!newUser.email || !newUser.full_name || !canEdit) return;
+    if (!newUser.email || !newUser.full_name || !canEditUsersTab) return;
     setSaving(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -277,7 +299,7 @@ export default function AccessPage() {
   }
 
   async function handleSendInvite(userId: string, email: string) {
-    if (!canEdit) return;
+    if (!canEditUsersTab) return;
     setInvitingUserId(userId);
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -307,7 +329,7 @@ export default function AccessPage() {
   }
 
   async function handleResetPassword(userId: string, email: string) {
-    if (!canEdit) return;
+    if (!canEditUsersTab) return;
     if (!confirm(`Send a password reset email to ${email}?`)) return;
     setResettingUserId(userId);
     try {
@@ -341,7 +363,7 @@ export default function AccessPage() {
   }
 
   async function handleEditUser() {
-    if (!editingUser || !editForm.full_name || !editForm.email || !canEdit) return;
+    if (!editingUser || !editForm.full_name || !editForm.email || !canEditUsersTab) return;
     setSaving(true);
     setEditError(null);
     try {
@@ -384,7 +406,7 @@ export default function AccessPage() {
   }
 
   async function handleDeleteUser() {
-    if (!deletingUser || !canEdit) return;
+    if (!deletingUser || !canEditUsersTab) return;
     setConfirmingDelete(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -429,26 +451,30 @@ export default function AccessPage() {
           <h1 className="page-title">Access Control<span className="dot">.</span></h1>
           <p className="page-subtitle">Manage system users, profiles and granular permissions.</p>
         </div>
-        
+
         <div className="access-tabs">
-          <button 
-            className={`access-tab-btn ${activeTab === "profiles" ? "active" : ""}`}
-            onClick={() => setActiveTab("profiles")}
-          >
-            <ShieldCheck className="w-4 h-4" />
-            Profiles & Permissions
-          </button>
-          <button 
-            className={`access-tab-btn ${activeTab === "users" ? "active" : ""}`}
-            onClick={() => setActiveTab("users")}
-          >
-            <Users className="w-4 h-4" />
-            User Management
-          </button>
+          {canViewProfilesTab && (
+            <button
+              className={`access-tab-btn ${activeTab === "profiles" ? "active" : ""}`}
+              onClick={() => setActiveTab("profiles")}
+            >
+              <ShieldCheck className="w-4 h-4" />
+              Profiles & Permissions
+            </button>
+          )}
+          {canViewUsersTab && (
+            <button
+              className={`access-tab-btn ${activeTab === "users" ? "active" : ""}`}
+              onClick={() => setActiveTab("users")}
+            >
+              <Users className="w-4 h-4" />
+              User Management
+            </button>
+          )}
         </div>
       </div>
 
-      {activeTab === "profiles" ? (
+      {activeTab === "profiles" && canViewProfilesTab ? (
         <div className="access-layout">
           <div className="profile-sidebar">
             <div className="sidebar-section">
@@ -458,8 +484,8 @@ export default function AccessPage() {
               </div>
               <div className="profile-list">
                 {profiles.map(p => (
-                  <button 
-                    key={p.id} 
+                  <button
+                    key={p.id}
                     className={`profile-item ${selectedProfile?.id === p.id ? "active" : ""}`}
                     onClick={() => handleSelectProfile(p)}
                   >
@@ -488,11 +514,11 @@ export default function AccessPage() {
                   <button
                     className="save-btn"
                     onClick={savePermissions}
-                    disabled={saving || !canEdit}
-                    title={!canEdit ? "You don't have permission to edit access control." : undefined}
+                    disabled={saving || !canEditProfilesTab}
+                    title={!canEditProfilesTab ? "You don't have permission to edit Profiles & Permissions." : undefined}
                   >
                     {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                    {canEdit ? "Save Changes" : "Read Only"}
+                    {canEditProfilesTab ? "Save Changes" : "Read Only"}
                   </button>
                 </div>
 
@@ -523,7 +549,7 @@ export default function AccessPage() {
                                 type="checkbox"
                                 checked={permissions[r.id]?.can_view || false}
                                 onChange={() => togglePermission(r.id, 'can_view')}
-                                disabled={!canEdit}
+                                disabled={!canEditProfilesTab}
                               />
                               <div className="toggle-slider"><Eye className="w-3 h-3 icon-view" /></div>
                             </label>
@@ -534,7 +560,7 @@ export default function AccessPage() {
                                 type="checkbox"
                                 checked={permissions[r.id]?.can_edit || false}
                                 onChange={() => togglePermission(r.id, 'can_edit')}
-                                disabled={!canEdit}
+                                disabled={!canEditProfilesTab}
                               />
                               <div className="toggle-slider"><Edit3 className="w-3 h-3 icon-edit" /></div>
                             </label>
@@ -551,7 +577,7 @@ export default function AccessPage() {
                                 type="checkbox"
                                 checked={permissions[r.id]?.can_view || false}
                                 onChange={() => togglePermission(r.id, 'can_view')}
-                                disabled={!canEdit}
+                                disabled={!canEditProfilesTab}
                               />
                               <div className="toggle-slider"><Eye className="w-3 h-3 icon-view" /></div>
                             </label>
@@ -562,7 +588,7 @@ export default function AccessPage() {
                                 type="checkbox"
                                 checked={permissions[r.id]?.can_edit || false}
                                 onChange={() => togglePermission(r.id, 'can_edit')}
-                                disabled={!canEdit}
+                                disabled={!canEditProfilesTab}
                               />
                               <div className="toggle-slider"><Edit3 className="w-3 h-3 icon-edit" /></div>
                             </label>
@@ -579,7 +605,7 @@ export default function AccessPage() {
                                 type="checkbox"
                                 checked={permissions[r.id]?.can_view || false}
                                 onChange={() => togglePermission(r.id, 'can_view')}
-                                disabled={!canEdit}
+                                disabled={!canEditProfilesTab}
                               />
                               <div className="toggle-slider"><Eye className="w-3 h-3 icon-view" /></div>
                             </label>
@@ -590,7 +616,7 @@ export default function AccessPage() {
                                 type="checkbox"
                                 checked={permissions[r.id]?.can_edit || false}
                                 onChange={() => togglePermission(r.id, 'can_edit')}
-                                disabled={!canEdit}
+                                disabled={!canEditProfilesTab}
                               />
                               <div className="toggle-slider"><Edit3 className="w-3 h-3 icon-edit" /></div>
                             </label>
@@ -607,7 +633,7 @@ export default function AccessPage() {
                                 type="checkbox"
                                 checked={permissions[r.id]?.can_view || false}
                                 onChange={() => togglePermission(r.id, 'can_view')}
-                                disabled={!canEdit}
+                                disabled={!canEditProfilesTab}
                               />
                               <div className="toggle-slider"><Eye className="w-3 h-3 icon-view" /></div>
                             </label>
@@ -618,7 +644,7 @@ export default function AccessPage() {
                                 type="checkbox"
                                 checked={permissions[r.id]?.can_edit || false}
                                 onChange={() => togglePermission(r.id, 'can_edit')}
-                                disabled={!canEdit}
+                                disabled={!canEditProfilesTab}
                               />
                               <div className="toggle-slider"><Edit3 className="w-3 h-3 icon-edit" /></div>
                             </label>
@@ -637,7 +663,7 @@ export default function AccessPage() {
             )}
           </div>
         </div>
-      ) : (
+      ) : activeTab === "users" && canViewUsersTab ? (
         <div className="users-management-area">
           <div className="permissions-card">
             <div className="card-header">
@@ -648,7 +674,7 @@ export default function AccessPage() {
                   <p>Assign profiles to registered users to control their access levels.</p>
                 </div>
               </div>
-              {canEdit && (
+              {canEditUsersTab && (
                 <button className="save-btn" onClick={() => setShowAddUserModal(true)}>
                   <Plus className="w-4 h-4" />
                   Add New User
@@ -705,7 +731,7 @@ export default function AccessPage() {
                             className="profile-select"
                             value={u.user_type || "employee"}
                             onChange={(e) => updateUserType(u.id, e.target.value)}
-                            disabled={!canEdit}
+                            disabled={!canEditUsersTab}
                           >
                             <option value="employee">Employee</option>
                             <option value="partner">Partner</option>
@@ -716,7 +742,7 @@ export default function AccessPage() {
                             className="profile-select"
                             value={u.ls_user_profiles?.profile_id || ""}
                             onChange={(e) => updateUserProfile(u.id, e.target.value)}
-                            disabled={saving || !canEdit}
+                            disabled={saving || !canEditUsersTab}
                           >
                             <option value="">No Profile (No Access)</option>
                             {profiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -730,9 +756,9 @@ export default function AccessPage() {
                             </div>
                           ) : (
                             <button
-                              title={canEdit ? "Send invite email" : "You don't have permission to invite users."}
+                              title={canEditUsersTab ? "Send invite email" : "You don't have permission to invite users."}
                               onClick={() => handleSendInvite(u.id, u.email)}
-                              disabled={invitingUserId === u.id || !canEdit}
+                              disabled={invitingUserId === u.id || !canEditUsersTab}
                               style={{
                                 display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
                                 padding: '0.3rem 0.75rem', borderRadius: '6px', fontSize: '0.75rem',
@@ -763,7 +789,7 @@ export default function AccessPage() {
                                 <Eye className="w-4 h-4" />
                               </button>
                             )}
-                            {canEdit && (
+                            {canEditUsersTab && (
                               <button
                                 title="Edit user"
                                 className="delete-btn-mini"
@@ -773,7 +799,7 @@ export default function AccessPage() {
                                 <Pencil className="w-4 h-4" />
                               </button>
                             )}
-                            {canEdit && (
+                            {canEditUsersTab && (
                               <button
                                 title="Delete user"
                                 className="delete-btn-mini"
@@ -790,11 +816,16 @@ export default function AccessPage() {
                 </tbody>
               </table>
             </div>
-            
+
             <div className="invite-footer">
               <p>Users created here are immediately available in the system. Send the invite when ready to grant access.</p>
             </div>
           </div>
+        </div>
+      ) : (
+        <div className="empty-permissions">
+          <ShieldCheck className="w-12 h-12 mb-4 opacity-20" />
+          <p>You don't have view access to either Access sub-page. Contact your administrator.</p>
         </div>
       )}
 

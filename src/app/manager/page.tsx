@@ -33,6 +33,8 @@ const TABLES = [
   { id: "ls_amenity_category", label: "Amenity Categories", icon: Layers, desc: "Groups like Shopping, Transport, etc" },
   { id: "ls_amenity_type", label: "Amenity Types", icon: MapPin, desc: "Specific items like Walmart, Schools" },
   { id: "ls_request_category", label: "Request Category", icon: Layers, desc: "Categories for Helpdesk requests" },
+  { id: "ls_safety_index", label: "Safety Index", icon: ShieldCheck, desc: "Low, Medium, High area safety rating" },
+  { id: "ls_financial_rating", label: "Financial Rating", icon: DollarSign, desc: "Low, Medium, High financial rating" },
 ];
 
 function ManagerContent() {

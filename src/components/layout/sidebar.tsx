@@ -45,6 +45,7 @@ const NAV_ITEMS: NavItem[] = [
       { name: "Investors", href: "/properties?source=broker", resource: "page:properties:broker" },
       { name: "Partners", href: "/properties?source=partners", resource: "page:properties:partners" },
       { name: "Marketing", href: "/properties?source=all-partners", resource: "page:properties:all-partners" },
+      { name: "Ironclad Opportunities", href: "/properties/ironclad-opportunities", resource: "page:properties:ironclad-opportunities" },
     ],
   },
   { name: "Requests", href: "/requests", icon: ClipboardList, resource: "page:requests" },

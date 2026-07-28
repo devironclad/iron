@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    if (!(await userHasPermission(caller.id, "page:access", "edit"))) {
+    if (!(await userHasPermission(caller.id, "page:access:users", "edit"))) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
