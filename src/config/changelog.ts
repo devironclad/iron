@@ -6,9 +6,19 @@ export interface ChangelogItem {
   changes: string[];
 }
 
-export const CURRENT_VERSION = "1.8.0";
+export const CURRENT_VERSION = "1.9.0";
 
 export const CHANGELOG: ChangelogItem[] = [
+  {
+    version: "1.9.0",
+    date: "2026-07-29",
+    title: "Classification Field for Auctions & Properties",
+    type: "minor",
+    changes: [
+      "Auctions and Properties: added a new Classification field (PLA / PAA / PMX / PWT) to the Property Attributes section.",
+      "Properties: Safety Index and Financial Rating fields (previously Auctions-only) now also appear in the Acquisition & Development tab."
+    ]
+  },
   {
     version: "1.8.0",
     date: "2026-07-29",

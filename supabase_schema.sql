@@ -125,6 +125,7 @@ CREATE TABLE ls_assets (
 CREATE TYPE sale_status_enum AS ENUM ('Pending', 'Listed', 'Awaiting Purchase');
 CREATE TYPE improvements_enum AS ENUM ('No Improvements', 'Well only', 'Septic only', 'Well & Septic');
 CREATE TYPE mh_allowed_enum AS ENUM ('Yes', 'No', 'Modular Only');
+CREATE TYPE classification_enum AS ENUM ('PLA', 'PAA', 'PMX', 'PWT');
 
 -- ==============================================================================
 -- 4. ALTER TABLE ls_assets ADD NEW COLUMNS
@@ -147,7 +148,8 @@ ALTER TABLE ls_assets
   ADD COLUMN IF NOT EXISTS sale_status sale_status_enum,
   ADD COLUMN IF NOT EXISTS improvements improvements_enum,
   ADD COLUMN IF NOT EXISTS mh_allowed mh_allowed_enum,
-  ADD COLUMN IF NOT EXISTS utilities TEXT;
+  ADD COLUMN IF NOT EXISTS utilities TEXT,
+  ADD COLUMN IF NOT EXISTS classification classification_enum;
 
 
 -- ==============================================================================

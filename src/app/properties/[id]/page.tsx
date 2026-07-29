@@ -226,7 +226,8 @@ export default function PropertyDetailsPage() {
         "ls_origem", "ls_priority", "ls_county",
         "ls_auction_type", "ls_auction_model", "ls_property_type",
         "ls_fema", "ls_wetlands", "ls_debit", "ls_gismap",
-        "ls_property_access", "ls_road_access", "ls_ref_construction"
+        "ls_property_access", "ls_road_access", "ls_ref_construction",
+        "ls_safety_index", "ls_financial_rating"
       ];
 
       setPermissions(await getCurrentUserPermissions());
@@ -659,7 +660,7 @@ export default function PropertyDetailsPage() {
         'origem_id', 'priority_id', 'county_id', 'auction_type_id',
         'auction_model_id', 'property_type_id', 'fema_id', 'wetlands_id',
         'debit_id', 'gismap_id', 'prop_access_id', 'road_access_id', 'ref_construction_id',
-        'owner_partner_id'
+        'owner_partner_id', 'safety_index_id', 'financial_rating_id'
       ];
       uuidFields.forEach(f => {
         if (!payload[f]) payload[f] = null;
@@ -1865,6 +1866,33 @@ export default function PropertyDetailsPage() {
                       <option value="Yes">Yes</option>
                       <option value="No">No</option>
                       <option value="Modular Only">Modular Only</option>
+                    </select>
+                  </div>
+
+                  <div className="input-group">
+                    <label className="input-label">Classification</label>
+                    <select name="classification" value={property.classification || ""} onChange={handleChange} className="input-field">
+                      <option value="">Select Classification...</option>
+                      <option value="PLA">PLA</option>
+                      <option value="PAA">PAA</option>
+                      <option value="PMX">PMX</option>
+                      <option value="PWT">PWT</option>
+                    </select>
+                  </div>
+
+                  <div className="input-group">
+                    <label className="input-label">Safety Index</label>
+                    <select name="safety_index_id" value={property.safety_index_id || ""} onChange={handleChange} className="input-field">
+                      <option value="">Select Safety Index...</option>
+                      {lookups.ls_safety_index?.map((item: any) => <option key={item.id} value={item.id}>{item.name}</option>)}
+                    </select>
+                  </div>
+
+                  <div className="input-group">
+                    <label className="input-label">Financial Rating</label>
+                    <select name="financial_rating_id" value={property.financial_rating_id || ""} onChange={handleChange} className="input-field">
+                      <option value="">Select Financial Rating...</option>
+                      {lookups.ls_financial_rating?.map((item: any) => <option key={item.id} value={item.id}>{item.name}</option>)}
                     </select>
                   </div>
 

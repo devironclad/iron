@@ -79,6 +79,7 @@ export default function NewAuctionForm() {
     safety_index_id: "",
     financial_rating_id: "",
     mh_allowed: "",
+    classification: "",
     inperson_visit: false,
     market_value: "",
     annual_tax: "",
@@ -1079,6 +1080,16 @@ export default function NewAuctionForm() {
                 <option value="Yes">Yes</option>
                 <option value="No">No</option>
                 <option value="Modular Only">Modular Only</option>
+              </select>
+            </div>
+            <div className="input-group">
+              <label className="input-label">Classification</label>
+              <select name="classification" value={formData.classification} onChange={handleChange} className="input-field">
+                <option value="">Select Classification...</option>
+                <option value="PLA">PLA</option>
+                <option value="PAA">PAA</option>
+                <option value="PMX">PMX</option>
+                <option value="PWT">PWT</option>
               </select>
             </div>
           </div>
