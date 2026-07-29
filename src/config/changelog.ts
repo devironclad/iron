@@ -6,9 +6,26 @@ export interface ChangelogItem {
   changes: string[];
 }
 
-export const CURRENT_VERSION = "1.7.0";
+export const CURRENT_VERSION = "1.8.0";
 
 export const CHANGELOG: ChangelogItem[] = [
+  {
+    version: "1.8.0",
+    date: "2026-07-29",
+    title: "Partner Ironclad Opportunities, Granular Access & Auction Fields",
+    type: "minor",
+    changes: [
+      "New Properties > Ironclad Opportunities menu: partners can browse Ironclad-owned properties with a simulated, rounded profit projection — real acquisition costs are never exposed to the partner.",
+      "Partners can register purchase interest on an Ironclad-owned property directly from the card.",
+      "Registering interest automatically opens a Requests ticket (category 'Purchase Interest', assigned to Tamara Nobres) and links it to the interest record.",
+      "Interest is auto-resolved (with full history preserved) once the linked request reaches a closed status (Resolved or Cancelled) — no manual action needed.",
+      "Property detail page now supports a read-only view for partners opening an Ironclad Opportunity: Development tab hidden, all fields locked, no real financial data loaded.",
+      "Staff: new 'Has Purchase Interest' filter and badge on the Ironclad properties view, with a popover listing each interested partner, the date, and a link to their request ticket.",
+      "Access Control: 'Access Control Page' permission split into independent 'Profiles & Permissions' and 'User Management' resources, so a profile's view/edit rights on each can now differ.",
+      "Auctions: added Safety Index and Financial Rating fields (Low/Medium/High) to the Property Attributes section, managed via the Manager page.",
+      "Auctions: Mobile Home Allowed now reuses the existing mh_allowed field shared with Properties instead of a separate flag, keeping a single source of truth across both screens."
+    ]
+  },
   {
     version: "1.7.0",
     date: "2026-07-03",

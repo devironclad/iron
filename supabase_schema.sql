@@ -203,12 +203,14 @@ BEFORE UPDATE ON ls_assets
 FOR EACH ROW
 EXECUTE FUNCTION set_updated_at();
 
--- Safety Index / Financial Rating / Mobile Home Allowed (patch 8) — used on
--- the Auctions screen, "Property Attributes" section.
+-- Safety Index / Financial Rating (patch 8) — used on the Auctions screen,
+-- "Property Attributes" section. The "Mobile Home Allowed" flag originally
+-- added alongside these was discarded in patch 9 in favor of the existing
+-- mh_allowed list field (below), reused as-is on both Auctions and
+-- Properties instead of keeping two separate fields for the same thing.
 ALTER TABLE ls_assets
   ADD COLUMN IF NOT EXISTS safety_index_id UUID REFERENCES ls_safety_index(id),
-  ADD COLUMN IF NOT EXISTS financial_rating_id UUID REFERENCES ls_financial_rating(id),
-  ADD COLUMN IF NOT EXISTS mobile_home_allowed BOOLEAN DEFAULT FALSE;
+  ADD COLUMN IF NOT EXISTS financial_rating_id UUID REFERENCES ls_financial_rating(id);
 
 
 -- ==============================================================================

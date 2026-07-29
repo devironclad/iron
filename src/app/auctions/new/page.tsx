@@ -78,7 +78,7 @@ export default function NewAuctionForm() {
     ref_construction_id: "",
     safety_index_id: "",
     financial_rating_id: "",
-    mobile_home_allowed: false,
+    mh_allowed: "",
     inperson_visit: false,
     market_value: "",
     annual_tax: "",
@@ -1072,10 +1072,15 @@ export default function NewAuctionForm() {
                 {lookups.ls_financial_rating?.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
               </select>
             </div>
-          </div>
-          <div className="checkbox-group" style={{ marginTop: "1.5rem" }}>
-            <input type="checkbox" id="mobile_home_allowed" name="mobile_home_allowed" checked={formData.mobile_home_allowed} onChange={handleChange as any} className="checkbox-input" />
-            <label htmlFor="mobile_home_allowed" className="checkbox-label">Mobile Home Allowed</label>
+            <div className="input-group">
+              <label className="input-label">Mobile Home Allowed</label>
+              <select name="mh_allowed" value={formData.mh_allowed} onChange={handleChange} className="input-field">
+                <option value="">Select Option...</option>
+                <option value="Yes">Yes</option>
+                <option value="No">No</option>
+                <option value="Modular Only">Modular Only</option>
+              </select>
+            </div>
           </div>
         </section>
 
