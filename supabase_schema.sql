@@ -102,7 +102,12 @@ CREATE TABLE ls_assets (
     house_price NUMERIC,
     
     -- Dates (Stored with timezone for safety)
-    auction_date TIMESTAMP WITH TIME ZONE,
+    -- auction_date changed from TIMESTAMP WITH TIME ZONE to DATE in v1.7.0 (see changelog) to fix
+    -- ID ordering within the same auction day; it no longer stores a time-of-day component.
+    -- auction_time (added in v1.9.1, see rls_patch_11) holds the time-of-day separately so
+    -- auction_date and its ordering/filtering usages stay untouched.
+    auction_date DATE,
+    auction_time TIME,
     upset_date TIMESTAMP WITH TIME ZONE,
     acquisition_date TIMESTAMP WITH TIME ZONE,
     tax_pay_dead TIMESTAMP WITH TIME ZONE,
@@ -124,8 +129,8 @@ CREATE TABLE ls_assets (
 
 CREATE TYPE sale_status_enum AS ENUM ('Pending', 'Listed', 'Awaiting Purchase');
 CREATE TYPE improvements_enum AS ENUM ('No Improvements', 'Well only', 'Septic only', 'Well & Septic');
-CREATE TYPE mh_allowed_enum AS ENUM ('Yes', 'No', 'Modular Only');
-CREATE TYPE classification_enum AS ENUM ('PLA', 'PAA', 'PMX', 'PWT');
+CREATE TYPE mh_allowed_enum AS ENUM ('Yes', 'No', 'Modular Only', 'Yes, conditional');
+CREATE TYPE classification_enum AS ENUM ('PLA', 'PAA', 'PMX', 'PWT', 'PAF');
 
 -- ==============================================================================
 -- 4. ALTER TABLE ls_assets ADD NEW COLUMNS

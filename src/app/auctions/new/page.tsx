@@ -57,6 +57,7 @@ export default function NewAuctionForm() {
     auction_type_id: "",
     auction_model_id: "",
     auction_date: "",
+    auction_time: "",
     open_bid: "",
     min_bid: "",
     max_bid: "",
@@ -138,7 +139,10 @@ export default function NewAuctionForm() {
           const { ls_county, ...rest } = data as any;
           const formattedData = { ...rest };
           if (formattedData.auction_date) {
-            formattedData.auction_date = new Date(formattedData.auction_date).toISOString().slice(0, 16);
+            formattedData.auction_date = String(formattedData.auction_date).slice(0, 10);
+          }
+          if (formattedData.auction_time) {
+            formattedData.auction_time = String(formattedData.auction_time).slice(0, 5);
           }
           if (formattedData.upset_date) {
             formattedData.upset_date = new Date(formattedData.upset_date).toISOString().slice(0, 10);
@@ -249,24 +253,6 @@ export default function NewAuctionForm() {
         behavior: "smooth"
       });
     }
-  };
-
-  const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const dateVal = e.target.value;
-    const currentTime = formData.auction_date ? new Date(formData.auction_date).toTimeString().slice(0, 5) : "09:00";
-    setFormData((prev: any) => ({
-      ...prev,
-      auction_date: dateVal ? `${dateVal}T${currentTime}` : ""
-    }));
-  };
-
-  const handleTimeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const timeVal = e.target.value;
-    const currentDate = formData.auction_date ? new Date(formData.auction_date).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10);
-    setFormData((prev: any) => ({
-      ...prev,
-      auction_date: `${currentDate}T${timeVal}`
-    }));
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -883,19 +869,22 @@ export default function NewAuctionForm() {
             <div className="input-group">
               <label className="input-label">Auction Date <span className="required-star">*</span></label>
               <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <input 
-                  type="date" 
-                  value={formData.auction_date ? new Date(formData.auction_date).toISOString().slice(0, 10) : ''} 
-                  onChange={handleDateChange} 
-                  className="input-field" 
+                <input
+                  type="date"
+                  name="auction_date"
+                  value={formData.auction_date ? formData.auction_date.slice(0, 10) : ''}
+                  onChange={handleChange}
+                  className="input-field"
                   style={{ flex: 2 }}
                 />
-                <select 
-                  value={formData.auction_date ? new Date(formData.auction_date).toTimeString().slice(0, 5) : '09:00'} 
-                  onChange={handleTimeChange} 
+                <select
+                  name="auction_time"
+                  value={formData.auction_time || ''}
+                  onChange={handleChange}
                   className="input-field"
                   style={{ flex: 1 }}
                 >
+                  <option value="">Select time...</option>
                   {Array.from({ length: 24 * 4 }).map((_, i) => {
                     const h = Math.floor(i / 4).toString().padStart(2, '0');
                     const m = ((i % 4) * 15).toString().padStart(2, '0');
@@ -1080,6 +1069,7 @@ export default function NewAuctionForm() {
                 <option value="Yes">Yes</option>
                 <option value="No">No</option>
                 <option value="Modular Only">Modular Only</option>
+                <option value="Yes, conditional">Yes, conditional</option>
               </select>
             </div>
             <div className="input-group">
@@ -1090,6 +1080,7 @@ export default function NewAuctionForm() {
                 <option value="PAA">PAA</option>
                 <option value="PMX">PMX</option>
                 <option value="PWT">PWT</option>
+                <option value="PAF">PAF</option>
               </select>
             </div>
           </div>

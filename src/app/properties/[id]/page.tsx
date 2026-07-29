@@ -261,7 +261,8 @@ export default function PropertyDetailsPage() {
 
       if (propertyResult.data) {
         const formatted = { ...propertyResult.data };
-        if (formatted.auction_date) formatted.auction_date = new Date(formatted.auction_date).toISOString().slice(0, 16);
+        if (formatted.auction_date) formatted.auction_date = String(formatted.auction_date).slice(0, 10);
+        if (formatted.auction_time) formatted.auction_time = String(formatted.auction_time).slice(0, 5);
         if (formatted.acquisition_date) formatted.acquisition_date = new Date(formatted.acquisition_date).toISOString().slice(0, 16);
         if (formatted.tax_pay_dead) formatted.tax_pay_dead = new Date(formatted.tax_pay_dead).toISOString().slice(0, 10);
 
@@ -1866,6 +1867,7 @@ export default function PropertyDetailsPage() {
                       <option value="Yes">Yes</option>
                       <option value="No">No</option>
                       <option value="Modular Only">Modular Only</option>
+                      <option value="Yes, conditional">Yes, conditional</option>
                     </select>
                   </div>
 
@@ -1877,6 +1879,7 @@ export default function PropertyDetailsPage() {
                       <option value="PAA">PAA</option>
                       <option value="PMX">PMX</option>
                       <option value="PWT">PWT</option>
+                      <option value="PAF">PAF</option>
                     </select>
                   </div>
 

@@ -6,9 +6,37 @@ export interface ChangelogItem {
   changes: string[];
 }
 
-export const CURRENT_VERSION = "1.9.0";
+export const CURRENT_VERSION = "1.9.3";
 
 export const CHANGELOG: ChangelogItem[] = [
+  {
+    version: "1.9.3",
+    date: "2026-07-29",
+    title: "New Mobile Home Allowed Value: Yes, conditional",
+    type: "patch",
+    changes: [
+      "Added \"Yes, conditional\" as a new Mobile Home Allowed option on Auctions and Properties."
+    ]
+  },
+  {
+    version: "1.9.2",
+    date: "2026-07-29",
+    title: "New Classification Value: PAF",
+    type: "patch",
+    changes: [
+      "Added PAF as a new Classification option on Auctions and Properties."
+    ]
+  },
+  {
+    version: "1.9.1",
+    date: "2026-07-29",
+    title: "Auction Time Field",
+    type: "patch",
+    changes: [
+      "Fixed the Auction Date field's time selector not saving: auction_date was changed from timestamp to date in v1.7.0 (to fix ID ordering within the same auction day), so it can no longer hold a time-of-day, and any time picked there was silently discarded.",
+      "Added a new auction_time column (kept separate from auction_date, which stays untouched) so the time-of-day is now actually stored and reloaded correctly on the Auctions form."
+    ]
+  },
   {
     version: "1.9.0",
     date: "2026-07-29",
