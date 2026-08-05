@@ -5,46 +5,6 @@
   animation: fadeIn 0.5s ease-out;
 }
 
-/* Header Section */
-.dashboard-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 0.5rem;
-}
-
-.dashboard-title h1 {
-  font-size: 2rem;
-  font-weight: 800;
-  color: var(--text-primary);
-  margin: 0;
-  margin-bottom: 0.25rem;
-  letter-spacing: -0.02em;
-}
-
-.dashboard-title h1 .dot {
-  color: var(--primary);
-}
-
-.dashboard-title p {
-  color: var(--text-secondary);
-  font-size: 0.95rem;
-  margin: 0;
-}
-
-.current-date {
-  background: white;
-  padding: 0.75rem 1.25rem;
-  border-radius: 1rem;
-  box-shadow: var(--shadow-sm);
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  font-weight: 600;
-  color: var(--text-secondary);
-  border: 1px solid var(--border-subtle);
-}
-
 /* KPI Cards Grid */
 .kpi-grid {
   display: grid;
@@ -56,22 +16,22 @@
 
 .kpi-card {
   background: white;
-  border-radius: 1.25rem;
+  border-radius: 1rem;
   padding: 1.25rem 1.5rem;
   position: relative;
   overflow: hidden;
   border: 1px solid var(--border-subtle);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: var(--shadow-sm);
+  transition: all var(--transition-normal);
+  box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02);
   display: flex;
   align-items: center;
   gap: 1.25rem;
 }
 
 .kpi-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.05);
-  border-color: var(--primary-glow);
+  transform: translateY(-2px);
+  border-color: var(--primary);
+  box-shadow: 0 10px 20px -10px rgba(39, 53, 72, 0.15);
 }
 
 .kpi-icon-wrapper {
@@ -85,6 +45,47 @@
   position: relative;
   z-index: 2;
   flex-shrink: 0;
+}
+
+/* Stat pills (e.g. Ironclad / Partners breakdown under a KPI value) */
+.stat-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  border-radius: 999px;
+  padding: 0.165rem 0.6rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  border: 1px solid transparent;
+}
+
+.stat-pill-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.stat-pill--primary {
+  background: rgba(39, 53, 72, 0.08);
+  color: var(--primary);
+  border-color: rgba(39, 53, 72, 0.2);
+}
+
+.stat-pill--primary .stat-pill-dot {
+  background: var(--primary);
+}
+
+.stat-pill--neutral {
+  background: var(--bg-base);
+  color: var(--text-secondary);
+  border-color: var(--border-subtle);
+}
+
+.stat-pill--neutral .stat-pill-dot {
+  background: var(--text-muted);
 }
 
 .kpi-info h3 {
@@ -127,6 +128,13 @@
   gap: 1.5rem;
 }
 
+.dashboard-half-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  align-items: start;
+}
+
 .left-column {
   display: flex;
   flex-direction: column;
@@ -135,10 +143,10 @@
 
 .content-section {
   background: white;
-  border-radius: 1.5rem;
+  border-radius: 1rem;
   padding: 1.5rem;
   border: 1px solid var(--border-subtle);
-  box-shadow: var(--shadow-sm);
+  box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02);
   display: flex;
   flex-direction: column;
 }
@@ -350,92 +358,9 @@
   box-shadow: 0 4px 10px rgba(51, 65, 85, 0.25);
 }
 
-/* Donut Chart Styling */
-.donut-chart-wrapper {
-  display: flex;
-  align-items: center;
-  justify-content: space-around;
-  gap: 2rem;
-  padding: 1rem 0;
-  flex: 1;
-}
-
-.donut-container {
-  position: relative;
-  width: 150px;
-  height: 150px;
-}
-
-.donut-svg {
-  transform: rotate(-90deg);
-}
-
-.donut-hole-text {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  text-align: center;
-}
-
-.donut-hole-text span {
-  display: block;
-  font-size: 1.5rem;
-  font-weight: 800;
-  color: var(--text-primary);
-  line-height: 1;
-}
-
-.donut-hole-text small {
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--text-muted);
-  text-transform: uppercase;
-}
-
-.donut-legend {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  flex: 1;
-}
-
-.legend-item {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  font-size: 0.875rem;
-}
-
-.legend-color {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-}
-
-.legend-info {
-  display: flex;
-  justify-content: space-between;
-  width: 100%;
-}
-
-.legend-name {
-  color: var(--text-secondary);
-  font-weight: 600;
-}
-
-.legend-value {
-  color: var(--text-primary);
-  font-weight: 700;
-}
-
-.county-legend-row:hover {
-  background: var(--bg-base);
-}
-
-
 @media (max-width: 1024px) {
-  .dashboard-main {
+  .dashboard-main,
+  .dashboard-half-grid {
     grid-template-columns: 1fr;
   }
 }

@@ -6,13 +6,11 @@ import {
   Gavel,
   Building2,
   BarChart3,
-  Calendar,
   ArrowUpRight,
   Plus,
   Clock,
   MapPin,
   ChevronRight,
-  PieChart,
   ClipboardList,
   Ticket,
   AlertTriangle,
@@ -23,7 +21,7 @@ import { PermissionGuard } from "@/components/auth/PermissionGuard";
 import { AuctionCalendar, type CalendarDayData } from "@/components/dashboard/AuctionCalendar";
 import "./dashboard.css";
 
-const CHART_COLORS = ['#273548', '#1e293b', '#10b981', '#3b82f6', '#f59e0b', '#8b5cf6'];
+const CHART_COLORS = ['var(--primary)', '#1e293b', '#10b981', '#3b82f6', '#f59e0b', '#8b5cf6'];
 
 export default function Dashboard() {
   const [activeView, setActiveView] = useState<'properties' | 'auctions' | 'requests' | null>('properties');
@@ -100,7 +98,7 @@ export default function Dashboard() {
         activeAuctions.forEach(auc => {
           const priority = (Array.isArray(auc.ls_priority) ? auc.ls_priority[0] : auc.ls_priority) as any;
           const pName = priority?.name || "Unassigned";
-          const pColor = priority?.color || "#273548";
+          const pColor = priority?.color || "var(--primary)";
           if (!priorities[pName]) priorities[pName] = { count: 0, color: pColor };
           priorities[pName].count++;
         });
@@ -148,33 +146,24 @@ export default function Dashboard() {
           w.percentage = (w.count / maxWeeklyCount) * 100;
         });
 
-        // County Stats (For Donut)
-        const counties: Record<string, { count: number, ironcladCount: number, partnerCount: number, state: string, countyName: string }> = {};
+        // County Stats (Portfolio by County breakdown)
+        const counties: Record<string, { count: number, state: string, countyName: string }> = {};
         properties.forEach(prop => {
           const county = (Array.isArray(prop.ls_county) ? prop.ls_county[0] : prop.ls_county) as any;
           const countyName = county?.name || "Other";
           const state = county?.state || "Other";
           const key = county ? `${county.name}_${state}` : "Other_Other";
           if (!counties[key]) {
-            counties[key] = { count: 0, ironcladCount: 0, partnerCount: 0, state, countyName };
+            counties[key] = { count: 0, state, countyName };
           }
           counties[key].count++;
-          if ((prop as any).owner_type === 'partner') {
-            counties[key].partnerCount++;
-          } else {
-            counties[key].ironcladCount++;
-          }
         });
 
         const countyArray = Object.entries(counties)
-          .map(([key, data], index) => ({
+          .map(([key, data]) => ({
             name: data.countyName,
             state: data.state,
             count: data.count,
-            ironcladCount: data.ironcladCount,
-            partnerCount: data.partnerCount,
-            color: CHART_COLORS[index % CHART_COLORS.length],
-            percentage: properties.length > 0 ? (data.count / properties.length) * 100 : 0
           }))
           .sort((a, b) => b.count - a.count);
 
@@ -312,50 +301,34 @@ export default function Dashboard() {
     fetchDashboardData();
   }, []);
 
-  // Portfolio by County — drill-down: Total → by State → by County
-  const [countyDrill, setCountyDrill] = useState<{ level: 'total' | 'state' | 'county'; state: string | null }>({ level: 'total', state: null });
+  // Portfolio by County — which state's counties are expanded (accordion, one at a time)
+  const [expandedState, setExpandedState] = useState<string | null>(null);
 
   // Properties by Owner — collapsed to the Ironclad row until expanded
   const [ownerExpanded, setOwnerExpanded] = useState(false);
 
-  const getRingSegments = (segs: { count: number; color: string }[]) => {
-    const total = segs.reduce((sum, s) => sum + s.count, 0);
-    if (total === 0) return [];
-    let currentOffset = 0;
-    const radius = 35;
-    const circumference = 2 * Math.PI * radius;
-    return segs.map(s => {
-      const pct = (s.count / total) * 100;
-      const strokeDasharray = `${(pct * circumference) / 100} ${circumference}`;
-      const strokeDashoffset = -currentOffset;
-      currentOffset += (pct * circumference) / 100;
-      return { ...s, strokeDasharray, strokeDashoffset };
-    });
-  };
-
-  // Aggregate the existing per-county stats up to state level
+  // Aggregate the per-county stats up to state level
   const stateStats = useMemo(() => {
-    const map: Record<string, { name: string; count: number; ironcladCount: number; partnerCount: number }> = {};
+    const map: Record<string, { name: string; count: number }> = {};
     stats.countyStats.forEach(c => {
       const key = c.state || "Other";
-      if (!map[key]) map[key] = { name: key, count: 0, ironcladCount: 0, partnerCount: 0 };
+      if (!map[key]) map[key] = { name: key, count: 0 };
       map[key].count += c.count;
-      map[key].ironcladCount += c.ironcladCount;
-      map[key].partnerCount += c.partnerCount;
     });
-    return Object.values(map)
-      .sort((a, b) => b.count - a.count)
-      .map((s, i) => ({ ...s, color: CHART_COLORS[i % CHART_COLORS.length] }));
+    const arr = Object.values(map).sort((a, b) => b.count - a.count);
+    const maxCount = Math.max(...arr.map(s => s.count), 1);
+    return arr.map((s, i) => ({ ...s, percentage: (s.count / maxCount) * 100, color: CHART_COLORS[i % CHART_COLORS.length] }));
   }, [stats.countyStats]);
 
-  // Counties belonging to the currently drilled-into state
+  // Counties belonging to the currently expanded state, scaled relative to that state's largest county
   const selectedStateCounties = useMemo(() => {
-    if (!countyDrill.state) return [];
-    return stats.countyStats
-      .filter(c => (c.state || "Other") === countyDrill.state)
+    if (!expandedState) return [];
+    const counties = stats.countyStats.filter(c => (c.state || "Other") === expandedState);
+    const maxCount = Math.max(...counties.map(c => c.count), 1);
+    return counties
       .sort((a, b) => b.count - a.count)
-      .map((c, i) => ({ ...c, color: CHART_COLORS[i % CHART_COLORS.length] }));
-  }, [stats.countyStats, countyDrill.state]);
+      .map(c => ({ ...c, percentage: (c.count / maxCount) * 100 }));
+  }, [stats.countyStats, expandedState]);
 
   if (loading) {
     return (
@@ -368,24 +341,20 @@ export default function Dashboard() {
   return (
     <PermissionGuard resource="page:dashboard">
       <div className="dashboard-container">
-        {/* Header */}
-        <header className="dashboard-header">
-          <div className="dashboard-title">
-            <h1>Welcome back<span className="dot">.</span></h1>
-            <p>Portfolio overview and upcoming opportunities.</p>
+        {/* Page Header */}
+        <div className="page-header">
+          <div className="page-header-text">
+            <h1 className="page-title">Welcome back<span className="dot">.</span></h1>
+            <p className="page-subtitle">Portfolio overview and upcoming opportunities &middot; {new Date().toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
           </div>
-          <div className="current-date">
-            <Calendar className="w-5 h-5 text-primary" />
-            {new Date().toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long' })}
-          </div>
-        </header>
+        </div>
 
         {/* KPI Cards */}
         <div className="kpi-grid">
           <div
             className="kpi-card"
             onClick={() => setActiveView('properties')}
-            style={{ cursor: 'pointer', outline: activeView === 'properties' ? '2px solid #273548' : 'none', transition: 'outline 0.15s' }}
+            style={{ cursor: 'pointer', outline: activeView === 'properties' ? '2px solid var(--primary)' : 'none', transition: 'outline 0.15s' }}
           >
             <div className="kpi-icon-wrapper" style={{ background: '#eff6ff', color: '#1d4ed8' }}>
               <Building2 className="w-6 h-6" />
@@ -394,32 +363,12 @@ export default function Dashboard() {
               <h3>Assets in Portfolio</h3>
               <p className="kpi-value">{stats.totalAssets}</p>
               <div style={{ marginTop: '0.5rem', display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-                <span style={{
-                  display: 'inline-flex', alignItems: 'center', gap: '0.25rem',
-                  background: '#eff6ff',
-                  color: '#1d4ed8',
-                  border: '1px solid #bfdbfe',
-                  borderRadius: '999px',
-                  padding: '0.165rem 0.6rem',
-                  fontSize: '0.75rem',
-                  fontWeight: 700,
-                  letterSpacing: '0.01em',
-                }}>
-                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#1d4ed8', display: 'inline-block', flexShrink: 0 }} />
+                <span className="stat-pill stat-pill--primary">
+                  <span className="stat-pill-dot" />
                   Ironclad · {stats.ironcladAssets}
                 </span>
-                <span style={{
-                  display: 'inline-flex', alignItems: 'center', gap: '0.25rem',
-                  background: '#fffbeb',
-                  color: '#b45309',
-                  border: '1px solid #fde68a',
-                  borderRadius: '999px',
-                  padding: '0.165rem 0.6rem',
-                  fontSize: '0.75rem',
-                  fontWeight: 700,
-                  letterSpacing: '0.01em',
-                }}>
-                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#b45309', display: 'inline-block', flexShrink: 0 }} />
+                <span className="stat-pill stat-pill--neutral">
+                  <span className="stat-pill-dot" />
                   Partners · {stats.partnerAssets}
                 </span>
               </div>
@@ -429,7 +378,7 @@ export default function Dashboard() {
           <div
             className="kpi-card"
             onClick={() => setActiveView('auctions')}
-            style={{ cursor: 'pointer', outline: activeView === 'auctions' ? '2px solid #273548' : 'none', transition: 'outline 0.15s' }}
+            style={{ cursor: 'pointer', outline: activeView === 'auctions' ? '2px solid var(--primary)' : 'none', transition: 'outline 0.15s' }}
           >
             <div className="kpi-icon-wrapper" style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#10b981' }}>
               <Gavel className="w-6 h-6" />
@@ -443,9 +392,9 @@ export default function Dashboard() {
           <div
             className="kpi-card"
             onClick={() => setActiveView('requests')}
-            style={{ cursor: 'pointer', outline: activeView === 'requests' ? '2px solid #273548' : 'none', transition: 'outline 0.15s' }}
+            style={{ cursor: 'pointer', outline: activeView === 'requests' ? '2px solid var(--primary)' : 'none', transition: 'outline 0.15s' }}
           >
-            <div className="kpi-icon-wrapper" style={{ background: 'rgba(39, 53, 72, 0.08)', color: '#273548' }}>
+            <div className="kpi-icon-wrapper" style={{ background: 'rgba(39, 53, 72, 0.08)', color: 'var(--primary)' }}>
               <ClipboardList className="w-6 h-6" />
             </div>
             <div className="kpi-info">
@@ -515,173 +464,91 @@ export default function Dashboard() {
           </section>
         </div>}
 
-        {/* Portfolio by County — drill-down: Total → by State → by County */}
-        {(activeView === 'properties') && <section className="content-section" style={{ marginTop: '1.5rem' }}>
-          <div className="section-header">
-            <h2>Portfolio by County</h2>
-            <PieChart className="w-5 h-5 text-muted" />
-          </div>
-
-          {/* Breadcrumb */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '1.5rem', fontSize: '0.8rem' }}>
-            <span
-              onClick={() => setCountyDrill({ level: 'total', state: null })}
-              style={{ cursor: 'pointer', fontWeight: countyDrill.level === 'total' ? 800 : 600, color: countyDrill.level === 'total' ? 'var(--text-primary)' : 'var(--text-muted)' }}
-            >
-              Total
-            </span>
-            {countyDrill.level !== 'total' && (
-              <>
-                <ChevronRight className="w-3.5 h-3.5 text-muted" />
-                <span
-                  onClick={() => setCountyDrill({ level: 'state', state: null })}
-                  style={{ cursor: 'pointer', fontWeight: countyDrill.level === 'state' ? 800 : 600, color: countyDrill.level === 'state' ? 'var(--text-primary)' : 'var(--text-muted)' }}
-                >
-                  By State
-                </span>
-              </>
-            )}
-            {countyDrill.level === 'county' && (
-              <>
-                <ChevronRight className="w-3.5 h-3.5 text-muted" />
-                <span style={{ fontWeight: 800, color: 'var(--text-primary)' }}>{countyDrill.state}</span>
-              </>
-            )}
-          </div>
-
-          <div style={{ display: 'flex', gap: '2.5rem', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'center' }}>
-            {/* Ring — content depends on drill level */}
-            {countyDrill.level === 'total' && (
-              <div
-                className="donut-container"
-                onClick={() => setCountyDrill({ level: 'state', state: null })}
-                style={{ cursor: 'pointer' }}
-                title="Click to view by State"
-              >
-                <svg width="150" height="150" viewBox="0 0 100 100" className="donut-svg">
-                  <circle cx="50" cy="50" r="35" fill="transparent" stroke="#273548" strokeWidth="12" strokeLinecap="round" />
-                </svg>
-                <div className="donut-hole-text">
-                  <span>{stats.totalAssets}</span>
-                  <small>Total</small>
-                </div>
+        {/* Portfolio by County + Properties by Owner — side by side, half width each */}
+        {(activeView === 'properties') && (
+          <div className="dashboard-half-grid" style={{ marginTop: '1.5rem' }}>
+            <section className="content-section">
+              <div className="section-header">
+                <h2>Portfolio by County</h2>
+                <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)' }}>{stats.totalAssets} total</span>
               </div>
-            )}
-
-            {countyDrill.level === 'state' && (
-              <div className="donut-container">
-                <svg width="150" height="150" viewBox="0 0 100 100" className="donut-svg">
-                  {getRingSegments(stateStats).map((seg, i) => (
-                    <circle key={i} cx="50" cy="50" r="35" fill="transparent" stroke={seg.color} strokeWidth="12" strokeDasharray={seg.strokeDasharray} strokeDashoffset={seg.strokeDashoffset} strokeLinecap="round" />
-                  ))}
-                </svg>
-                <div className="donut-hole-text">
-                  <span>{stats.totalAssets}</span>
-                  <small>Total</small>
-                </div>
+              <div className="chart-container">
+                {stateStats.map(s => {
+                  const isExpanded = expandedState === s.name;
+                  return (
+                    <div key={s.name}>
+                      <div
+                        className="chart-row"
+                        onClick={() => setExpandedState(isExpanded ? null : s.name)}
+                        style={{ cursor: 'pointer' }}
+                      >
+                        <div className="chart-label">
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+                            <ChevronRight className="w-3.5 h-3.5 text-muted" style={{ transform: isExpanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }} />
+                            {s.name}
+                          </span>
+                          <span>{s.count} {s.count === 1 ? 'property' : 'properties'}</span>
+                        </div>
+                        <div className="chart-bar-bg">
+                          <div className="chart-bar-fill" style={{ width: `${s.percentage}%`, backgroundColor: s.color }} />
+                        </div>
+                      </div>
+                      {isExpanded && selectedStateCounties.map(c => (
+                        <div key={c.name} className="chart-row" style={{ paddingLeft: '1.15rem' }}>
+                          <div className="chart-label">
+                            <span>{c.name}</span>
+                            <span>{c.count} {c.count === 1 ? 'property' : 'properties'}</span>
+                          </div>
+                          <div className="chart-bar-bg">
+                            <div className="chart-bar-fill" style={{ width: `${c.percentage}%`, backgroundColor: 'var(--text-secondary)' }} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })}
               </div>
-            )}
+            </section>
 
-            {countyDrill.level === 'county' && (
-              <div className="donut-container">
-                <svg width="150" height="150" viewBox="0 0 100 100" className="donut-svg">
-                  {getRingSegments(selectedStateCounties).map((seg, i) => (
-                    <circle key={i} cx="50" cy="50" r="35" fill="transparent" stroke={seg.color} strokeWidth="12" strokeDasharray={seg.strokeDasharray} strokeDashoffset={seg.strokeDashoffset} strokeLinecap="round" />
-                  ))}
-                </svg>
-                <div className="donut-hole-text">
-                  <span>{selectedStateCounties.reduce((sum, c) => sum + c.count, 0)}</span>
-                  <small>{countyDrill.state}</small>
-                </div>
+            <section className="content-section compact">
+              <div className="section-header">
+                <h2>Properties by owner</h2>
+                <BarChart3 className="w-5 h-5 text-muted" />
               </div>
-            )}
-
-            {/* Legend — states or counties, depending on level */}
-            {countyDrill.level !== 'total' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', minWidth: '320px', flex: 1 }}>
-                {(countyDrill.level === 'state' ? stateStats : selectedStateCounties).map((item: any, i: number) => (
+              <div className="chart-container">
+                {stats.ownerStats.filter(o => o.isIronclad).map(o => (
                   <div
-                    key={i}
-                    className="county-legend-row"
-                    onClick={() => { if (countyDrill.level === 'state') setCountyDrill({ level: 'county', state: item.name }); }}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0.5rem 0.6rem',
-                      borderRadius: '8px', cursor: countyDrill.level === 'state' ? 'pointer' : 'default',
-                    }}
+                    key={o.name}
+                    className="chart-row"
+                    onClick={() => setOwnerExpanded(v => !v)}
+                    style={{ cursor: 'pointer' }}
                   >
-                    <div className="legend-color" style={{ background: item.color, flexShrink: 0 }} />
-                    <span className="legend-name" style={{ flex: 1, minWidth: 0 }}>{item.name}</span>
-                    <span style={{
-                      display: 'inline-flex', alignItems: 'center', gap: '0.2rem',
-                      background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe',
-                      borderRadius: '999px', padding: '0.11rem 0.5rem',
-                      fontSize: '0.68rem', fontWeight: 700,
-                      width: '115px', justifyContent: 'center', flexShrink: 0,
-                    }}>
-                      <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#1d4ed8', display: 'inline-block', flexShrink: 0 }} />
-                      Ironclad · {item.ironcladCount}
-                    </span>
-                    <span style={{
-                      display: 'inline-flex', alignItems: 'center', gap: '0.2rem',
-                      background: '#fffbeb', color: '#b45309', border: '1px solid #fde68a',
-                      borderRadius: '999px', padding: '0.11rem 0.5rem',
-                      fontSize: '0.68rem', fontWeight: 700,
-                      width: '115px', justifyContent: 'center', flexShrink: 0,
-                    }}>
-                      <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#b45309', display: 'inline-block', flexShrink: 0 }} />
-                      Partners · {item.partnerCount}
-                    </span>
-                    <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-primary)', width: '28px', textAlign: 'right', flexShrink: 0 }}>
-                      {item.count}
-                    </span>
-                    {countyDrill.level === 'state' && <ChevronRight className="w-4 h-4 text-muted" style={{ flexShrink: 0 }} />}
+                    <div className="chart-label">
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+                        <ChevronRight className="w-3.5 h-3.5 text-muted" style={{ transform: ownerExpanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }} />
+                        {o.name}
+                      </span>
+                      <span>{o.count} {o.count === 1 ? 'property' : 'properties'}</span>
+                    </div>
+                    <div className="chart-bar-bg">
+                      <div className="chart-bar-fill" style={{ width: `${o.percentage}%`, backgroundColor: 'var(--primary)' }} />
+                    </div>
+                  </div>
+                ))}
+                {ownerExpanded && stats.ownerStats.filter(o => !o.isIronclad).map(o => (
+                  <div key={o.name} className="chart-row">
+                    <div className="chart-label">
+                      <span style={{ paddingLeft: '1.15rem' }}>{o.name}</span>
+                      <span>{o.count} {o.count === 1 ? 'property' : 'properties'}</span>
+                    </div>
+                    <div className="chart-bar-bg">
+                      <div className="chart-bar-fill" style={{ width: `${o.percentage}%`, backgroundColor: 'var(--text-secondary)' }} />
+                    </div>
                   </div>
                 ))}
               </div>
-            )}
+            </section>
           </div>
-        </section>}
-
-        {/* Properties by Owner */}
-        {(activeView === 'properties') && (
-          <section className="content-section compact" style={{ marginTop: '1.5rem' }}>
-            <div className="section-header">
-              <h2>Properties by owner</h2>
-              <BarChart3 className="w-5 h-5 text-muted" />
-            </div>
-            <div className="chart-container">
-              {stats.ownerStats.filter(o => o.isIronclad).map(o => (
-                <div
-                  key={o.name}
-                  className="chart-row"
-                  onClick={() => setOwnerExpanded(v => !v)}
-                  style={{ cursor: 'pointer' }}
-                >
-                  <div className="chart-label">
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
-                      <ChevronRight className="w-3.5 h-3.5 text-muted" style={{ transform: ownerExpanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }} />
-                      {o.name}
-                    </span>
-                    <span>{o.count} {o.count === 1 ? 'property' : 'properties'}</span>
-                  </div>
-                  <div className="chart-bar-bg">
-                    <div className="chart-bar-fill" style={{ width: `${o.percentage}%`, backgroundColor: '#1d4ed8' }} />
-                  </div>
-                </div>
-              ))}
-              {ownerExpanded && stats.ownerStats.filter(o => !o.isIronclad).map(o => (
-                <div key={o.name} className="chart-row">
-                  <div className="chart-label">
-                    <span style={{ paddingLeft: '1.15rem' }}>{o.name}</span>
-                    <span>{o.count} {o.count === 1 ? 'property' : 'properties'}</span>
-                  </div>
-                  <div className="chart-bar-bg">
-                    <div className="chart-bar-fill" style={{ width: `${o.percentage}%`, backgroundColor: '#475569' }} />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
         )}
 
         {/* ── Requests & Tickets ── */}
