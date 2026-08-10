@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { userHasPermission } from "@/lib/server-permissions";
 
 const ALLOWED_TABLES = new Set([
-  "ls_origem", "ls_status", "ls_priority", "ls_county", "ls_auction_type",
-  "ls_auction_model", "ls_property_type", "ls_fema", "ls_wetlands", "ls_debit",
+  "ls_origem", "ls_status", "ls_priority", "ls_county", "ls_county_contacts",
+  "ls_auction_type", "ls_auction_model", "ls_property_type", "ls_fema", "ls_wetlands", "ls_debit",
   "ls_gismap", "ls_property_access", "ls_road_access", "ls_ref_construction",
   "ls_amenity_category", "ls_amenity_type", "ls_request_category",
   "ls_safety_index", "ls_financial_rating",
@@ -20,6 +21,9 @@ export async function POST(request: NextRequest) {
   try {
     const user = await authenticate(request);
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!(await userHasPermission(user.id, "page:manager", "edit"))) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
 
     const { table, payload } = await request.json();
     if (!ALLOWED_TABLES.has(table)) return NextResponse.json({ error: "Invalid table" }, { status: 400 });
@@ -36,6 +40,9 @@ export async function PATCH(request: NextRequest) {
   try {
     const user = await authenticate(request);
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!(await userHasPermission(user.id, "page:manager", "edit"))) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
 
     const { table, id, payload } = await request.json();
     if (!ALLOWED_TABLES.has(table)) return NextResponse.json({ error: "Invalid table" }, { status: 400 });
@@ -52,6 +59,9 @@ export async function DELETE(request: NextRequest) {
   try {
     const user = await authenticate(request);
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!(await userHasPermission(user.id, "page:manager", "edit"))) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
 
     const { table, id } = await request.json();
     if (!ALLOWED_TABLES.has(table)) return NextResponse.json({ error: "Invalid table" }, { status: 400 });

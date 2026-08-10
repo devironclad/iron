@@ -51,7 +51,6 @@ function ManagerContent() {
   const [newItemName, setNewItemName] = useState("");
   const [newCountyState, setNewCountyState] = useState("FL");
   const [editValue, setEditValue] = useState("");
-  const [editStateValue, setEditStateValue] = useState("");
   const [newPriorityColor, setNewPriorityColor] = useState("#94a3b8");
   const [editPriorityColor, setEditPriorityColor] = useState("#94a3b8");
   const [newCategoryId, setNewCategoryId] = useState("");
@@ -62,6 +61,18 @@ function ManagerContent() {
   const [categories, setCategories] = useState<any[]>([]);
   const [permissions, setPermissions] = useState<any>(null);
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ key: 'name', direction: 'asc' });
+
+  // County details modal (address/phone/links/notes + contacts sub-registry)
+  const [detailsCounty, setDetailsCounty] = useState<any>(null);
+  const [detailsForm, setDetailsForm] = useState<any>({});
+  const [detailsSaving, setDetailsSaving] = useState(false);
+  const [detailsError, setDetailsError] = useState<string | null>(null);
+  const [detailsSuccess, setDetailsSuccess] = useState<string | null>(null);
+  const [contacts, setContacts] = useState<any[]>([]);
+  const [contactsLoading, setContactsLoading] = useState(false);
+  const [newContact, setNewContact] = useState({ name: "", role: "", email: "", phone: "", notes: "" });
+  const [deletingContact, setDeletingContact] = useState<any>(null);
+  const [confirmingContactDelete, setConfirmingContactDelete] = useState(false);
 
   useEffect(() => {
     async function loadPermissions() {
@@ -217,8 +228,7 @@ function ManagerContent() {
     setLoading(true);
     try {
       const payload: any = { name: editValue };
-      if (selectedTable === "ls_county")            payload.state       = editStateValue;
-      else if (selectedTable === "ls_priority")      payload.color       = editPriorityColor;
+      if (selectedTable === "ls_priority")           payload.color       = editPriorityColor;
       else if (selectedTable === "ls_amenity_type")  payload.category_id = editCategoryId;
 
       const res = await fetch("/api/manager", {
@@ -241,6 +251,107 @@ function ManagerContent() {
   }
 
 
+
+  async function fetchContacts(countyId: string) {
+    setContactsLoading(true);
+    const { data: result } = await supabase.from("ls_county_contacts").select("*").eq("county_id", countyId).order("name");
+    setContacts(result || []);
+    setContactsLoading(false);
+  }
+
+  function openDetails(item: any) {
+    setDetailsCounty(item);
+    setDetailsForm({
+      name: item.name || "",
+      state: item.state || "FL",
+      address: item.address || "",
+      phone: item.phone || "",
+      link1_label: item.link1_label || "",
+      link1_url: item.link1_url || "",
+      link2_label: item.link2_label || "",
+      link2_url: item.link2_url || "",
+      notes: item.notes || "",
+    });
+    setNewContact({ name: "", role: "", email: "", phone: "", notes: "" });
+    setDetailsError(null);
+    setDetailsSuccess(null);
+    fetchContacts(item.id);
+  }
+
+  function closeDetails() {
+    setDetailsCounty(null);
+    setContacts([]);
+    setDeletingContact(null);
+  }
+
+  async function handleSaveDetails() {
+    if (!detailsCounty || !detailsForm.name?.trim() || !canEditTable("ls_county")) return;
+    setDetailsSaving(true);
+    setDetailsError(null);
+    try {
+      const res = await fetch("/api/manager", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${await getToken()}` },
+        body: JSON.stringify({ table: "ls_county", id: detailsCounty.id, payload: detailsForm }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error);
+
+      setSuccess("County updated!");
+      closeDetails();
+      fetchData();
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err: any) {
+      setDetailsError(err.message);
+    } finally {
+      setDetailsSaving(false);
+    }
+  }
+
+  async function handleAddContact() {
+    if (!detailsCounty || !newContact.name.trim() || !canEditTable("ls_county")) return;
+    setDetailsError(null);
+    try {
+      const res = await fetch("/api/manager", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${await getToken()}` },
+        body: JSON.stringify({ table: "ls_county_contacts", payload: { county_id: detailsCounty.id, ...newContact } }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error);
+
+      setDetailsSuccess(`Contact "${newContact.name}" added successfully!`);
+      setNewContact({ name: "", role: "", email: "", phone: "", notes: "" });
+      fetchContacts(detailsCounty.id);
+      setTimeout(() => setDetailsSuccess(null), 3000);
+    } catch (err: any) {
+      setDetailsError(err.message);
+    }
+  }
+
+  async function handleDeleteContact() {
+    if (!detailsCounty || !deletingContact || !canEditTable("ls_county")) return;
+    setDetailsError(null);
+    setConfirmingContactDelete(true);
+    try {
+      const res = await fetch("/api/manager", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${await getToken()}` },
+        body: JSON.stringify({ table: "ls_county_contacts", id: deletingContact.id }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error);
+
+      setContacts(contacts.filter(c => c.id !== deletingContact.id));
+      setDetailsSuccess(`Contact "${deletingContact.name}" deleted!`);
+      setDeletingContact(null);
+      setTimeout(() => setDetailsSuccess(null), 3000);
+    } catch (err: any) {
+      setDetailsError(err.message);
+    } finally {
+      setConfirmingContactDelete(false);
+    }
+  }
 
   const selectedTableInfo = TABLES.find(t => t.id === selectedTable);
 
@@ -481,18 +592,7 @@ function ManagerContent() {
                           )}
                         </td>
                         {selectedTable === "ls_county" && (
-                          <td>
-                            {editingId === item.id ? (
-                              <input
-                                type="text"
-                                className="manager-input state-input"
-                                value={editStateValue}
-                                onChange={(e) => setEditStateValue(e.target.value)}
-                              />
-                            ) : (
-                              item.state
-                            )}
-                          </td>
+                          <td>{item.state}</td>
                         )}
                         {selectedTable === "ls_priority" && (
                           <td>
@@ -524,17 +624,23 @@ function ManagerContent() {
                             </div>
                           ) : (
                             <div className="actions-row">
+                              {selectedTable === "ls_county" && (
+                                <button className="icon-btn-circle details" onClick={() => openDetails(item)} title="County details">
+                                  <Info className="w-4 h-4" />
+                                </button>
+                              )}
                               {canEditTable(selectedTable) && (
                                 <>
-                                  <button className="icon-btn-circle edit" onClick={() => {
-                                    setEditingId(item.id);
-                                    setEditValue(item.name);
-                                    if (selectedTable === "ls_county") setEditStateValue(item.state || "FL");
-                                    if (selectedTable === "ls_priority") setEditPriorityColor(item.color || "#94a3b8");
-                                    if (selectedTable === "ls_amenity_type") setEditCategoryId(item.category_id || "");
-                                  }}>
-                                    <Edit2 className="w-4 h-4" />
-                                  </button>
+                                  {selectedTable !== "ls_county" && (
+                                    <button className="icon-btn-circle edit" onClick={() => {
+                                      setEditingId(item.id);
+                                      setEditValue(item.name);
+                                      if (selectedTable === "ls_priority") setEditPriorityColor(item.color || "#94a3b8");
+                                      if (selectedTable === "ls_amenity_type") setEditCategoryId(item.category_id || "");
+                                    }}>
+                                      <Edit2 className="w-4 h-4" />
+                                    </button>
+                                  )}
                                   <button className="icon-btn-circle delete" onClick={() => handleDelete(item.id)}>
                                     <Trash2 className="w-4 h-4" />
                                   </button>
@@ -553,6 +659,220 @@ function ManagerContent() {
         </div>
       ))
     }
+
+    {detailsCounty && (
+      <div className="modal-overlay" onClick={closeDetails}>
+        <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-header">
+            <h2>{detailsCounty.name} — County Details</h2>
+            <button className="modal-close-btn" onClick={closeDetails}>
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          <div className="modal-body">
+            {detailsError && (
+              <div className="alert alert-error">
+                <AlertCircle className="w-4 h-4" />
+                {detailsError}
+              </div>
+            )}
+
+            {detailsSuccess && (
+              <div className="alert alert-success">
+                <CheckCircle2 className="w-4 h-4" />
+                {detailsSuccess}
+              </div>
+            )}
+
+            <div className="form-row">
+              <div className="form-group">
+                <label>Name</label>
+                <input
+                  className="manager-input"
+                  value={detailsForm.name || ""}
+                  onChange={(e) => setDetailsForm({ ...detailsForm, name: e.target.value })}
+                  disabled
+                />
+              </div>
+              <div className="form-group" style={{ flex: "0 0 90px" }}>
+                <label>State</label>
+                <input
+                  className="manager-input"
+                  value={detailsForm.state || ""}
+                  onChange={(e) => setDetailsForm({ ...detailsForm, state: e.target.value })}
+                  disabled
+                />
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label>Address</label>
+              <input
+                className="manager-input"
+                value={detailsForm.address || ""}
+                onChange={(e) => setDetailsForm({ ...detailsForm, address: e.target.value })}
+                disabled={!canEditTable("ls_county")}
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Phone</label>
+              <input
+                className="manager-input"
+                value={detailsForm.phone || ""}
+                onChange={(e) => setDetailsForm({ ...detailsForm, phone: e.target.value })}
+                disabled={!canEditTable("ls_county")}
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Link 1 — Label</label>
+              <input
+                className="manager-input"
+                placeholder="e.g. Official Website"
+                value={detailsForm.link1_label || ""}
+                onChange={(e) => setDetailsForm({ ...detailsForm, link1_label: e.target.value })}
+                disabled={!canEditTable("ls_county")}
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Link 1 — URL</label>
+              <input
+                className="manager-input"
+                placeholder="https://..."
+                value={detailsForm.link1_url || ""}
+                onChange={(e) => setDetailsForm({ ...detailsForm, link1_url: e.target.value })}
+                disabled={!canEditTable("ls_county")}
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Link 2 — Label</label>
+              <input
+                className="manager-input"
+                placeholder="e.g. Auction Portal"
+                value={detailsForm.link2_label || ""}
+                onChange={(e) => setDetailsForm({ ...detailsForm, link2_label: e.target.value })}
+                disabled={!canEditTable("ls_county")}
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Link 2 — URL</label>
+              <input
+                className="manager-input"
+                placeholder="https://..."
+                value={detailsForm.link2_url || ""}
+                onChange={(e) => setDetailsForm({ ...detailsForm, link2_url: e.target.value })}
+                disabled={!canEditTable("ls_county")}
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Notes</label>
+              <textarea
+                className="manager-input"
+                rows={3}
+                value={detailsForm.notes || ""}
+                onChange={(e) => setDetailsForm({ ...detailsForm, notes: e.target.value })}
+                disabled={!canEditTable("ls_county")}
+              />
+            </div>
+
+            <h3 className="modal-section-title">Contacts</h3>
+
+            {canEditTable("ls_county") && (
+              <div className="contact-add-form">
+                <input className="manager-input" placeholder="Name" value={newContact.name} onChange={(e) => setNewContact({ ...newContact, name: e.target.value })} />
+                <input className="manager-input" placeholder="Role" value={newContact.role} onChange={(e) => setNewContact({ ...newContact, role: e.target.value })} />
+                <input className="manager-input" placeholder="Email" value={newContact.email} onChange={(e) => setNewContact({ ...newContact, email: e.target.value })} />
+                <input className="manager-input" placeholder="Phone" value={newContact.phone} onChange={(e) => setNewContact({ ...newContact, phone: e.target.value })} />
+                <textarea className="manager-input" rows={3} placeholder="Notes" style={{ gridColumn: "1 / -1" }} value={newContact.notes} onChange={(e) => setNewContact({ ...newContact, notes: e.target.value })} />
+                <button className="add-btn contact-add-btn" onClick={handleAddContact} disabled={!newContact.name.trim()}>
+                  <Plus className="w-4 h-4" />
+                  Add Contact
+                </button>
+              </div>
+            )}
+
+            <div className="contact-list">
+              {contactsLoading ? (
+                <div className="contact-empty">Loading contacts...</div>
+              ) : contacts.length === 0 ? (
+                <div className="contact-empty">No contacts added yet.</div>
+              ) : (
+                contacts.map((c) => (
+                  <div className="contact-card" key={c.id}>
+                    <div className="contact-card-info">
+                      <span className="contact-card-name">{c.name}</span>
+                      {c.role && <span className="contact-card-role">{c.role}</span>}
+                      <div className="contact-card-meta">
+                        {c.email && <span>{c.email}</span>}
+                        {c.phone && <span>{c.phone}</span>}
+                      </div>
+                      {c.notes && <span className="contact-card-notes">{c.notes}</span>}
+                    </div>
+                    {canEditTable("ls_county") && (
+                      <button className="icon-btn-circle delete" onClick={() => setDeletingContact(c)}>
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          {canEditTable("ls_county") && (
+            <div className="modal-footer">
+              <button className="add-btn" onClick={handleSaveDetails} disabled={detailsSaving || !detailsForm.name?.trim()}>
+                {detailsSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                Save Changes
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    )}
+
+    {deletingContact && (
+      <div className="modal-overlay" onClick={() => setDeletingContact(null)}>
+        <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "420px" }}>
+          <div className="modal-header">
+            <h2>Remove Contact</h2>
+            <button className="modal-close-btn" onClick={() => setDeletingContact(null)}>
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem" }}>
+            Are you sure you want to remove <strong>{deletingContact.name}</strong> from this county&apos;s contacts?
+          </p>
+
+          <div className="modal-footer">
+            <button
+              className="seed-btn"
+              style={{ flex: 1, justifyContent: "center" }}
+              onClick={() => setDeletingContact(null)}
+              disabled={confirmingContactDelete}
+            >
+              Cancel
+            </button>
+            <button
+              className="add-btn"
+              style={{ flex: 1, justifyContent: "center", backgroundColor: "#ef4444" }}
+              onClick={handleDeleteContact}
+              disabled={confirmingContactDelete}
+            >
+              {confirmingContactDelete ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+              Remove
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
     </div>
   );
 }

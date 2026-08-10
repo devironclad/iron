@@ -156,6 +156,30 @@ ALTER TABLE ls_assets
   ADD COLUMN IF NOT EXISTS utilities TEXT,
   ADD COLUMN IF NOT EXISTS classification classification_enum;
 
+-- ==============================================================================
+-- 4b. ls_county DETAILS + CONTACTS (rls_patch_14)
+-- ==============================================================================
+
+ALTER TABLE ls_county
+  ADD COLUMN IF NOT EXISTS address      TEXT,
+  ADD COLUMN IF NOT EXISTS phone        VARCHAR(50),
+  ADD COLUMN IF NOT EXISTS link1_label  VARCHAR(100),
+  ADD COLUMN IF NOT EXISTS link1_url    TEXT,
+  ADD COLUMN IF NOT EXISTS link2_label  VARCHAR(100),
+  ADD COLUMN IF NOT EXISTS link2_url    TEXT,
+  ADD COLUMN IF NOT EXISTS notes        TEXT;
+
+CREATE TABLE IF NOT EXISTS ls_county_contacts (
+    id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    county_id  UUID NOT NULL REFERENCES ls_county(id) ON DELETE CASCADE,
+    name       VARCHAR(255) NOT NULL,
+    role       VARCHAR(255),
+    email      VARCHAR(255),
+    phone      VARCHAR(50),
+    notes      TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+);
+
 
 -- ==============================================================================
 -- 3. AUTO ref_id TRIGGER
