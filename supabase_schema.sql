@@ -543,7 +543,9 @@ CREATE TABLE IF NOT EXISTS ls_asset_partner_interest (
 -- 11. MARKETING MODULE
 -- One record per property. All fields are optional TEXT (links/URLs).
 -- Columns not yet used in the import spreadsheet: video_3d_copy, video_3d,
--- before_video, after_video.
+-- after_video.
+-- before_video is auto-synced from ls_assets.link_video on Auction->Property
+-- conversion, see trg_sync_link_video_to_marketing below (rls_patch_15).
 -- ==============================================================================
 
 CREATE TABLE IF NOT EXISTS ls_asset_marketing (
@@ -570,6 +572,41 @@ CREATE TABLE IF NOT EXISTS ls_asset_marketing (
 CREATE TRIGGER tr_ls_asset_marketing_updated_at
 BEFORE UPDATE ON ls_asset_marketing
 FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+-- --------------------------------------------------------------------------
+-- Sync link_video (ls_assets, filled on the Auctions form as "Video Link")
+-- into before_video (ls_asset_marketing, "Before Video" on the Marketing tab)
+-- at the moment an Auction becomes a Property. link_video is not editable
+-- anymore once record_type = 'PROPERTY', so this only needs to fire on the
+-- transition (INSERT already as PROPERTY, or UPDATE changing record_type).
+-- After that, before_video is a free-standing field again. See rls_patch_15.
+-- --------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION sync_link_video_to_marketing()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.record_type = 'PROPERTY'
+     AND NEW.link_video IS NOT NULL
+     AND (OLD IS NULL OR OLD.record_type IS DISTINCT FROM 'PROPERTY') THEN
+
+    UPDATE ls_asset_marketing
+       SET before_video = NEW.link_video,
+           updated_at   = now()
+     WHERE asset_id = NEW.id;
+
+    IF NOT FOUND THEN
+      INSERT INTO ls_asset_marketing (asset_id, before_video)
+      VALUES (NEW.id, NEW.link_video);
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_sync_link_video_to_marketing ON ls_assets;
+CREATE TRIGGER trg_sync_link_video_to_marketing
+AFTER INSERT OR UPDATE ON ls_assets
+FOR EACH ROW EXECUTE FUNCTION sync_link_video_to_marketing();
 
 
 -- ==============================================================================

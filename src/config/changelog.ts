@@ -6,9 +6,20 @@ export interface ChangelogItem {
   changes: string[];
 }
 
-export const CURRENT_VERSION = "1.9.3";
+export const CURRENT_VERSION = "1.9.4";
 
 export const CHANGELOG: ChangelogItem[] = [
+  {
+    version: "1.9.4",
+    date: "2026-08-11",
+    title: "Auto-sync Video Link into Before Video on Purchase",
+    type: "patch",
+    changes: [
+      "Fixed a data modeling gap: the Video Link entered on the Auctions form (ls_assets.link_video) was never copied to the Before Video field on the Properties Marketing tab (ls_asset_marketing.before_video) when an auction was converted into a property.",
+      "Added a database trigger that copies Video Link into Before Video automatically at the moment of conversion (purchase, or direct property import); Before Video remains freely editable afterward.",
+      "Backfilled Before Video for already-converted properties that had a Video Link but an empty Before Video, without overwriting any Before Video already filled in manually."
+    ]
+  },
   {
     version: "1.9.3",
     date: "2026-07-29",
