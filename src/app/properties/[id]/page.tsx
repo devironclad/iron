@@ -1181,7 +1181,7 @@ export default function PropertyDetailsPage() {
                   </div>
 
                   {renderLinkInput("Regrid Link", "link_regrid", property.link_regrid, "https://regrid.com/...", { gridColumn: 'span 2' })}
-                  <div className="input-group"></div>
+                  {renderLinkInput("Google Earth Link", "link_earth", property.link_earth, "https://earth.google.com/...", { gridColumn: 'span 2' })}
 
                   <div className="input-group" style={{ gridColumn: 'span 3' }}>
                     <label className="input-label">Observations</label>
