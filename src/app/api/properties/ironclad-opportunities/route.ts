@@ -31,7 +31,8 @@ export async function GET(request: NextRequest) {
         { count: "exact" }
       )
       .eq("record_type", "PROPERTY")
-      .or("owner_type.is.null,owner_type.neq.partner");
+      .or("owner_type.is.null,owner_type.neq.partner")
+      .or("sale_type.is.null,sale_type.neq.sold_out");
 
     // Mirrors the state->county_id resolution already used in
     // src/app/properties/page.tsx (state isn't a column on ls_assets itself).

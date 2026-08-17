@@ -20,7 +20,7 @@ import "./properties.css";
 
 export default function PropertiesPage() {
   const searchParams = useSearchParams();
-  const source = searchParams.get('source') as 'ironclad' | 'broker' | 'partners' | 'all-partners' | null;
+  const source = searchParams.get('source') as 'ironclad' | 'broker' | 'partners' | 'all-partners' | 'sold_out' | null;
   const router = useRouter();
 
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -288,12 +288,18 @@ export default function PropertiesPage() {
         `, { count: "exact" })
         .eq("record_type", "PROPERTY");
 
-      if (source === 'ironclad') {
-        query = query.or('owner_type.is.null,owner_type.neq.partner');
-      } else if (source === 'broker') {
-        query = query.eq('owner_type', 'partner');
-      } else if (source === 'partners') {
-        query = query.eq('owner_type', 'partner').eq('owner_partner_id', currentUserId!);
+      if (source === 'sold_out') {
+        query = query.eq('sale_type', 'sold_out');
+      } else {
+        query = query.or('sale_type.is.null,sale_type.neq.sold_out');
+
+        if (source === 'ironclad') {
+          query = query.or('owner_type.is.null,owner_type.neq.partner');
+        } else if (source === 'broker') {
+          query = query.eq('owner_type', 'partner');
+        } else if (source === 'partners') {
+          query = query.eq('owner_type', 'partner').eq('owner_partner_id', currentUserId!);
+        }
       }
 
       if (selectedCounty && selectedCounty !== "all") {
@@ -522,6 +528,8 @@ export default function PropertiesPage() {
     ? 'Partners Properties'
     : source === 'all-partners'
     ? 'Marketing Properties'
+    : source === 'sold_out'
+    ? 'Sold Out Properties'
     : 'My Properties';
 
   const pageSubtitle = source === 'broker'
@@ -530,10 +538,16 @@ export default function PropertiesPage() {
     ? 'Properties managed in partnership.'
     : source === 'all-partners'
     ? 'All properties managed across all partners.'
+    : source === 'sold_out'
+    ? 'Properties marked as Sold Out, across all owners.'
     : 'Properties owned and managed by Ironclad Tech';
 
+  const guardResources = source
+    ? [`page:properties:${source}`]
+    : ["page:properties:ironclad", "page:properties:broker", "page:properties:partners", "page:properties:all-partners"];
+
   return (
-    <PermissionGuard anyOf={["page:properties:ironclad", "page:properties:broker", "page:properties:partners", "page:properties:all-partners"]}>
+    <PermissionGuard anyOf={guardResources}>
       <div className="properties-container">
       {/* Header */}
       <div className="page-header">

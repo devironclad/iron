@@ -39,7 +39,8 @@ import {
   Phone,
   Home,
   UserCog,
-  CheckCircle2
+  CheckCircle2,
+  AlertCircle
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { hasPermission, getCurrentUserPermissions } from "@/lib/permissions";
@@ -96,6 +97,7 @@ export default function PropertyDetailsPage() {
   const originalPropertyRef = useRef<any>(null);
   const paidBidMounted = useRef(false);
   const [savedOk, setSavedOk] = useState(false);
+  const [saveError, setSaveError] = useState<string[] | null>(null);
   const [wasSaved, setWasSaved] = useState(false);
   const [property, setProperty] = useState<any>(null);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
@@ -629,6 +631,28 @@ export default function PropertyDetailsPage() {
     if (!tabCanEdit) {
       alert("You don't have permission to edit this tab.");
       return;
+    }
+
+    setSaveError(null);
+
+    if (property.sale_type === 'sold_out') {
+      const requiredSoldOutFields = [
+        { key: 'client_name', label: 'Client Name' },
+        { key: 'client_email', label: 'Client Email' },
+        { key: 'client_phone', label: 'Client Phone' },
+        { key: 'client_addrees', label: 'Client Address' },
+        { key: 'buyer_agent', label: 'Buyer Agent' },
+        { key: 'seller_agente', label: 'Seller Agent' },
+      ];
+      const missing = requiredSoldOutFields.filter(f => !String(property[f.key] || '').trim());
+      if (missing.length > 0) {
+        setSaveError(missing.map(f => f.label));
+        return;
+      }
+
+      if (originalPropertyRef.current?.sale_type !== 'sold_out') {
+        if (!confirm('Are you sure you want to save this property as Sold Out?')) return;
+      }
     }
 
     setSaving(true);
@@ -2171,6 +2195,53 @@ export default function PropertyDetailsPage() {
           <div>
             <h4 style={{ fontWeight: 700, margin: 0, fontSize: '1rem' }}>Successfully Saved</h4>
             <p style={{ margin: 0, fontSize: '0.875rem', opacity: 0.9, marginTop: '0.25rem' }}>The property record was updated.</p>
+          </div>
+        </div>
+      )}
+
+      {saveError && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
+          backgroundColor: 'rgba(15, 23, 42, 0.4)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200
+        }}>
+          <div style={{
+            backgroundColor: 'white', borderRadius: '1.25rem', width: '100%', maxWidth: '450px',
+            padding: '2rem', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.3)',
+            display: 'flex', flexDirection: 'column', gap: '1.25rem',
+            animation: 'modalSlideIn 0.3s ease-out'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', color: '#ef4444' }}>
+              <div style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', padding: '0.75rem', borderRadius: '0.75rem' }}>
+                <AlertCircle className="w-6 h-6" />
+              </div>
+              <div>
+                <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: '#0f172a' }}>Attention Needed</h2>
+                <p style={{ margin: 0, fontSize: '0.875rem', color: '#64748b' }}>Some mandatory fields are missing.</p>
+              </div>
+            </div>
+
+            <div style={{
+              backgroundColor: '#f8fafc', borderRadius: '0.75rem', padding: '1rem',
+              maxHeight: '250px', overflowY: 'auto', border: '1px solid #e2e8f0'
+            }}>
+              <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                {saveError.map(label => (
+                  <li key={label} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#475569', fontSize: '0.9rem' }}>
+                    <div style={{ width: '4px', height: '4px', borderRadius: '50%', backgroundColor: '#ef4444' }} />
+                    {label}
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <button
+              onClick={() => setSaveError(null)}
+              className="primary-btn"
+              style={{ width: '100%', justifyContent: 'center', padding: '0.75rem' }}
+            >
+              Understand and Correct
+            </button>
           </div>
         </div>
       )}

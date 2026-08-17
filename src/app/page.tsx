@@ -68,6 +68,7 @@ export default function Dashboard() {
             .from('ls_assets')
             .select('id, county_id, owner_type, ls_county(name, state), owner:ls_users_metadata!owner_partner_id(full_name)')
             .eq('record_type', 'PROPERTY')
+            .or('sale_type.is.null,sale_type.neq.sold_out')
             .limit(1000),
           supabase
             .from('ls_priority')

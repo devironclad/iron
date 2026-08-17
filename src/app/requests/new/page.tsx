@@ -42,7 +42,7 @@ export default function NewRequestPage() {
         supabase.from("ls_users_metadata").select("id, full_name").eq("user_type", "employee").order("full_name"),
         supabase.from("ls_request_category").select("id, name").order("name"),
         supabase.from("ls_request_priority").select("id, name, sla_hours").order("name"),
-        supabase.from("ls_assets").select("id, ref_id, parcel_number").eq("record_type", "PROPERTY").limit(500)
+        supabase.from("ls_assets").select("id, ref_id, parcel_number").eq("record_type", "PROPERTY").or("sale_type.is.null,sale_type.neq.sold_out").limit(500)
       ]);
       
       setLookups({

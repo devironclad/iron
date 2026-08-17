@@ -35,6 +35,7 @@ const RESOURCES = [
   { id: "page:properties:broker", label: "Properties: Investors", category: "Pages" },
   { id: "page:properties:partners", label: "Properties: Partners", category: "Pages" },
   { id: "page:properties:all-partners", label: "Properties: Marketing", category: "Pages" },
+  { id: "page:properties:sold_out", label: "Properties: Sold Out", category: "Pages" },
   { id: "page:properties:ironclad-opportunities", label: "Properties: Ironclad Opportunities", category: "Pages" },
   { id: "page:requests", label: "Requests Page", category: "Pages" },
   { id: "page:manager", label: "Manager Page", category: "Pages" },
