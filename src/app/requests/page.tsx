@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   Plus, Search, Loader2, ArrowRight,
-  ClipboardList, Calendar, Clock, Trash2, CheckCircle2
+  ClipboardList, Calendar, Clock, Trash2, CheckCircle2, AlertTriangle
 } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
@@ -37,14 +37,13 @@ export default function RequestsPage() {
 
   // Lookups for filters
   const [statuses, setStatuses] = useState<LookupItem[]>([]);
-  const [categories, setCategories] = useState<LookupItem[]>([]);
   const [requesters, setRequesters] = useState<UserOption[]>([]);
 
   const [selectedStatus, setSelectedStatus] = useState("all");
   const [selectedRequester, setSelectedRequester] = useState("all");
-  const [selectedCategory, setSelectedCategory] = useState("all");
 
   const [showMyTasks, setShowMyTasks] = useState(false);
+  const [showOverdueOnly, setShowOverdueOnly] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [userPermissions, setUserPermissions] = useState<Record<string, Permission> | null>(null);
 
@@ -61,17 +60,15 @@ export default function RequestsPage() {
   useEffect(() => {
     fetchRequests();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchTerm, selectedStatus, selectedRequester, selectedCategory, showMyTasks, currentUser]);
+  }, [searchTerm, selectedStatus, selectedRequester, showMyTasks, showOverdueOnly, currentUser]);
 
   async function fetchLookups() {
-    const [statRes, catRes, reqRes] = await Promise.all([
+    const [statRes, reqRes] = await Promise.all([
       supabase.from("ls_request_status").select("*").order("name"),
-      supabase.from("ls_request_category").select("*").order("name"),
       supabase.from("ls_users_metadata").select("id, full_name").eq("user_type", "employee").order("full_name")
     ]);
 
     setStatuses(statRes.data || []);
-    setCategories(catRes.data || []);
     setRequesters(reqRes.data || []);
   }
 
@@ -83,15 +80,18 @@ export default function RequestsPage() {
         requester:ls_users_metadata!requester_id(full_name, avatar_url),
         assignee:ls_users_metadata!assignee_id(full_name, avatar_url),
         category:ls_request_category(name, color),
-        status:ls_request_status(name, color, is_closed)
+        status:ls_request_status!inner(name, color, is_closed)
       `, { count: "exact" }).order('created_at', { ascending: false });
 
       if (selectedStatus !== "all") query = query.eq("status_id", selectedStatus);
       if (selectedRequester !== "all") query = query.eq("requester_id", selectedRequester);
-      if (selectedCategory !== "all") query = query.eq("category_id", selectedCategory);
 
       if (showMyTasks && currentUser) {
         query = query.eq("assignee_id", currentUser.id);
+      }
+
+      if (showOverdueOnly) {
+        query = query.lt("due_date", new Date().toISOString()).eq("status.is_closed", false);
       }
 
       if (searchTerm) {
@@ -251,15 +251,26 @@ export default function RequestsPage() {
               {statuses.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
 
-            <select className="auc-filter-select" value={selectedCategory} onChange={e => setSelectedCategory(e.target.value)}>
-              <option value="all">All Categories</option>
-              {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-            
             <select className="auc-filter-select" value={selectedRequester} onChange={e => setSelectedRequester(e.target.value)}>
               <option value="all">All Requesters</option>
               {requesters.map(r => <option key={r.id} value={r.id}>{r.full_name}</option>)}
             </select>
+
+            <button
+              type="button"
+              onClick={() => setShowOverdueOnly(v => !v)}
+              className="view-btn"
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
+                border: `1px solid ${showOverdueOnly ? '#ef4444' : 'var(--border-subtle)'}`,
+                backgroundColor: showOverdueOnly ? '#ef4444' : 'var(--bg-base)',
+                color: showOverdueOnly ? 'white' : 'var(--text-secondary)',
+              }}
+              title="Show only overdue requests"
+            >
+              <AlertTriangle className="w-3.5 h-3.5" />
+              Overdue
+            </button>
           </div>
         </div>
 
