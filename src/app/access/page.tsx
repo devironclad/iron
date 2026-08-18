@@ -28,7 +28,8 @@ import { getCurrentUserPermissions, hasPermission, Permission } from "@/lib/perm
 import "./access.css";
 
 const RESOURCES = [
-  { id: "page:dashboard", label: "Dashboard Page", category: "Pages" },
+  { id: "page:dashboard", label: "Dashboard: Operational", category: "Pages" },
+  { id: "page:dashboard:financial", label: "Dashboard: Financial", category: "Pages" },
   { id: "page:auctions", label: "Research: Auctions", category: "Pages" },
   { id: "page:auctions:rejected", label: "Research: Rejecteds", category: "Pages" },
   { id: "page:properties:ironclad", label: "Properties: Ironclad", category: "Pages" },

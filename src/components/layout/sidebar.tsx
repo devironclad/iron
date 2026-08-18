@@ -28,7 +28,14 @@ type NavItem =
   | { name: string; icon: React.ComponentType<any>; resource?: never; href?: never; children: NavChild[] };
 
 const NAV_ITEMS: NavItem[] = [
-  { name: "Dashboard", href: "/", icon: LayoutDashboard, resource: "page:dashboard" },
+  {
+    name: "Dashboard",
+    icon: LayoutDashboard,
+    children: [
+      { name: "Operational", href: "/", resource: "page:dashboard" },
+      { name: "Financial", href: "/financial", resource: "page:dashboard:financial" },
+    ],
+  },
   {
     name: "Research",
     icon: Gavel,
