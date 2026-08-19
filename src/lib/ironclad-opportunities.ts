@@ -2,18 +2,13 @@ import { NextRequest } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 export const IRONCLAD_OPPORTUNITIES_RESOURCE_KEY = "page:properties:ironclad-opportunities";
-const ROUND_TO = 1000;
 
-export function roundToNearest(value: number, step: number = ROUND_TO) {
-  return Math.round(value / step) * step;
-}
-
-// Same tier percentages as the partner-view "Profit Projection" chart in
-// src/app/properties/page.tsx and src/app/properties/[id]/page.tsx
-// (isPartnerView branch) — reused here so the simulated projection a partner
-// sees for an Ironclad-owned property follows the same rules already used in
-// the Partner menu. Amounts are rounded to mitigate back-solving the real
-// base (investment_total) from the output.
+// Same tier percentages and formula as the partner-view "Profit Projection"
+// chart in src/app/properties/page.tsx and src/app/properties/[id]/page.tsx
+// (isPartnerView branch) — reused here so a partner sees the exact same
+// projection for an Ironclad-owned property as for their own. `base` must be
+// investment_total_inv, the same real, already-persisted, investor-facing
+// figure the Partner menu uses — never rounded or simulated.
 export function buildTiers(base: number, isAR: boolean) {
   if (!(base > 0)) return [];
   const tierDefs = isAR
@@ -31,7 +26,7 @@ export function buildTiers(base: number, isAR: boolean) {
       ];
   return tierDefs.map((t) => ({
     label: t.label,
-    projectedAmount: roundToNearest(base + base * t.roi),
+    projectedAmount: base + base * t.roi,
   }));
 }
 

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { buildTiers, roundToNearest, resolveEffectivePartnerId, assertPartnerCanView } from "@/lib/ironclad-opportunities";
+import { buildTiers, resolveEffectivePartnerId, assertPartnerCanView } from "@/lib/ironclad-opportunities";
 
 const PAGE_SIZE = 24;
 
@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
     let query = supabaseAdmin
       .from("ls_assets")
       .select(
-        `id, ref_id, address, parcel_number, case_number, size, photo_url, acquisition_date, sale_price, investment_total,
+        `id, ref_id, address, parcel_number, case_number, size, photo_url, acquisition_date, sale_price, investment_total_inv,
          ls_county(id, name, state), ls_origem(name), ls_property_type(name), ls_auction_type(name)`,
         { count: "exact" }
       )
@@ -64,7 +64,7 @@ export async function GET(request: NextRequest) {
     }
 
     const properties = rows.map((r: any) => {
-      const base = r.investment_total || 0;
+      const base = r.investment_total_inv || 0;
       const isAR = r.ls_county?.state === "AR";
       return {
         id: r.id,
@@ -76,9 +76,9 @@ export async function GET(request: NextRequest) {
         photoUrl: r.photo_url,
         acquisitionDate: r.acquisition_date,
         salePrice: r.sale_price,
-        // Rounded stand-in for the Partner-menu card's "Investment" KPI —
-        // never the real investment_total (see buildTiers doc comment).
-        investmentTotalInv: base > 0 ? roundToNearest(base) : null,
+        // Same investment_total_inv the Partner-menu card's "Investment" KPI
+        // uses — real, persisted, unrounded.
+        investmentTotalInv: r.investment_total_inv ?? null,
         county: r.ls_county?.name || null,
         countyId: r.ls_county?.id || null,
         state: r.ls_county?.state || null,

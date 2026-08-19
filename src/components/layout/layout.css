@@ -322,3 +322,81 @@
   font-size: 0.75rem;
   color: var(--text-muted);
 }
+
+/* Dark sidebar theme — revert by deleting this block (or `git checkout -- src/components/layout/layout.css` before commit) */
+.sidebar {
+  background-color: #0f172a;
+  border-right-color: #1e293b;
+}
+
+.sidebar .sidebar-header {
+  border-bottom-color: #1e293b;
+}
+
+.sidebar .nav-item,
+.sidebar .nav-parent {
+  color: #94a3b8;
+}
+
+.sidebar .nav-item:hover,
+.sidebar .nav-parent:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+  color: #f1f5f9;
+}
+
+.sidebar .nav-item.active,
+.sidebar .nav-parent.parent-active {
+  background-color: #1e293b;
+  color: #E3DDD2;
+  border-left: 3px solid #E3DDD2;
+  padding-left: calc(1rem - 3px);
+  box-shadow: none;
+}
+
+.sidebar .nav-item.active:hover,
+.sidebar .nav-parent.parent-active:hover {
+  background-color: #24314a;
+  color: #E3DDD2;
+}
+
+.sidebar .nav-item.active .nav-icon,
+.sidebar .nav-parent.parent-active .nav-icon,
+.sidebar .nav-parent.parent-active .nav-chevron {
+  color: #E3DDD2;
+}
+
+.sidebar .nav-subitem {
+  color: #94a3b8;
+}
+
+.sidebar .nav-subitem:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+  color: #f1f5f9;
+}
+
+.sidebar .nav-subitem.active {
+  background-color: rgba(227, 221, 210, 0.14);
+  color: #E3DDD2;
+}
+
+.sidebar .sidebar-footer {
+  border-top-color: #1e293b;
+}
+
+.sidebar .user-profile.compact {
+  background-color: #1e293b;
+  border-color: #1e293b;
+}
+
+.sidebar .user-name {
+  color: #f1f5f9;
+}
+
+.sidebar .user-role {
+  color: #94a3b8;
+}
+
+.sidebar .avatar {
+  background-color: #E3DDD2;
+  color: #0f172a;
+}

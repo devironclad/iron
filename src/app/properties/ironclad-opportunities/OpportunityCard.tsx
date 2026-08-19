@@ -209,6 +209,11 @@ export function OpportunityCard({
                         </div>
                       );
                     })}
+                    {inv != null && inv > 0 && (
+                      <div style={{ fontSize: "0.6rem", color: "#94a3b8", marginTop: "2px", paddingLeft: "40px", fontWeight: 500 }}>
+                        Base (Partner Investment): {formatCurrency(inv)}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

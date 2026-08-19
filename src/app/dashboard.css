@@ -34,6 +34,17 @@
   box-shadow: 0 10px 20px -10px rgba(39, 53, 72, 0.15);
 }
 
+.kpi-card--static {
+  border: none;
+  box-shadow: none;
+}
+
+.kpi-card--static:hover {
+  transform: none;
+  border-color: transparent;
+  box-shadow: none;
+}
+
 .kpi-icon-wrapper {
   width: 48px;
   height: 48px;

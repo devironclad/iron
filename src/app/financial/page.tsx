@@ -100,7 +100,7 @@ export default function FinancialDashboard() {
         </div>
 
         {/* Projected Sale Value — if every active asset sold at its Appraisal Min / Avg / Max */}
-        <div className="kpi-card" style={{ cursor: 'default', alignItems: 'flex-start' }}>
+        <div className="kpi-card kpi-card--static" style={{ cursor: 'default', alignItems: 'flex-start' }}>
           <div className="kpi-icon-wrapper" style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#10b981' }}>
             <BarChart3 className="w-6 h-6" />
           </div>
