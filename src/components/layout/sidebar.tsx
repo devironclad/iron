@@ -208,7 +208,7 @@ export function Sidebar() {
       </nav>
  
       {/* Version Badge */}
-      <div className="sidebar-version-container" style={{ padding: '0.5rem 1.5rem', display: 'flex', alignItems: 'center' }}>
+      <div className="sidebar-version-container" style={{ padding: '0.5rem 1.5rem', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
         <button
           onClick={() => setShowChangelog(true)}
           className="version-badge"

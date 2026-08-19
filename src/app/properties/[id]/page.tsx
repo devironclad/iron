@@ -101,6 +101,7 @@ export default function PropertyDetailsPage() {
   const [wasSaved, setWasSaved] = useState(false);
   const [property, setProperty] = useState<any>(null);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [removingPhoto, setRemovingPhoto] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
   const [lookups, setLookups] = useState<Record<string, any[]>>({});
   const [permissions, setPermissions] = useState<any>(null);
@@ -1041,6 +1042,31 @@ export default function PropertyDetailsPage() {
     }
   };
 
+  const handleRemovePhoto = async () => {
+    if (!confirm('Remove this property photo?')) return;
+
+    setRemovingPhoto(true);
+    try {
+      const { data: files } = await supabase.storage.from("property-photos").list(String(id));
+      if (files && files.length > 0) {
+        await supabase.storage.from("property-photos").remove(files.map(f => `${id}/${f.name}`));
+      }
+
+      const { error: dbErr } = await supabase
+        .from("ls_assets")
+        .update({ photo_url: null })
+        .eq("id", id);
+
+      if (dbErr) throw dbErr;
+
+      setProperty((prev: any) => ({ ...prev, photo_url: null }));
+    } catch (err: any) {
+      alert("Failed to remove photo: " + err.message);
+    } finally {
+      setRemovingPhoto(false);
+    }
+  };
+
   const businessId = formatPropId(property?.ref_id);
 
   return (
@@ -1238,15 +1264,28 @@ export default function PropertyDetailsPage() {
                       style={{ display: 'none' }}
                       onChange={handlePhotoUpload}
                     />
-                    <button
-                      type="button"
-                      onClick={() => photoInputRef.current?.click()}
-                      disabled={uploadingPhoto}
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.4rem 0.9rem', backgroundColor: 'white', border: '1.5px solid #cbd5e1', borderRadius: '0.5rem', fontSize: '0.8rem', fontWeight: 600, color: '#334155', cursor: 'pointer' }}
-                    >
-                      {uploadingPhoto ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
-                      {uploadingPhoto ? 'Uploading...' : property.photo_url ? 'Change Photo' : 'Upload Photo'}
-                    </button>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <button
+                        type="button"
+                        onClick={() => photoInputRef.current?.click()}
+                        disabled={uploadingPhoto || removingPhoto}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.4rem 0.9rem', backgroundColor: 'white', border: '1.5px solid #cbd5e1', borderRadius: '0.5rem', fontSize: '0.8rem', fontWeight: 600, color: '#334155', cursor: 'pointer' }}
+                      >
+                        {uploadingPhoto ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                        {uploadingPhoto ? 'Uploading...' : property.photo_url ? 'Change Photo' : 'Upload Photo'}
+                      </button>
+                      {property.photo_url && (
+                        <button
+                          type="button"
+                          onClick={handleRemovePhoto}
+                          disabled={uploadingPhoto || removingPhoto}
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.4rem 0.9rem', backgroundColor: 'white', border: '1.5px solid #fecaca', borderRadius: '0.5rem', fontSize: '0.8rem', fontWeight: 600, color: '#dc2626', cursor: 'pointer' }}
+                        >
+                          {removingPhoto ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                          {removingPhoto ? 'Removing...' : 'Remove Photo'}
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
