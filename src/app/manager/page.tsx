@@ -265,11 +265,19 @@ function ManagerContent() {
       name: item.name || "",
       state: item.state || "FL",
       address: item.address || "",
-      phone: item.phone || "",
-      link1_label: item.link1_label || "",
-      link1_url: item.link1_url || "",
-      link2_label: item.link2_label || "",
-      link2_url: item.link2_url || "",
+      main_website: item.main_website || "",
+      tax_sale: item.tax_sale || "",
+      tax_sale_link: item.tax_sale_link || "",
+      tax_sale_phone: item.tax_sale_phone || "",
+      property_appraiser: item.property_appraiser || "",
+      property_appraiser_link: item.property_appraiser_link || "",
+      property_appraiser_phone: item.property_appraiser_phone || "",
+      clerk_recording_office: item.clerk_recording_office || "",
+      clerk_recording_link: item.clerk_recording_link || "",
+      clerk_recording_phone: item.clerk_recording_phone || "",
+      zoning_planning: item.zoning_planning || "",
+      zoning_planning_link: item.zoning_planning_link || "",
+      zoning_planning_phone: item.zoning_planning_phone || "",
       notes: item.notes || "",
     });
     setNewContact({ name: "", role: "", email: "", phone: "", notes: "" });
@@ -662,7 +670,7 @@ function ManagerContent() {
 
     {detailsCounty && (
       <div className="modal-overlay" onClick={closeDetails}>
-        <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-content modal-content--wide" onClick={(e) => e.stopPropagation()}>
           <div className="modal-header">
             <h2>{detailsCounty.name} — County Details</h2>
             <button className="modal-close-btn" onClick={closeDetails}>
@@ -706,68 +714,162 @@ function ManagerContent() {
               </div>
             </div>
 
-            <div className="form-group">
-              <label>Address</label>
-              <input
-                className="manager-input"
-                value={detailsForm.address || ""}
-                onChange={(e) => setDetailsForm({ ...detailsForm, address: e.target.value })}
-                disabled={!canEditTable("ls_county")}
-              />
+            <div className="form-row">
+              <div className="form-group">
+                <label>Address</label>
+                <input
+                  className="manager-input"
+                  value={detailsForm.address || ""}
+                  onChange={(e) => setDetailsForm({ ...detailsForm, address: e.target.value })}
+                  disabled={!canEditTable("ls_county")}
+                />
+              </div>
+              <div className="form-group">
+                <label>Main Website</label>
+                <input
+                  className="manager-input"
+                  placeholder="https://..."
+                  value={detailsForm.main_website || ""}
+                  onChange={(e) => setDetailsForm({ ...detailsForm, main_website: e.target.value })}
+                  disabled={!canEditTable("ls_county")}
+                />
+              </div>
             </div>
 
-            <div className="form-group">
-              <label>Phone</label>
-              <input
-                className="manager-input"
-                value={detailsForm.phone || ""}
-                onChange={(e) => setDetailsForm({ ...detailsForm, phone: e.target.value })}
-                disabled={!canEditTable("ls_county")}
-              />
+            <div className="field-section">
+              <h3 className="modal-section-title">Tax Sale</h3>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Tax Sale</label>
+                  <input
+                    className="manager-input"
+                    value={detailsForm.tax_sale || ""}
+                    onChange={(e) => setDetailsForm({ ...detailsForm, tax_sale: e.target.value })}
+                    disabled={!canEditTable("ls_county")}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Tax Sale Link</label>
+                  <input
+                    className="manager-input"
+                    placeholder="https://..."
+                    value={detailsForm.tax_sale_link || ""}
+                    onChange={(e) => setDetailsForm({ ...detailsForm, tax_sale_link: e.target.value })}
+                    disabled={!canEditTable("ls_county")}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Tax Sale Phone</label>
+                  <input
+                    className="manager-input"
+                    value={detailsForm.tax_sale_phone || ""}
+                    onChange={(e) => setDetailsForm({ ...detailsForm, tax_sale_phone: e.target.value })}
+                    disabled={!canEditTable("ls_county")}
+                  />
+                </div>
+              </div>
             </div>
 
-            <div className="form-group">
-              <label>Link 1 — Label</label>
-              <input
-                className="manager-input"
-                placeholder="e.g. Official Website"
-                value={detailsForm.link1_label || ""}
-                onChange={(e) => setDetailsForm({ ...detailsForm, link1_label: e.target.value })}
-                disabled={!canEditTable("ls_county")}
-              />
+            <div className="field-section">
+              <h3 className="modal-section-title">Property Appraiser</h3>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Property Appraiser</label>
+                  <input
+                    className="manager-input"
+                    value={detailsForm.property_appraiser || ""}
+                    onChange={(e) => setDetailsForm({ ...detailsForm, property_appraiser: e.target.value })}
+                    disabled={!canEditTable("ls_county")}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Property Appraiser Link</label>
+                  <input
+                    className="manager-input"
+                    placeholder="https://..."
+                    value={detailsForm.property_appraiser_link || ""}
+                    onChange={(e) => setDetailsForm({ ...detailsForm, property_appraiser_link: e.target.value })}
+                    disabled={!canEditTable("ls_county")}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Property Appraiser Phone</label>
+                  <input
+                    className="manager-input"
+                    value={detailsForm.property_appraiser_phone || ""}
+                    onChange={(e) => setDetailsForm({ ...detailsForm, property_appraiser_phone: e.target.value })}
+                    disabled={!canEditTable("ls_county")}
+                  />
+                </div>
+              </div>
             </div>
 
-            <div className="form-group">
-              <label>Link 1 — URL</label>
-              <input
-                className="manager-input"
-                placeholder="https://..."
-                value={detailsForm.link1_url || ""}
-                onChange={(e) => setDetailsForm({ ...detailsForm, link1_url: e.target.value })}
-                disabled={!canEditTable("ls_county")}
-              />
+            <div className="field-section">
+              <h3 className="modal-section-title">Clerk Recording Office</h3>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Clerk Recording Office</label>
+                  <input
+                    className="manager-input"
+                    value={detailsForm.clerk_recording_office || ""}
+                    onChange={(e) => setDetailsForm({ ...detailsForm, clerk_recording_office: e.target.value })}
+                    disabled={!canEditTable("ls_county")}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Clerk Recording Link</label>
+                  <input
+                    className="manager-input"
+                    placeholder="https://..."
+                    value={detailsForm.clerk_recording_link || ""}
+                    onChange={(e) => setDetailsForm({ ...detailsForm, clerk_recording_link: e.target.value })}
+                    disabled={!canEditTable("ls_county")}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Clerk Recording Phone</label>
+                  <input
+                    className="manager-input"
+                    value={detailsForm.clerk_recording_phone || ""}
+                    onChange={(e) => setDetailsForm({ ...detailsForm, clerk_recording_phone: e.target.value })}
+                    disabled={!canEditTable("ls_county")}
+                  />
+                </div>
+              </div>
             </div>
 
-            <div className="form-group">
-              <label>Link 2 — Label</label>
-              <input
-                className="manager-input"
-                placeholder="e.g. Auction Portal"
-                value={detailsForm.link2_label || ""}
-                onChange={(e) => setDetailsForm({ ...detailsForm, link2_label: e.target.value })}
-                disabled={!canEditTable("ls_county")}
-              />
-            </div>
-
-            <div className="form-group">
-              <label>Link 2 — URL</label>
-              <input
-                className="manager-input"
-                placeholder="https://..."
-                value={detailsForm.link2_url || ""}
-                onChange={(e) => setDetailsForm({ ...detailsForm, link2_url: e.target.value })}
-                disabled={!canEditTable("ls_county")}
-              />
+            <div className="field-section">
+              <h3 className="modal-section-title">Zoning Planning</h3>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Zoning Planning</label>
+                  <input
+                    className="manager-input"
+                    value={detailsForm.zoning_planning || ""}
+                    onChange={(e) => setDetailsForm({ ...detailsForm, zoning_planning: e.target.value })}
+                    disabled={!canEditTable("ls_county")}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Zoning Planning Link</label>
+                  <input
+                    className="manager-input"
+                    placeholder="https://..."
+                    value={detailsForm.zoning_planning_link || ""}
+                    onChange={(e) => setDetailsForm({ ...detailsForm, zoning_planning_link: e.target.value })}
+                    disabled={!canEditTable("ls_county")}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Zoning Planning Phone</label>
+                  <input
+                    className="manager-input"
+                    value={detailsForm.zoning_planning_phone || ""}
+                    onChange={(e) => setDetailsForm({ ...detailsForm, zoning_planning_phone: e.target.value })}
+                    disabled={!canEditTable("ls_county")}
+                  />
+                </div>
+              </div>
             </div>
 
             <div className="form-group">
