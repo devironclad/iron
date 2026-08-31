@@ -5,7 +5,6 @@ import { Loader2, Search, HandCoins, AlertTriangle, RefreshCw, ExternalLink } fr
 import { supabase } from "@/lib/supabase";
 import { getCurrentUserPermissions, hasPermission } from "@/lib/permissions";
 import { PermissionGuard } from "@/components/auth/PermissionGuard";
-import "./bids.css";
 
 type BidRow = {
   auction_listing_id: number;
