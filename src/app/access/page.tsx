@@ -39,6 +39,7 @@ const RESOURCES = [
   { id: "page:properties:sold_out", label: "Properties: Sold Out", category: "Pages" },
   { id: "page:properties:ironclad-opportunities", label: "Properties: Ironclad Opportunities", category: "Pages" },
   { id: "page:requests", label: "Requests Page", category: "Pages" },
+  { id: "page:bids", label: "Bids Page (COSL)", category: "Pages" },
   { id: "page:manager", label: "Manager Page", category: "Pages" },
   { id: "page:access", label: "Access Control Page", category: "Pages" },
   { id: "page:access:profiles", label: "Access: Profiles & Permissions", category: "Pages" },

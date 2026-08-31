@@ -57,6 +57,7 @@ const NAV_ITEMS: NavItem[] = [
     ],
   },
   { name: "Requests", href: "/requests", icon: ClipboardList, resource: "page:requests" },
+  { name: "Bids", href: "/bids", icon: Gavel, resource: "page:bids" },
   { name: "Manager", href: "/manager", icon: Database, resource: "page:manager" },
   { name: "Access", href: "/access", icon: Users, resource: "page:access" },
   { name: "Settings", href: "/settings", icon: Settings, resource: "page:settings" },
