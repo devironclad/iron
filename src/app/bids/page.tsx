@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { Loader2, Search, Gavel, AlertTriangle, RefreshCw, ExternalLink } from "lucide-react";
+import { Loader2, Search, HandCoins, AlertTriangle, RefreshCw, ExternalLink } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { getCurrentUserPermissions, hasPermission } from "@/lib/permissions";
 import { PermissionGuard } from "@/components/auth/PermissionGuard";
@@ -286,7 +286,7 @@ export default function BidsPage() {
                   <tr>
                     <td colSpan={8} style={{ textAlign: "center", padding: "3rem", color: "var(--text-muted)" }}>
                       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "0.5rem" }}>
-                        <Gavel className="w-10 h-10 opacity-50" />
+                        <HandCoins className="w-10 h-10 opacity-50" />
                         <span>{rows.length === 0 ? "No bids collected yet." : "No rows match your filters."}</span>
                       </div>
                     </td>
