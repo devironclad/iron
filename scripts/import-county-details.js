@@ -47,7 +47,6 @@ function cleanString(val) {
 // Aliases para nomes que existem em ls_county com grafia diferente da
 // planilha (typo de cadastro ou variação de pontuação/hífen).
 const NAME_ALIASES = {
-  'ar|carroll': 'ar|carrol',
   'fl|glades': 'fl|galdes',
 };
 
