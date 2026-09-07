@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Sidebar } from "@/components/layout/sidebar";
 import { PreviewBanner } from "@/components/auth/PreviewBanner";
+import { ActivityHeartbeat } from "@/components/ActivityHeartbeat";
 import { Geist } from "next/font/google";
 import { supabase } from "@/lib/supabase";
 import "./globals.css";
@@ -93,6 +94,7 @@ export default function RootLayout({
             <>
               {showSidebar && <Sidebar />}
               {showSidebar && <PreviewBanner />}
+              {showSidebar && <ActivityHeartbeat />}
               <main className={isAuthPage ? "login-content" : "main-content"}>
                 <div className={isAuthPage ? "" : "page-content"}>
                   {children}
