@@ -4,7 +4,8 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   Plus, Search, Loader2, ArrowRight,
-  ClipboardList, Calendar, Clock, Trash2, CheckCircle2, AlertTriangle
+  ClipboardList, Calendar, Clock, Trash2, CheckCircle2, AlertTriangle,
+  LayoutGrid, List as ListIcon, Paperclip
 } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
@@ -15,12 +16,16 @@ import "./requests.css";
 type LookupItem = { id: string; name: string; color?: string; is_closed?: boolean };
 type UserOption = { id: string; full_name: string };
 
+const BOARD_COLUMN_ORDER = ['open', 'in progress', 'waiting on requester', 'resolved'];
+
 type RequestRow = {
   id: number;
   title: string;
   due_date: string;
   asset_id?: number | null;
   requester_id?: string | null;
+  assignee_id?: string | null;
+  status_id?: string | null;
   requester?: { full_name?: string; avatar_url?: string } | null;
   assignee?: { full_name?: string; avatar_url?: string } | null;
   category?: { name?: string; color?: string } | null;
@@ -44,6 +49,7 @@ export default function RequestsPage() {
 
   const [showMyTasks, setShowMyTasks] = useState(false);
   const [showOverdueOnly, setShowOverdueOnly] = useState(false);
+  const [view, setView] = useState<'board' | 'list'>('board');
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [userPermissions, setUserPermissions] = useState<Record<string, Permission> | null>(null);
 
@@ -147,6 +153,20 @@ export default function RequestsPage() {
     return new Date(dateStr) < new Date();
   };
 
+  const groupedByStatus = [...statuses]
+    .filter(s => s.name?.toLowerCase() !== 'cancelled')
+    .sort((a, b) => {
+      const rank = (name?: string) => {
+        const i = BOARD_COLUMN_ORDER.indexOf(name?.toLowerCase() ?? '');
+        return i === -1 ? BOARD_COLUMN_ORDER.length : i;
+      };
+      return rank(a.name) - rank(b.name);
+    })
+    .map(s => ({
+      status: s,
+      items: requests.filter(r => String(r.status_id) === String(s.id)),
+    }));
+
   return (
     <PermissionGuard resource="page:requests">
       <div className="requests-container">
@@ -231,6 +251,25 @@ export default function RequestsPage() {
               <strong>{totalCount}</strong> requests
             </div>
 
+            <div className="layout-toggle">
+              <button
+                type="button"
+                onClick={() => setView('board')}
+                className={`layout-btn ${view === 'board' ? 'active' : ''}`}
+                title="Board view"
+              >
+                <LayoutGrid className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setView('list')}
+                className={`layout-btn ${view === 'list' ? 'active' : ''}`}
+                title="List view"
+              >
+                <ListIcon className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
             <div className="view-toggle">
               <button 
                 onClick={() => setShowMyTasks(false)} 
@@ -274,10 +313,89 @@ export default function RequestsPage() {
           </div>
         </div>
 
-        {/* Table */}
+        {/* Board / Table */}
         {loading ? (
           <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}>
             <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          </div>
+        ) : requests.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
+              <ClipboardList className="w-10 h-10 opacity-50" />
+              <span>No requests found matching your filters.</span>
+            </div>
+          </div>
+        ) : view === 'board' ? (
+          <div className="kanban-board">
+            {groupedByStatus.map(({ status, items }) => (
+              <section key={status.id} className="kanban-column">
+                <div className="kanban-column-head">
+                  <span className="status-dot" style={{ '--dot': status.color || '#94a3b8' } as React.CSSProperties} />
+                  <h2>{status.name}</h2>
+                  <span className="kanban-count">{items.length}</span>
+                </div>
+                <div className="kanban-column-body">
+                  {items.length === 0 ? (
+                    <div className="kanban-empty">No requests</div>
+                  ) : items.map(req => (
+                    <Link
+                      key={req.id}
+                      href={`/requests/${req.id}`}
+                      className="kanban-card"
+                      style={{ '--dot': status.color || '#94a3b8' } as React.CSSProperties}
+                    >
+                      <div className="kanban-card-top">
+                        <span className="kanban-card-id">REQ-{req.id}</span>
+                        {req.category?.name && (
+                          <span className="badge" style={{
+                            backgroundColor: req.category.color ? `${req.category.color}20` : '#f1f5f9',
+                            color: req.category.color || '#475569',
+                            fontSize: '0.65rem',
+                          }}>
+                            {req.category.name}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="kanban-card-title">{req.title}</div>
+
+                      {req.asset_id && (
+                        <div className="kanban-card-asset">
+                          <Paperclip className="w-3 h-3" />
+                          Asset #{req.asset_id}
+                        </div>
+                      )}
+
+                      <div className="kanban-card-people">
+                        <div className="avatar-stack">
+                          <div
+                            className="user-avatar-small kanban-avatar"
+                            title={`Requested by ${req.requester?.full_name || 'System'}`}
+                          >
+                            {req.requester?.full_name?.charAt(0).toUpperCase() || '?'}
+                          </div>
+                          {req.assignee ? (
+                            <div
+                              className="user-avatar-small kanban-avatar"
+                              style={{ backgroundColor: '#e0e7ff', color: '#4f46e5' }}
+                              title={`Assigned to ${req.assignee.full_name}`}
+                            >
+                              {req.assignee.full_name?.charAt(0).toUpperCase()}
+                            </div>
+                          ) : (
+                            <div className="user-avatar-small kanban-avatar unassigned" title="Unassigned">?</div>
+                          )}
+                        </div>
+                        <div className={`kanban-due ${isOverdue(req.due_date, req.status?.is_closed) ? 'overdue' : ''}`}>
+                          {isOverdue(req.due_date, req.status?.is_closed) ? <Clock className="w-3 h-3" /> : <Calendar className="w-3 h-3" />}
+                          {formatDate(req.due_date)}
+                        </div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              </section>
+            ))}
           </div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
@@ -294,16 +412,7 @@ export default function RequestsPage() {
                 </tr>
               </thead>
               <tbody>
-                {requests.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
-                        <ClipboardList className="w-10 h-10 opacity-50" />
-                        <span>No requests found matching your filters.</span>
-                      </div>
-                    </td>
-                  </tr>
-                ) : requests.map((req) => (
+                {requests.map((req) => (
                   <tr key={req.id}>
                     <td style={{ color: 'var(--text-muted)', fontWeight: 600 }}>REQ-{req.id}</td>
                     <td style={{ fontWeight: 600, maxWidth: '250px' }}>
