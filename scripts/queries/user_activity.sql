@@ -63,3 +63,55 @@ JOIN auth.users au ON au.id = a.user_id
 LEFT JOIN ls_users_metadata u ON u.id = a.user_id
 WHERE (a.started_at AT TIME ZONE 'America/Sao_Paulo')::date = DATE '2026-09-02'
 ORDER BY usuario, inicio;
+
+
+-- 4) HOJE, AO VIVO — inicio de atividade hoje + horas acumuladas ate agora
+--    -> usuario | inicio_hoje | ultima_atividade | horas_ate_agora | blocos | ativo_agora
+SELECT
+  coalesce(u.full_name, au.email)                                          AS usuario,
+  (min(a.started_at)   AT TIME ZONE 'America/Sao_Paulo')::time(0)          AS inicio_hoje,
+  (max(a.last_ping_at) AT TIME ZONE 'America/Sao_Paulo')::time(0)          AS ultima_atividade,
+  round((sum(extract(epoch FROM (a.last_ping_at - a.started_at)) + 60) / 3600.0)::numeric, 2) AS horas_ate_agora,
+  count(*)                                                                 AS blocos,
+  (max(a.last_ping_at) >= now() - INTERVAL '2 minutes')                    AS ativo_agora
+FROM user_activity a
+JOIN auth.users au ON au.id = a.user_id
+LEFT JOIN ls_users_metadata u ON u.id = a.user_id
+WHERE (a.started_at AT TIME ZONE 'America/Sao_Paulo')::date = (now() AT TIME ZONE 'America/Sao_Paulo')::date
+GROUP BY 1
+ORDER BY inicio_hoje;
+
+
+-- ============================================================
+-- A partir daqui, as consultas usam a coluna "path" (tela atual),
+-- disponivel só em blocos gravados depois do patch 20. Blocos
+-- anteriores têm path NULL e são excluídos com "path IS NOT NULL".
+-- ============================================================
+
+-- 5) TEMPO POR TELA, POR USUARIO — onde cada um passa o tempo -
+--    -> usuario | tela | horas | blocos
+SELECT
+  coalesce(u.full_name, au.email)                                          AS usuario,
+  a.path                                                                   AS tela,
+  round((sum(extract(epoch FROM (a.last_ping_at - a.started_at)) + 60) / 3600.0)::numeric, 2) AS horas,
+  count(*)                                                                 AS blocos
+FROM user_activity a
+JOIN auth.users au ON au.id = a.user_id
+LEFT JOIN ls_users_metadata u ON u.id = a.user_id
+WHERE a.started_at >= now() - INTERVAL '15 days'
+  AND a.path IS NOT NULL
+GROUP BY 1, 2
+ORDER BY usuario, horas DESC;
+
+
+-- 6) USO POR TELA — agregado de toda a equipe, quais telas mais usadas
+--    -> tela | horas_equipe | usuarios
+SELECT
+  a.path                                                                        AS tela,
+  round((sum(extract(epoch FROM (a.last_ping_at - a.started_at)) + 60) / 3600.0)::numeric, 2) AS horas_equipe,
+  count(DISTINCT a.user_id)                                                     AS usuarios
+FROM user_activity a
+WHERE a.started_at >= now() - INTERVAL '15 days'
+  AND a.path IS NOT NULL
+GROUP BY 1
+ORDER BY horas_equipe DESC;
