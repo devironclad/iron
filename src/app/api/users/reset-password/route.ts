@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { createClient } from "@supabase/supabase-js";
 import { userHasPermission } from "@/lib/server-permissions";
+import { logSystemAction } from "@/lib/activity";
 
 export async function POST(request: NextRequest) {
   try {
@@ -37,6 +38,7 @@ export async function POST(request: NextRequest) {
 
     if (resetError) throw resetError;
 
+    await logSystemAction(caller.id, "auth.users", "RESET_PASSWORD");
     return NextResponse.json({ success: true });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });

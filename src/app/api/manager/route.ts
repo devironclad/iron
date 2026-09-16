@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { userHasPermission } from "@/lib/server-permissions";
+import { logSystemAction } from "@/lib/activity";
 
 const ALLOWED_TABLES = new Set([
   "ls_origem", "ls_status", "ls_priority", "ls_county", "ls_county_contacts",
@@ -30,6 +31,7 @@ export async function POST(request: NextRequest) {
 
     const { error } = await supabaseAdmin.from(table).insert([payload]);
     if (error) throw error;
+    await logSystemAction(user.id, table, "INSERT");
     return NextResponse.json({ success: true });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
@@ -49,6 +51,7 @@ export async function PATCH(request: NextRequest) {
 
     const { error } = await supabaseAdmin.from(table).update(payload).eq("id", id);
     if (error) throw error;
+    await logSystemAction(user.id, table, "UPDATE");
     return NextResponse.json({ success: true });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
@@ -68,6 +71,7 @@ export async function DELETE(request: NextRequest) {
 
     const { error } = await supabaseAdmin.from(table).delete().eq("id", id);
     if (error) throw error;
+    await logSystemAction(user.id, table, "DELETE");
     return NextResponse.json({ success: true });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });

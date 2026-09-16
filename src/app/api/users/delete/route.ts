@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { userHasPermission } from "@/lib/server-permissions";
+import { logSystemAction } from "@/lib/activity";
 
 export async function DELETE(request: NextRequest) {
   try {
@@ -33,6 +34,7 @@ export async function DELETE(request: NextRequest) {
 
     if (error) throw error;
 
+    await logSystemAction(caller.id, "auth.users", "DELETE");
     return NextResponse.json({ success: true });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });

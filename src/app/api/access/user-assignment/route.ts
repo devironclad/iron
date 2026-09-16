@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { userHasPermission } from "@/lib/server-permissions";
+import { logSystemAction } from "@/lib/activity";
 
 export async function PATCH(request: NextRequest) {
   try {
@@ -21,11 +22,13 @@ export async function PATCH(request: NextRequest) {
         .update({ user_type })
         .eq("id", user_id);
       if (error) throw error;
+      await logSystemAction(user.id, "ls_users_metadata", "UPDATE");
     } else if (action === "user_profile") {
       const { error } = await supabaseAdmin
         .from("ls_user_profiles")
         .upsert({ user_id, profile_id: profile_id || null }, { onConflict: "user_id" });
       if (error) throw error;
+      await logSystemAction(user.id, "ls_user_profiles", "UPDATE");
     } else {
       return NextResponse.json({ error: "Invalid action" }, { status: 400 });
     }

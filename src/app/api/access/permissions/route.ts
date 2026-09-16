@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { userHasPermission } from "@/lib/server-permissions";
+import { logSystemAction } from "@/lib/activity";
 
 export async function POST(request: NextRequest) {
   try {
@@ -22,6 +23,7 @@ export async function POST(request: NextRequest) {
       .upsert(permissions, { onConflict: "profile_id, resource_key" });
 
     if (error) throw error;
+    await logSystemAction(user.id, "ls_permissions", "UPDATE");
     return NextResponse.json({ success: true });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });

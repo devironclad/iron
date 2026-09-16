@@ -11,6 +11,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { userHasPermission } from "@/lib/server-permissions";
 import { runCoslMyBidsSync } from "@/lib/cosl/sync";
+import { logSystemAction } from "@/lib/activity";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -46,6 +47,8 @@ export async function POST(req: NextRequest) {
       { status: 429 },
     );
   }
+
+  await logSystemAction(user.id, "cosl_my_bids", "REFRESH");
 
   const outcome = await runCoslMyBidsSync();
   return NextResponse.json(outcome, { status: outcome.ok ? 200 : 502 });

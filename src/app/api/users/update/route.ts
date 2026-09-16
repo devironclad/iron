@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { userHasPermission } from "@/lib/server-permissions";
+import { logSystemAction } from "@/lib/activity";
 
 export async function PATCH(request: NextRequest) {
   try {
@@ -48,6 +49,7 @@ export async function PATCH(request: NextRequest) {
 
     if (metaError) throw metaError;
 
+    await logSystemAction(caller.id, "auth.users", "UPDATE");
     return NextResponse.json({ success: true });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
