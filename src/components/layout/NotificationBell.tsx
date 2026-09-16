@@ -6,6 +6,14 @@ import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
+// Polling replaces a Realtime `postgres_changes` subscription that used to
+// live here — it was the ONLY Realtime channel anywhere in the app, and
+// realtime.list_changes() (the WAL-polling this keeps warm 24/7 regardless
+// of actual notification volume) was by far the top query in
+// pg_stat_statements, driving the Supabase "exhausting multiple resources"
+// warning. Polling only costs anything while a tab is open and visible.
+const POLL_INTERVAL_MS = 60_000;
+
 export function NotificationBell() {
   const [notifications, setNotifications] = useState<any[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -15,20 +23,16 @@ export function NotificationBell() {
   const router = useRouter();
 
   useEffect(() => {
-    let channel: any;
     let isMounted = true;
+    let intervalId: ReturnType<typeof setInterval> | undefined;
+    let currentUserId: string | null = null;
 
-    const init = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      const user = session?.user;
-      if (!user || !isMounted) return;
-      setUserId(user.id);
-
-      // Fetch initial data
+    const load = async () => {
+      if (!currentUserId || document.visibilityState !== "visible") return;
       const { data, error } = await supabase
         .from("ls_notifications")
         .select("*")
-        .eq("user_id", user.id)
+        .eq("user_id", currentUserId)
         .order("created_at", { ascending: false })
         .limit(10);
 
@@ -36,30 +40,25 @@ export function NotificationBell() {
         setNotifications(data || []);
         setUnreadCount((data || []).filter(n => !n.is_read).length);
       }
+    };
 
-      // Setup Realtime
-      const channelName = `user-notifs-${user.id}`;
-      channel = supabase
-        .channel(channelName)
-        .on(
-          'postgres_changes',
-          {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'ls_notifications',
-            filter: `user_id=eq.${user.id}`
-          },
-          (payload) => {
-            if (isMounted) {
-              setNotifications((prev) => [payload.new, ...prev].slice(0, 10));
-              setUnreadCount((prev) => prev + 1);
-            }
-          }
-        )
-        .subscribe();
+    const init = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      const user = session?.user;
+      if (!user || !isMounted) return;
+      currentUserId = user.id;
+      setUserId(user.id);
+
+      await load();
+      intervalId = setInterval(load, POLL_INTERVAL_MS);
     };
 
     init();
+
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") load();
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
 
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
@@ -71,9 +70,8 @@ export function NotificationBell() {
     return () => {
       isMounted = false;
       document.removeEventListener("mousedown", handleClickOutside);
-      if (channel) {
-        supabase.removeChannel(channel);
-      }
+      document.removeEventListener("visibilitychange", handleVisibility);
+      if (intervalId) clearInterval(intervalId);
     };
   }, []);
 
