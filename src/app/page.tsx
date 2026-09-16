@@ -23,8 +23,24 @@ import "./dashboard.css";
 
 const CHART_COLORS = ['var(--primary)', '#1e293b', '#10b981', '#3b82f6', '#f59e0b', '#8b5cf6'];
 
+function SectionDivider({ icon: Icon, label }: { icon: React.ComponentType<{ className?: string }>; label: string }) {
+  return (
+    <div className="dash-divider">
+      <span className="dash-divider-line" />
+      <span className="dash-divider-label">
+        <Icon className="w-4 h-4" />
+        {label}
+      </span>
+      <span className="dash-divider-line" />
+    </div>
+  );
+}
+
+const scrollToId = (id: string) => {
+  document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+};
+
 export default function Dashboard() {
-  const [activeView, setActiveView] = useState<'properties' | 'auctions' | 'requests' | null>('properties');
   const [stats, setStats] = useState({
     totalAssets: 0,
     ironcladAssets: 0,
@@ -350,13 +366,9 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* KPI Cards */}
+        {/* KPI Cards — click scrolls to the matching section */}
         <div className="kpi-grid">
-          <div
-            className="kpi-card"
-            onClick={() => setActiveView('properties')}
-            style={{ cursor: 'pointer', outline: activeView === 'properties' ? '2px solid var(--primary)' : 'none', transition: 'outline 0.15s' }}
-          >
+          <div className="kpi-card kpi-card--link" onClick={() => scrollToId('sec-portfolio')}>
             <div className="kpi-icon-wrapper" style={{ background: '#eff6ff', color: '#1d4ed8' }}>
               <Building2 className="w-6 h-6" />
             </div>
@@ -376,139 +388,93 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <div
-            className="kpi-card"
-            onClick={() => setActiveView('auctions')}
-            style={{ cursor: 'pointer', outline: activeView === 'auctions' ? '2px solid var(--primary)' : 'none', transition: 'outline 0.15s' }}
-          >
+          <div className="kpi-card kpi-card--link" onClick={() => scrollToId('sec-auctions')}>
             <div className="kpi-icon-wrapper" style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#10b981' }}>
               <Gavel className="w-6 h-6" />
             </div>
             <div className="kpi-info">
               <h3>Researched Assets</h3>
               <p className="kpi-value">{stats.activeAuctions}</p>
+              <div style={{ marginTop: '0.5rem', display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                <span className="stat-pill stat-pill--neutral">
+                  <span className="stat-pill-dot" />
+                  Next 5 auctions below
+                </span>
+              </div>
             </div>
           </div>
 
-          <div
-            className="kpi-card"
-            onClick={() => setActiveView('requests')}
-            style={{ cursor: 'pointer', outline: activeView === 'requests' ? '2px solid var(--primary)' : 'none', transition: 'outline 0.15s' }}
-          >
+          <div className="kpi-card kpi-card--link" onClick={() => scrollToId('sec-requests')}>
             <div className="kpi-icon-wrapper" style={{ background: 'rgba(39, 53, 72, 0.08)', color: 'var(--primary)' }}>
               <ClipboardList className="w-6 h-6" />
             </div>
             <div className="kpi-info">
               <h3>Active Requests</h3>
               <p className="kpi-value">{stats.openRequests}</p>
+              {ticketsStats.overdueCount > 0 && (
+                <div style={{ marginTop: '0.5rem', display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                  <span className="stat-pill" style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444', borderColor: 'rgba(239,68,68,0.25)' }}>
+                    <span className="stat-pill-dot" style={{ background: '#ef4444' }} />
+                    {ticketsStats.overdueCount} overdue
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         </div>
 
-        {/* Main Content */}
-        {activeView === 'auctions' && <div className="dashboard-main">
-          <div className="left-column">
-            <AuctionCalendar calendarData={stats.calendarData} compact />
-
-            <section className="content-section compact">
-              <div className="section-header">
-                <h2>Active for auction by priority</h2>
-                <BarChart3 className="w-5 h-5 text-muted" />
-              </div>
-              <div className="chart-container">
-                {stats.priorityStats.slice(0, 4).map(p => (
-                  <div key={p.name} className="chart-row">
-                    <div className="chart-label">
-                      <span>{p.name}</span>
-                      <span>{p.count} assets</span>
-                    </div>
-                    <div className="chart-bar-bg">
-                      <div className="chart-bar-fill" style={{ width: `${p.percentage}%`, backgroundColor: p.color }} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
-
-          </div>
-
-          {/* Right Column: Timeline with Links */}
-          <section className="content-section">
-            <div className="section-header">
-              <h2>Top 5 Next Auctions</h2>
-              <Clock className="w-5 h-5 text-muted" />
-            </div>
-            <div className="upcoming-list">
-              {stats.upcomingEvents.length > 0 ? stats.upcomingEvents.map((ev, idx) => (
-                <Link
-                  key={idx}
-                  href={`/auctions?county=${ev.countyId}&date=${ev.dateStr}`}
-                  className="event-card"
-                  style={{ textDecoration: 'none' }}
-                >
-                  <div className="event-date-badge">
-                    <span className="day">{ev.date.getDate()}</span>
-                    <span className="month">{ev.date.toLocaleDateString('en-US', { month: 'short' })}</span>
-                  </div>
-                  <div className="event-info">
-                    <h4>{ev.county}</h4>
-                    <p><MapPin className="w-3 h-3" /> {ev.state}</p>
-                  </div>
-                  <div className="event-count">{ev.count} {ev.count === 1 ? 'Asset' : 'Assets'}</div>
-                  <ChevronRight className="w-4 h-4 text-muted" />
-                </Link>
-              )) : <p className="text-muted">No upcoming auctions.</p>}
-              <Link href="/auctions" className="primary-btn" style={{ marginTop: '1rem', justifyContent: 'center' }}>
-                View All Auctions
-              </Link>
-            </div>
-          </section>
-        </div>}
-
-        {/* Portfolio by County + Properties by Owner — side by side, half width each */}
-        {(activeView === 'properties') && (
-          <div className="dashboard-half-grid" style={{ marginTop: '1.5rem' }}>
+        {/* ── Portfolio ── */}
+        <section id="sec-portfolio" className="dash-section">
+          <SectionDivider icon={Building2} label="Portfolio" />
+          <div className="dashboard-half-grid">
             <section className="content-section">
               <div className="section-header">
                 <h2>Portfolio by County</h2>
                 <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)' }}>{stats.totalAssets} total</span>
               </div>
-              <div className="chart-container">
-                {stateStats.map(s => {
-                  const isExpanded = expandedState === s.name;
-                  return (
-                    <div key={s.name}>
-                      <div
-                        className="chart-row"
-                        onClick={() => setExpandedState(isExpanded ? null : s.name)}
-                        style={{ cursor: 'pointer' }}
-                      >
-                        <div className="chart-label">
-                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
-                            <ChevronRight className="w-3.5 h-3.5 text-muted" style={{ transform: isExpanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }} />
+              {stateStats.length === 0 ? (
+                <p className="text-muted" style={{ fontSize: '0.875rem' }}>No properties in portfolio.</p>
+              ) : (
+                <div className="pbc-list">
+                  {stateStats.map(s => {
+                    const isExpanded = expandedState === s.name;
+                    return (
+                      <div key={s.name} className="pbc-group">
+                        <button
+                          type="button"
+                          className="pbc-state"
+                          onClick={() => setExpandedState(isExpanded ? null : s.name)}
+                          aria-expanded={isExpanded}
+                        >
+                          <span className="pbc-state-name">
+                            <ChevronRight className="w-3.5 h-3.5" style={{ transform: isExpanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }} />
                             {s.name}
                           </span>
-                          <span>{s.count} {s.count === 1 ? 'property' : 'properties'}</span>
-                        </div>
-                        <div className="chart-bar-bg">
-                          <div className="chart-bar-fill" style={{ width: `${s.percentage}%`, backgroundColor: s.color }} />
-                        </div>
+                          <span className="pbc-state-count">
+                            {s.count}
+                            <span className="pbc-state-unit">{s.count === 1 ? 'property' : 'properties'}</span>
+                          </span>
+                        </button>
+                        {isExpanded && (
+                          <div className="pbc-counties">
+                            {selectedStateCounties.map(c => (
+                              <div key={c.name} className="pbc-county">
+                                <div className="pbc-county-label">
+                                  <span>{c.name}</span>
+                                  <span>{c.count}</span>
+                                </div>
+                                <div className="pbc-county-bar-bg">
+                                  <div className="pbc-county-bar" style={{ width: `${c.percentage}%` }} />
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
-                      {isExpanded && selectedStateCounties.map(c => (
-                        <div key={c.name} className="chart-row" style={{ paddingLeft: '1.15rem' }}>
-                          <div className="chart-label">
-                            <span>{c.name}</span>
-                            <span>{c.count} {c.count === 1 ? 'property' : 'properties'}</span>
-                          </div>
-                          <div className="chart-bar-bg">
-                            <div className="chart-bar-fill" style={{ width: `${c.percentage}%`, backgroundColor: 'var(--text-secondary)' }} />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
+              )}
             </section>
 
             <section className="content-section compact">
@@ -550,20 +516,73 @@ export default function Dashboard() {
               </div>
             </section>
           </div>
-        )}
+        </section>
+
+        {/* ── Auctions ── */}
+        <section id="sec-auctions" className="dash-section">
+          <SectionDivider icon={Gavel} label="Auctions Pipeline" />
+          <div className="dashboard-main">
+            <div className="left-column">
+              <AuctionCalendar calendarData={stats.calendarData} compact />
+
+              <section className="content-section compact">
+                <div className="section-header">
+                  <h2>Active for auction by priority</h2>
+                  <BarChart3 className="w-5 h-5 text-muted" />
+                </div>
+                <div className="chart-container">
+                  {stats.priorityStats.length > 0 ? stats.priorityStats.slice(0, 4).map(p => (
+                    <div key={p.name} className="chart-row">
+                      <div className="chart-label">
+                        <span>{p.name}</span>
+                        <span>{p.count} assets</span>
+                      </div>
+                      <div className="chart-bar-bg">
+                        <div className="chart-bar-fill" style={{ width: `${p.percentage}%`, backgroundColor: p.color }} />
+                      </div>
+                    </div>
+                  )) : <p className="text-muted" style={{ fontSize: '0.875rem' }}>No researched assets.</p>}
+                </div>
+              </section>
+            </div>
+
+            <section className="content-section">
+              <div className="section-header">
+                <h2>Top 5 Next Auctions</h2>
+                <Clock className="w-5 h-5 text-muted" />
+              </div>
+              <div className="upcoming-list">
+                {stats.upcomingEvents.length > 0 ? stats.upcomingEvents.map((ev, idx) => (
+                  <Link
+                    key={idx}
+                    href={`/auctions?county=${ev.countyId}&date=${ev.dateStr}`}
+                    className="event-card"
+                    style={{ textDecoration: 'none' }}
+                  >
+                    <div className="event-date-badge">
+                      <span className="day">{ev.date.getDate()}</span>
+                      <span className="month">{ev.date.toLocaleDateString('en-US', { month: 'short' })}</span>
+                    </div>
+                    <div className="event-info">
+                      <h4>{ev.county}</h4>
+                      <p><MapPin className="w-3 h-3" /> {ev.state}</p>
+                    </div>
+                    <div className="event-count">{ev.count} {ev.count === 1 ? 'Asset' : 'Assets'}</div>
+                    <ChevronRight className="w-4 h-4 text-muted" />
+                  </Link>
+                )) : <p className="text-muted">No upcoming auctions.</p>}
+                <Link href="/auctions" className="primary-btn" style={{ marginTop: '1rem', justifyContent: 'center' }}>
+                  View All Auctions
+                </Link>
+              </div>
+            </section>
+          </div>
+        </section>
 
         {/* ── Requests & Tickets ── */}
-        {(activeView === 'requests') && <div style={{ marginTop: '2.5rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
-            <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border-subtle)' }} />
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', whiteSpace: 'nowrap' }}>
-              <Ticket className="w-4 h-4" />
-              Requests &amp; Tickets
-            </div>
-            <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border-subtle)' }} />
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 260px', gap: '1.5rem', alignItems: 'start' }}>
+        <section id="sec-requests" className="dash-section">
+          <SectionDivider icon={Ticket} label="Requests & Tickets" />
+          <div className="requests-grid">
 
             {/* By Category */}
             <section className="content-section compact">
@@ -637,7 +656,7 @@ export default function Dashboard() {
             </div>
 
           </div>
-        </div>}
+        </section>
 
       </div>
     </PermissionGuard>

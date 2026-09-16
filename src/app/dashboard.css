@@ -45,6 +45,59 @@
   box-shadow: none;
 }
 
+/* KPI card that scrolls to its section on click */
+.kpi-card--link {
+  cursor: pointer;
+}
+
+.kpi-card--link:hover {
+  border-color: var(--primary);
+}
+
+/* ── Dashboard sections (Portfolio / Auctions / Requests) ── */
+.dash-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  scroll-margin-top: 1rem;
+  padding-top: 0.5rem;
+}
+
+.dash-divider {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.dash-divider-line {
+  flex: 1;
+  height: 1px;
+  background: var(--border-subtle);
+}
+
+.dash-divider-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+
+.dash-divider-label svg {
+  color: var(--text-secondary);
+}
+
+.requests-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 260px;
+  gap: 1.5rem;
+  align-items: start;
+}
+
 .kpi-icon-wrapper {
   width: 48px;
   height: 48px;
@@ -224,12 +277,110 @@
   right: 0;
   bottom: 0;
   background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.2) 50%, rgba(255,255,255,0) 100%);
-  animation: shine 2s infinite;
+  animation: shine 2.4s ease-in-out 2;
 }
 
 @keyframes shine {
   0% { transform: translateX(-100%); }
   100% { transform: translateX(100%); }
+}
+
+/* Portfolio by County — grouped accordion */
+.pbc-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.pbc-group {
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.pbc-group:last-child {
+  border-bottom: none;
+}
+
+.pbc-state {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.7rem 0.35rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  border-radius: 0.4rem;
+  transition: background 0.15s;
+}
+
+.pbc-state:hover {
+  background: var(--bg-base);
+}
+
+.pbc-state-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-primary);
+}
+
+.pbc-state-name svg {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.pbc-state-count {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.pbc-state-unit {
+  font-weight: 500;
+  color: var(--text-muted);
+  margin-left: 0.3rem;
+}
+
+.pbc-counties {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  padding: 0.2rem 0.35rem 0.85rem 1.5rem;
+}
+
+.pbc-county-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 0.35rem;
+}
+
+.pbc-county-label span:last-child {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+
+.pbc-county-bar-bg {
+  height: 6px;
+  background: #f1f5f9;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.pbc-county-bar {
+  height: 100%;
+  border-radius: 4px;
+  background: #378add;
+  transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* Recent Activity List */
@@ -371,7 +522,8 @@
 
 @media (max-width: 1024px) {
   .dashboard-main,
-  .dashboard-half-grid {
+  .dashboard-half-grid,
+  .requests-grid {
     grid-template-columns: 1fr;
   }
 }
