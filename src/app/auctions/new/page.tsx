@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Save, X, Info, Gavel, MapPin, FileText, Key, DollarSign, Link as LinkIcon, Loader2, ShoppingCart, AlertCircle, Trash2, ExternalLink, XCircle } from "lucide-react";
+import { Save, X, Info, Gavel, MapPin, FileText, Key, DollarSign, Link as LinkIcon, Loader2, ShoppingCart, AlertCircle, Trash2, ExternalLink, XCircle, Compass } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { formatPropId } from "@/lib/utils";
 import { getCurrentUserPermissions, hasPermission } from "@/lib/permissions";
@@ -45,6 +45,8 @@ export default function NewAuctionForm() {
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [lookups, setLookups] = useState<Record<string, any[]>>({});
   const [permissions, setPermissions] = useState<any>(null);
+  const [amenitiesLoading, setAmenitiesLoading] = useState(false);
+  const [amenitiesMsg, setAmenitiesMsg] = useState<string | null>(null);
   
   // Form State
   const [formData, setFormData] = useState<any>({
@@ -171,6 +173,45 @@ export default function NewAuctionForm() {
       ? hasPermission(permissions, 'page:auctions:rejected', 'edit')
       : hasPermission(permissions, 'page:auctions', 'edit')
   );
+
+  // Independent of canEdit on purpose — Access -> Actions -> "Find Amenities
+  // (Auctions)" controls who gets this button per employee, separate from
+  // general auction-edit rights (same pattern as action:copy_auction /
+  // action:export_auctions).
+  const canFindAmenities = permissions !== null && hasPermission(permissions, 'action:find_amenities');
+
+  const hasLocationInfo = !!(formData.address?.trim() || formData.coordinates?.trim());
+
+  const handleFetchAmenities = async () => {
+    if (!editId || amenitiesLoading) return;
+    if (!hasLocationInfo) {
+      setAmenitiesMsg("Fill in Address or Coordinates before searching for amenities — without it we can't locate this record on the map.");
+      return;
+    }
+    setAmenitiesLoading(true);
+    setAmenitiesMsg(null);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(`/api/auctions/${editId}/amenities`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${session?.access_token ?? ""}` },
+      });
+      const json = await res.json();
+      if (res.status === 429) {
+        setAmenitiesMsg(`Just searched — try again in ${json.retryInSec}s.`);
+      } else if (!res.ok || json.error) {
+        setAmenitiesMsg(json.error || "Amenities lookup failed.");
+      } else {
+        setFormData((prev: any) => ({ ...prev, surrounds: json.text }));
+        setAmenitiesMsg(json.source === "geocoded" ? "Found successfully (address geocoded)." : "Found successfully.");
+      }
+    } catch (err: any) {
+      setAmenitiesMsg(err?.message || "Amenities lookup failed.");
+    } finally {
+      setAmenitiesLoading(false);
+      setTimeout(() => setAmenitiesMsg(null), 6000);
+    }
+  };
 
   useEffect(() => {
     if (fetchingData) return;
@@ -1198,8 +1239,40 @@ export default function NewAuctionForm() {
               <textarea name="observation" value={formData.observation} onChange={handleChange} className="input-field" rows={3} placeholder="General notes about the property..."></textarea>
             </div>
             <div className="input-group">
-              <label className="input-label">Surrounds</label>
-              <textarea name="surrounds" value={formData.surrounds} onChange={handleChange} className="input-field" rows={2} placeholder="Notes on neighborhood..."></textarea>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.75rem" }}>
+                <label className="input-label" style={{ marginBottom: 0 }}>Surrounds</label>
+                {canFindAmenities && (
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={handleFetchAmenities}
+                    disabled={!isEditing || !hasLocationInfo || amenitiesLoading}
+                    title={
+                      !isEditing
+                        ? "Save the auction first."
+                        : !hasLocationInfo
+                        ? "Fill in Address or Coordinates first."
+                        : "Look up airports, schools, hospitals, etc. within 5 miles via OpenStreetMap. Overwrites this field."
+                    }
+                    style={{ padding: "0.35rem 0.75rem", fontSize: "0.85rem" }}
+                  >
+                    {amenitiesLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Compass className="w-4 h-4" />}
+                    {amenitiesLoading ? "Searching..." : "Find Amenities"}
+                  </button>
+                )}
+              </div>
+              {canFindAmenities && isEditing && !hasLocationInfo && (
+                <p style={{ fontSize: "0.8rem", color: "#b45309", margin: "0.35rem 0", display: "flex", alignItems: "center", gap: "0.35rem" }}>
+                  <AlertCircle className="w-3.5 h-3.5" style={{ flexShrink: 0 }} />
+                  Fill in Address or Coordinates to search for amenities.
+                </p>
+              )}
+              {canFindAmenities && amenitiesMsg && (
+                <p style={{ fontSize: "0.8rem", color: amenitiesMsg.startsWith("Found") ? "#059669" : "#dc2626", margin: "0.35rem 0" }}>
+                  {amenitiesMsg}
+                </p>
+              )}
+              <textarea name="surrounds" value={formData.surrounds} onChange={handleChange} className="input-field" rows={8} placeholder={canFindAmenities ? "Notes on neighborhood... or click 'Find Amenities' to fill this in automatically (source: OpenStreetMap, free)." : "Notes on neighborhood..."} style={{ fontFamily: formData.surrounds?.startsWith("Amenities (") ? "monospace" : undefined, fontSize: formData.surrounds?.startsWith("Amenities (") ? "0.82rem" : undefined }}></textarea>
             </div>
           </div>
 
@@ -1225,8 +1298,8 @@ export default function NewAuctionForm() {
           <button
             className="btn-secondary"
             onClick={handleDelete}
-            disabled={loading || fetchingData || !canEdit}
-            title={!canEdit ? "You don't have permission to delete auctions." : "Delete Auction"}
+            disabled={loading || fetchingData || !canEdit || amenitiesLoading}
+            title={!canEdit ? "You don't have permission to delete auctions." : amenitiesLoading ? "Amenities lookup in progress..." : "Delete Auction"}
             style={
               !canEdit
                 ? { color: '#94a3b8', borderColor: '#e2e8f0', cursor: 'not-allowed', opacity: 0.6 }
@@ -1241,7 +1314,7 @@ export default function NewAuctionForm() {
         <div style={{ flex: 1 }}></div>
 
         {isEditing && isBuyPriority && (
-          <button className="primary-btn" onClick={() => { setPaidBidInput(""); setShowBuyConfirm(true); }} disabled={loading || fetchingData} style={{ backgroundColor: '#10b981', borderColor: '#10b981' }}>
+          <button className="primary-btn" onClick={() => { setPaidBidInput(""); setShowBuyConfirm(true); }} disabled={loading || fetchingData || amenitiesLoading} style={{ backgroundColor: '#10b981', borderColor: '#10b981' }}>
             <ShoppingCart className="w-4 h-4" />
             Buy
           </button>
@@ -1249,8 +1322,8 @@ export default function NewAuctionForm() {
         <button
           className="primary-btn"
           onClick={handleSave}
-          disabled={loading || fetchingData || savedOk || !canEdit}
-          title={!canEdit ? "You don't have permission to edit auctions." : undefined}
+          disabled={loading || fetchingData || savedOk || !canEdit || amenitiesLoading}
+          title={!canEdit ? "You don't have permission to edit auctions." : amenitiesLoading ? "Wait for the amenities lookup to finish (it's about to update Surrounds)." : undefined}
           style={
             savedOk ? { backgroundColor: '#10b981', cursor: 'default' } :
             !canEdit ? { backgroundColor: '#94a3b8', cursor: 'not-allowed', opacity: 0.7 } :
