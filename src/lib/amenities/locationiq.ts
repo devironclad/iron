@@ -64,6 +64,13 @@ async function locationiqGet(path: string, params: Record<string, string>): Prom
       headers: { "User-Agent": USER_AGENT },
       signal: ctrl.signal,
     });
+    // LocationIQ's /nearby and /search return 404 "Unable to geocode"/"not
+    // found" for a legitimate zero-result query (verified live) — not an
+    // error, just an empty result set. A rural parcel with no lake/airport/
+    // interstate within range hits this on every call, so it has to be
+    // treated the same as a 200 with []. Any other non-OK status is a real
+    // failure (bad key, rate limit, 5xx) and still throws.
+    if (res.status === 404) return [];
     if (!res.ok) {
       throw new Error(`LocationIQ responded ${res.status}`);
     }
