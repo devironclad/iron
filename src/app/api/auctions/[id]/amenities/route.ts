@@ -5,11 +5,21 @@
  * ls_assets.surrounds field (overwrites it — by design, per the business:
  * no new column, this button is the source of truth for Surrounds).
  *
- * Two providers, tried in order:
- *  1. Overpass (src/lib/amenities/overpass.ts) — free, no key, primary.
- *  2. LocationIQ (src/lib/amenities/locationiq.ts) — free tier, needs
- *     LOCATIONIQ_API_KEY; used only if Overpass throws (rate-limited/down).
- *     Skipped silently if no key is configured.
+ * Three independent sections, each with its own provider order (2026-09-22:
+ * Airport/Downtown search a 100mi radius per the business — Overpass can't
+ * reliably do that for Downtown, see src/lib/amenities/shared.ts):
+ *  1. Standard categories (5mi, everything except Airport/Downtown):
+ *     Overpass primary, LocationIQ fallback.
+ *  2. Airport (100mi): LocationIQ primary (fast), Overpass fallback (works,
+ *     just slow — single attempt).
+ *  3. Downtown (100mi): LocationIQ primary (Overpass 504s above ~25-30mi),
+ *     Overpass fallback at a DEGRADED 25mi radius only.
+ * LocationIQ needs LOCATIONIQ_API_KEY (.env.local) — skipped silently if
+ * unset, in which case Airport/Downtown fall straight to Overpass.
+ *
+ * A section that fails on both providers shows "none found" rather than
+ * failing the whole request — the request only errors out if ALL THREE
+ * sections fail.
  *
  * Uses the record's saved `coordinates` field when present; otherwise
  * falls back to geocoding `address` via Nominatim. Gated by its own Access
@@ -22,13 +32,29 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { userHasPermission } from "@/lib/server-permissions";
 import { logSystemAction } from "@/lib/activity";
-import { fetchNearbyAmenities, geocodeAddress } from "@/lib/amenities/overpass";
-import { fetchNearbyAmenitiesViaLocationIQ } from "@/lib/amenities/locationiq";
-import { DEFAULT_RADIUS_MILES, formatAmenitiesText } from "@/lib/amenities/shared";
+import {
+  fetchAirportViaOverpass,
+  fetchDowntownViaOverpass,
+  fetchNearbyAmenities,
+  geocodeAddress,
+} from "@/lib/amenities/overpass";
+import {
+  fetchAirportViaLocationIQ,
+  fetchDowntownViaLocationIQ,
+  fetchNearbyAmenitiesViaLocationIQ,
+} from "@/lib/amenities/locationiq";
+import {
+  DEFAULT_RADIUS_MILES,
+  OVERPASS_DOWNTOWN_FALLBACK_MILES,
+  WIDE_RADIUS_MILES,
+  emptyResults,
+  formatAmenitiesText,
+  sleep,
+} from "@/lib/amenities/shared";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 150; // worst case: Overpass chain (4 calls x 2 attempts x 10s + retries) then the LocationIQ fallback chain (7 calls)
+export const maxDuration = 180; // worst case: standard section (~66s) + Airport Overpass fallback (~22s) + Downtown Overpass fallback (~23s) + sleeps/geocode/db
 
 // OpenStreetMap (Overpass/Nominatim) has no per-account daily quota, but both
 // enforce a fair-use policy at the IP level (Nominatim: max ~1 req/s;
@@ -53,6 +79,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const assetId = Number(id);
   if (!assetId) return NextResponse.json({ error: "Invalid id" }, { status: 400 });
 
+  try {
   const token = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
   const {
     data: { user },
@@ -124,36 +151,99 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   // immediately, piling up bursts instead of backing off.
   await logSystemAction(user.id, "ls_assets", "AMENITIES_LOOKUP");
 
-  let results;
-  let provider: "OpenStreetMap (Overpass)" | "OpenStreetMap (LocationIQ)" = "OpenStreetMap (Overpass)";
+  const hasLocationIQ = !!process.env.LOCATIONIQ_API_KEY;
+  const providersUsed = new Set<string>();
+  const sectionErrors: string[] = [];
+
+  // 1) Standard categories (5mi) — Overpass primary, LocationIQ fallback.
+  let results = emptyResults();
+  let standardOk = false;
   try {
     results = await fetchNearbyAmenities(point.lat, point.lon, DEFAULT_RADIUS_MILES);
+    providersUsed.add("Overpass");
+    standardOk = true;
   } catch (overpassErr: any) {
-    if (!process.env.LOCATIONIQ_API_KEY) {
-      return NextResponse.json(
-        { error: overpassErr.message || "Amenities lookup failed" },
-        { status: 502 }
-      );
-    }
-    try {
-      results = await fetchNearbyAmenitiesViaLocationIQ(point.lat, point.lon, DEFAULT_RADIUS_MILES);
-      provider = "OpenStreetMap (LocationIQ)";
-    } catch (locationiqErr: any) {
-      return NextResponse.json(
-        {
-          error:
-            `Overpass: ${overpassErr.message || "failed"}. ` +
-            `LocationIQ fallback also failed: ${locationiqErr.message || "failed"}.`,
-        },
-        { status: 502 }
-      );
+    if (hasLocationIQ) {
+      try {
+        results = await fetchNearbyAmenitiesViaLocationIQ(point.lat, point.lon, DEFAULT_RADIUS_MILES);
+        providersUsed.add("LocationIQ");
+        standardOk = true;
+      } catch (liqErr: any) {
+        sectionErrors.push(`standard categories: Overpass ${overpassErr.message}; LocationIQ ${liqErr.message}`);
+      }
+    } else {
+      sectionErrors.push(`standard categories: Overpass ${overpassErr.message}`);
     }
   }
 
+  await sleep(300);
+
+  // 2) Airport (100mi) — LocationIQ primary, Overpass fallback.
+  let airportOk = false;
+  if (hasLocationIQ) {
+    try {
+      results.Airport = await fetchAirportViaLocationIQ(point.lat, point.lon, WIDE_RADIUS_MILES);
+      providersUsed.add("LocationIQ");
+      airportOk = true;
+    } catch (liqErr: any) {
+      try {
+        results.Airport = await fetchAirportViaOverpass(point.lat, point.lon, WIDE_RADIUS_MILES);
+        providersUsed.add("Overpass");
+        airportOk = true;
+      } catch (opErr: any) {
+        sectionErrors.push(`Airport: LocationIQ ${liqErr.message}; Overpass ${opErr.message}`);
+      }
+    }
+  } else {
+    try {
+      results.Airport = await fetchAirportViaOverpass(point.lat, point.lon, WIDE_RADIUS_MILES);
+      providersUsed.add("Overpass");
+      airportOk = true;
+    } catch (opErr: any) {
+      sectionErrors.push(`Airport: Overpass ${opErr.message}`);
+    }
+  }
+
+  await sleep(300);
+
+  // 3) Downtown (100mi primary / 25mi degraded fallback) — LocationIQ primary.
+  let downtownOk = false;
+  if (hasLocationIQ) {
+    try {
+      results.Downtown = await fetchDowntownViaLocationIQ(point.lat, point.lon, WIDE_RADIUS_MILES);
+      providersUsed.add("LocationIQ");
+      downtownOk = true;
+    } catch (liqErr: any) {
+      try {
+        results.Downtown = await fetchDowntownViaOverpass(point.lat, point.lon, OVERPASS_DOWNTOWN_FALLBACK_MILES);
+        providersUsed.add("Overpass");
+        downtownOk = true;
+      } catch (opErr: any) {
+        sectionErrors.push(`Downtown: LocationIQ ${liqErr.message}; Overpass ${opErr.message}`);
+      }
+    }
+  } else {
+    try {
+      results.Downtown = await fetchDowntownViaOverpass(point.lat, point.lon, OVERPASS_DOWNTOWN_FALLBACK_MILES);
+      providersUsed.add("Overpass");
+      downtownOk = true;
+    } catch (opErr: any) {
+      sectionErrors.push(`Downtown: Overpass ${opErr.message}`);
+    }
+  }
+
+  // Only fail the whole request if every section failed on every provider —
+  // a section that comes up empty otherwise just shows "none found".
+  if (!standardOk && !airportOk && !downtownOk) {
+    return NextResponse.json({ error: sectionErrors.join(" | ") }, { status: 502 });
+  }
+
+  const provider = `OpenStreetMap (${[...providersUsed].join(", ") || "unavailable"})`;
   const text = formatAmenitiesText(results, {
     lat: point.lat,
     lon: point.lon,
     radiusMiles: DEFAULT_RADIUS_MILES,
+    wideRadiusMiles: WIDE_RADIUS_MILES,
     source,
     provider,
   });
@@ -166,5 +256,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: updateError.message }, { status: 500 });
   }
 
-  return NextResponse.json({ ok: true, text, lat: point.lat, lon: point.lon, source, provider });
+  return NextResponse.json({
+    ok: true,
+    text,
+    lat: point.lat,
+    lon: point.lon,
+    source,
+    provider,
+    partialFailures: sectionErrors.length ? sectionErrors : undefined,
+  });
+  } catch (e: any) {
+    // Safety net: anything thrown above (geocodeAddress's fetch has no
+    // timeout/retry, a Supabase call could throw, etc.) would otherwise
+    // surface as an unhandled exception -> Next.js dev error-page HTML ->
+    // the client's res.json() fails with a cryptic "unexpected character"
+    // parse error instead of a readable message.
+    return NextResponse.json({ error: e?.message || "Unexpected error" }, { status: 500 });
+  }
 }

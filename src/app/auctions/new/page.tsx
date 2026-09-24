@@ -196,7 +196,12 @@ export default function NewAuctionForm() {
         method: "POST",
         headers: { Authorization: `Bearer ${session?.access_token ?? ""}` },
       });
-      const json = await res.json();
+      let json: any;
+      try {
+        json = await res.json();
+      } catch {
+        throw new Error(`Server returned an unexpected response (status ${res.status}). Check the server logs.`);
+      }
       if (res.status === 429) {
         setAmenitiesMsg(`Just searched — try again in ${json.retryInSec}s.`);
       } else if (!res.ok || json.error) {

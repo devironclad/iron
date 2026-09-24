@@ -1,11 +1,16 @@
 /**
- * Nearby-amenities lookup — fallback provider, used only when Overpass
- * (src/lib/amenities/overpass.ts) is unavailable. LocationIQ hosts its own
- * OpenStreetMap-based infrastructure (not the shared public Overpass pool),
- * so it has a real per-account quota instead of a "fair use, no promises"
- * policy. Free tier, requires LOCATIONIQ_API_KEY (see .env.local) — the
- * business generated this key themselves; if it's not set, this provider is
- * simply skipped and the route falls straight to an error.
+ * Nearby-amenities lookup, LocationIQ. Two roles, depending on category:
+ *  - Standard-radius categories (fetchNearbyAmenitiesViaLocationIQ, 5mi):
+ *    fallback provider, used only when Overpass is unavailable.
+ *  - Airport / Downtown (fetchAirportViaLocationIQ / fetchDowntownViaLocationIQ,
+ *    WIDE_RADIUS_MILES = 100mi): PRIMARY provider — Overpass can't reliably
+ *    search that wide (Downtown 504s above ~25-30mi, verified live), while
+ *    LocationIQ's hosted infra answers in ~200ms.
+ * LocationIQ hosts its own OpenStreetMap-based infrastructure (not the
+ * shared public Overpass pool), so it has a real per-account quota instead
+ * of a "fair use, no promises" policy. Free tier, requires
+ * LOCATIONIQ_API_KEY (see .env.local) — the business generated this key
+ * themselves; if it's not set, this provider is simply skipped.
  *
  * Uses the same OSM tag vocabulary as the Overpass module (LocationIQ's
  * /nearby endpoint takes "key:value" OSM tags directly), so the category
@@ -27,6 +32,7 @@ import {
   MILES_TO_METERS,
   NAMED_PLACES,
   USER_AGENT,
+  WIDE_RADIUS_MILES,
   emptyResults,
   finalizeResults,
   haversineMiles,
@@ -144,12 +150,13 @@ export async function fetchNearbyAmenitiesViaLocationIQ(
     results["Tourist Attraction"].push({ name: `${el.name || "(unnamed)"} (${el.type})`, distMi });
   }
 
-  // 2) Lakes, airports, interstates.
+  // 2) Lakes, interstates. (Airport and Downtown are fetched separately, at
+  // WIDE_RADIUS_MILES — see fetchAirportViaLocationIQ / fetchDowntownViaLocationIQ.)
   await sleep(500);
   const ways = await locationiqGet("/nearby", {
     lat: String(lat),
     lon: String(lon),
-    tag: "natural:water,aeroway:aerodrome,highway:motorway",
+    tag: "natural:water,highway:motorway",
     radius: String(radius),
     limit: "50",
   });
@@ -160,8 +167,6 @@ export async function fetchNearbyAmenitiesViaLocationIQ(
     const name = el.name || "(unnamed)";
     if (el.class === "natural" && el.type === "water") {
       results.Lake.push({ name, distMi });
-    } else if (el.class === "aeroway" && el.type === "aerodrome") {
-      results.Airport.push({ name, distMi });
     } else if (el.class === "highway" && el.type === "motorway") {
       const prev = interstateByName.get(name);
       if (!prev || distMi < prev.distMi) interstateByName.set(name, { name, distMi });
@@ -169,23 +174,7 @@ export async function fetchNearbyAmenitiesViaLocationIQ(
   }
   results.Interstate = [...interstateByName.values()];
 
-  // 3) Downtown proxy: nearest city/town label, wider radius.
-  await sleep(500);
-  const placeRadius = Math.max(radius, Math.round(15 * MILES_TO_METERS));
-  const places = await locationiqGet("/nearby", {
-    lat: String(lat),
-    lon: String(lon),
-    tag: "place:city,place:town",
-    radius: String(placeRadius),
-    limit: "10",
-  });
-  for (const el of places) {
-    if (el.lat == null || el.lon == null) continue;
-    const distMi = haversineMiles(lat, lon, parseFloat(el.lat), parseFloat(el.lon));
-    results.Downtown.push({ name: `${el.name || ""} [${el.type}]`, distMi });
-  }
-
-  // 4) Named places — one /search call per configured brand, biased to a
+  // 3) Named places — one /search call per configured brand, biased to a
   // bounding box around the point (bounded=1) instead of global search.
   const bbox = boundingBox(lat, lon, radiusMiles);
   for (const brand of NAMED_PLACES) {
@@ -209,4 +198,57 @@ export async function fetchNearbyAmenitiesViaLocationIQ(
   }
 
   return finalizeResults(results);
+}
+
+/**
+ * Airport, standalone, at WIDE_RADIUS_MILES — primary source for this
+ * category (verified live: ~200ms at 100mi vs. Overpass's ~11s).
+ */
+export async function fetchAirportViaLocationIQ(
+  lat: number,
+  lon: number,
+  radiusMiles: number = WIDE_RADIUS_MILES
+): Promise<AmenityItem[]> {
+  const radius = Math.round(radiusMiles * MILES_TO_METERS);
+  const elements = await locationiqGet("/nearby", {
+    lat: String(lat),
+    lon: String(lon),
+    tag: "aeroway:aerodrome",
+    radius: String(radius),
+    limit: "50",
+  });
+  const items: AmenityItem[] = [];
+  for (const el of elements) {
+    if (el.lat == null || el.lon == null) continue;
+    items.push({ name: el.name || "(unnamed)", distMi: haversineMiles(lat, lon, parseFloat(el.lat), parseFloat(el.lon)) });
+  }
+  return finalizeResults({ Airport: items }).Airport;
+}
+
+/**
+ * Downtown, standalone, at WIDE_RADIUS_MILES — primary source for this
+ * category. Overpass can't reliably do this radius (504s above ~25-30mi,
+ * verified live multiple times), so this is the only source that reaches
+ * the full 100mi; see fetchDowntownViaOverpass for the degraded-radius
+ * fallback.
+ */
+export async function fetchDowntownViaLocationIQ(
+  lat: number,
+  lon: number,
+  radiusMiles: number = WIDE_RADIUS_MILES
+): Promise<AmenityItem[]> {
+  const radius = Math.round(radiusMiles * MILES_TO_METERS);
+  const elements = await locationiqGet("/nearby", {
+    lat: String(lat),
+    lon: String(lon),
+    tag: "place:city,place:town",
+    radius: String(radius),
+    limit: "50",
+  });
+  const items: AmenityItem[] = [];
+  for (const el of elements) {
+    if (el.lat == null || el.lon == null) continue;
+    items.push({ name: `${el.name || ""} [${el.type}]`, distMi: haversineMiles(lat, lon, parseFloat(el.lat), parseFloat(el.lon)) });
+  }
+  return finalizeResults({ Downtown: items }).Downtown;
 }

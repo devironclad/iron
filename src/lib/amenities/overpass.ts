@@ -21,6 +21,7 @@ import {
   MILES_TO_METERS,
   NAMED_PLACES,
   USER_AGENT,
+  WIDE_RADIUS_MILES,
   emptyResults,
   finalizeResults,
   haversineMiles,
@@ -59,11 +60,16 @@ function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-async function overpassQuery(ql: string): Promise<any[]> {
+async function overpassQuery(
+  ql: string,
+  opts: { timeoutMs?: number; retries?: number } = {}
+): Promise<any[]> {
+  const timeoutMs = opts.timeoutMs ?? OVERPASS_TIMEOUT_MS;
+  const retries = opts.retries ?? OVERPASS_RETRIES;
   let lastError: string = "unknown error";
-  for (let attempt = 0; attempt <= OVERPASS_RETRIES; attempt++) {
+  for (let attempt = 0; attempt <= retries; attempt++) {
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), OVERPASS_TIMEOUT_MS);
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
     try {
       const res = await fetch(OVERPASS_URL, {
         method: "POST",
@@ -84,7 +90,7 @@ async function overpassQuery(ql: string): Promise<any[]> {
     } finally {
       clearTimeout(timer);
     }
-    if (attempt < OVERPASS_RETRIES) await sleep(OVERPASS_RETRY_DELAY_MS);
+    if (attempt < retries) await sleep(OVERPASS_RETRY_DELAY_MS);
   }
   throw new Error(`Overpass API is rate-limited right now (${lastError})`);
 }
@@ -96,7 +102,14 @@ async function overpassQuery(ql: string): Promise<any[]> {
  */
 export async function geocodeAddress(address: string): Promise<{ lat: number; lon: number } | null> {
   const url = `${NOMINATIM_URL}?format=json&limit=1&countrycodes=us&q=${encodeURIComponent(address)}`;
-  const res = await fetch(url, { headers: { "User-Agent": USER_AGENT } });
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), OVERPASS_TIMEOUT_MS);
+  let res: Response;
+  try {
+    res = await fetch(url, { headers: { "User-Agent": USER_AGENT }, signal: ctrl.signal });
+  } finally {
+    clearTimeout(timer);
+  }
   if (!res.ok) return null;
   const results = await res.json();
   if (!Array.isArray(results) || results.length === 0) return null;
@@ -105,10 +118,13 @@ export async function geocodeAddress(address: string): Promise<{ lat: number; lo
 }
 
 /**
- * Runs the Overpass queries (points, ways/relations, place labels, named
- * brands) and returns each category — plus each configured named place —
- * sorted by distance (nearest first). Throws if Overpass is unavailable —
- * the caller (the API route) falls back to LocationIQ on that.
+ * Runs the Overpass queries for the "standard radius" categories (points,
+ * lakes/interstates, named brands) — everything except Airport and Downtown,
+ * which use a much wider radius and are fetched separately (see
+ * fetchAirportViaOverpass / fetchDowntownViaOverpass). Returns each category
+ * — plus each configured named place — sorted by distance (nearest first).
+ * Throws if Overpass is unavailable — the caller (the API route) falls back
+ * to LocationIQ on that.
  */
 export async function fetchNearbyAmenities(
   lat: number,
@@ -142,14 +158,14 @@ out body;`;
     else if (t.tourism) results["Tourist Attraction"].push({ name: `${baseName} (${t.tourism})`, distMi });
   }
 
-  // 2) Ways/relations that need a centroid: lakes, airports, interstates.
+  // 2) Ways/relations that need a centroid: lakes, interstates. (Airport and
+  // Downtown are handled separately, at a much wider radius — see
+  // fetchAirportViaOverpass / fetchDowntownViaOverpass below.)
   await sleep(1200); // be nice to the free API between calls
   const waysQl = `[out:json][timeout:8];
 (
   way["natural"="water"]["water"~"^(lake|reservoir)$"](around:${radius},${lat},${lon});
   relation["natural"="water"]["water"~"^(lake|reservoir)$"](around:${radius},${lat},${lon});
-  way["aeroway"="aerodrome"](around:${radius},${lat},${lon});
-  node["aeroway"="aerodrome"](around:${radius},${lat},${lon});
   way["highway"="motorway"]["ref"~"^I "](around:${radius},${lat},${lon});
 );
 out center;`;
@@ -162,8 +178,6 @@ out center;`;
     const distMi = haversineMiles(lat, lon, c.lat, c.lon);
     if (t.natural === "water") {
       results.Lake.push({ name: t.name || "(unnamed)", distMi });
-    } else if (t.aeroway === "aerodrome") {
-      results.Airport.push({ name: t.name || "(unnamed)", distMi });
     } else if (t.highway === "motorway") {
       const name = t.ref + (t.name ? ` - ${t.name}` : "");
       const prev = interstateByRef.get(name);
@@ -172,25 +186,7 @@ out center;`;
   }
   results.Interstate = [...interstateByRef.values()];
 
-  // 3) Downtown proxy: nearest city/town label (+ a "Downtown" locality if
-  // one exists), searched in a wider radius since city centers are sparse.
-  await sleep(1200);
-  const placeRadius = Math.max(radius, Math.round(15 * MILES_TO_METERS));
-  const placesQl = `[out:json][timeout:8];
-(
-  node["place"~"^(suburb|quarter|neighbourhood|locality)$"]["name"~"Downtown"](around:${placeRadius},${lat},${lon});
-  node["place"~"^(city|town)$"](around:${placeRadius},${lat},${lon});
-);
-out body;`;
-  const places = await overpassQuery(placesQl);
-  for (const el of places) {
-    const t = el.tags || {};
-    if (el.lat == null || el.lon == null) continue;
-    const distMi = haversineMiles(lat, lon, el.lat, el.lon);
-    results.Downtown.push({ name: `${t.name || ""} [${t.place}]`, distMi });
-  }
-
-  // 4) Named places — specific brands, matched by name regardless of tag.
+  // 3) Named places — specific brands, matched by name regardless of tag.
   if (NAMED_PLACES.length) {
     await sleep(1200);
     const namePattern = NAMED_PLACES.map(escapeRegex).join("|");
@@ -214,4 +210,67 @@ out body;`;
   }
 
   return finalizeResults(results);
+}
+
+// Wide-radius query timeouts/retries are configured per-call rather than
+// via the module-level OVERPASS_* constants (those stay tuned for the fast,
+// 5mi "standard" queries above).
+
+/**
+ * Airport, standalone — Overpass DOES complete aeroway=aerodrome at 100mi,
+ * just slowly (~11s measured live), so it's usable as a fallback when
+ * LocationIQ (the primary source for this category) is unavailable. Single
+ * attempt only — retrying an already-slow 100mi query rarely helps and
+ * doubles the worst-case wait.
+ */
+export async function fetchAirportViaOverpass(
+  lat: number,
+  lon: number,
+  radiusMiles: number = WIDE_RADIUS_MILES
+): Promise<AmenityItem[]> {
+  const radius = Math.round(radiusMiles * MILES_TO_METERS);
+  const ql = `[out:json][timeout:20];
+(
+  way["aeroway"="aerodrome"](around:${radius},${lat},${lon});
+  node["aeroway"="aerodrome"](around:${radius},${lat},${lon});
+);
+out center;`;
+  const elements = await overpassQuery(ql, { timeoutMs: 22_000, retries: 0 });
+  const items: AmenityItem[] = [];
+  for (const el of elements) {
+    const t = el.tags || {};
+    const c = el.center || { lat: el.lat, lon: el.lon };
+    if (c.lat == null || c.lon == null) continue;
+    items.push({ name: t.name || "(unnamed)", distMi: haversineMiles(lat, lon, c.lat, c.lon) });
+  }
+  return finalizeResults({ Airport: items }).Airport;
+}
+
+/**
+ * Downtown, standalone, DEGRADED radius — verified live that Overpass
+ * reliably 504s on place=city/town above ~25-30mi (tried 30mi and 100mi
+ * multiple times, consistent timeout). LocationIQ is the only source that
+ * reaches the full WIDE_RADIUS_MILES reliably; this fallback trades radius
+ * for availability rather than failing outright when LocationIQ is down.
+ */
+export async function fetchDowntownViaOverpass(
+  lat: number,
+  lon: number,
+  radiusMiles: number = 25
+): Promise<AmenityItem[]> {
+  const radius = Math.round(radiusMiles * MILES_TO_METERS);
+  const ql = `[out:json][timeout:8];
+(
+  node["place"="city"](around:${radius},${lat},${lon});
+  node["place"="town"](around:${radius},${lat},${lon});
+);
+out body;`;
+  const elements = await overpassQuery(ql);
+  const items: AmenityItem[] = [];
+  for (const el of elements) {
+    const t = el.tags || {};
+    if (el.lat == null || el.lon == null) continue;
+    items.push({ name: `${t.name || ""} [${t.place}]`, distMi: haversineMiles(lat, lon, el.lat, el.lon) });
+  }
+  return finalizeResults({ Downtown: items }).Downtown;
 }

@@ -8,7 +8,22 @@
 export const DEFAULT_RADIUS_MILES = 5;
 export const MAX_PER_CATEGORY = 5;
 export const MILES_TO_METERS = 1609.344;
-const MILES_PER_MINUTE = 0.6; // business rule for estimating travel time
+
+// Business rule (2026-09-22): Airport and Downtown search a much wider area
+// than everything else, because they're naturally farther away than a gas
+// station or school. Overpass (the free public instance) can't reliably
+// search place=city/town beyond ~25-30mi before timing out (504, verified
+// live up to 3x) — LocationIQ's hosted infra handles the full 100mi in
+// ~200ms, so it's the primary source for these two categories specifically,
+// with Overpass as a degraded-radius fallback for Downtown only (Airport's
+// aerodrome query does complete at 100mi on Overpass, just slowly ~11s).
+export const WIDE_RADIUS_CATEGORIES = ["Airport", "Downtown"];
+export const WIDE_RADIUS_MILES = 100;
+export const OVERPASS_DOWNTOWN_FALLBACK_MILES = 25; // proven-safe Overpass ceiling for place=city/town
+
+// Travel-time estimate: local roads (<=10mi) vs. highway (>10mi) speed.
+const LOCAL_MILES_PER_MINUTE = 0.6; // ~36 mph
+const HIGHWAY_MILES_PER_MINUTE = 1.0; // ~60 mph
 
 export const USER_AGENT = "IroncladGroupApp/1.0 (info@ironcladgroup.org)";
 
@@ -75,8 +90,11 @@ export function finalizeResults(results: AmenityResults): AmenityResults {
   return results;
 }
 
+const HIGHWAY_THRESHOLD_MILES = 10;
+
 function estimateMinutes(distMi: number): number {
-  return Math.max(1, Math.round(distMi / MILES_PER_MINUTE));
+  const mpm = distMi > HIGHWAY_THRESHOLD_MILES ? HIGHWAY_MILES_PER_MINUTE : LOCAL_MILES_PER_MINUTE;
+  return Math.max(1, Math.round(distMi / mpm));
 }
 
 /**
@@ -90,13 +108,16 @@ export function formatAmenitiesText(
     lat: number;
     lon: number;
     radiusMiles: number;
+    wideRadiusMiles: number;
     source: "coordinates" | "geocoded";
-    provider: "OpenStreetMap (Overpass)" | "OpenStreetMap (LocationIQ)";
+    /** Provider(s) actually used, e.g. "OpenStreetMap (Overpass)" or "OpenStreetMap (Overpass, LocationIQ)". */
+    provider: string;
   }
 ): string {
   const lines: string[] = [];
   lines.push(
-    `Amenities (${meta.radiusMiles}mi radius, ${meta.lat.toFixed(5)}, ${meta.lon.toFixed(5)}) — ` +
+    `Amenities (${meta.radiusMiles}mi radius, ${meta.wideRadiusMiles}mi for Airport/Downtown, ` +
+      `${meta.lat.toFixed(5)}, ${meta.lon.toFixed(5)}) — ` +
       `${meta.source === "coordinates" ? "record coordinates" : "geocoded address"} · ` +
       `${meta.provider} · ${new Date().toLocaleString("en-US")}`
   );
