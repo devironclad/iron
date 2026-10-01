@@ -8,6 +8,7 @@ import { formatPropId } from "@/lib/utils";
 import { getCurrentUserPermissions, hasPermission } from "@/lib/permissions";
 import { logAudit } from "@/lib/audit";
 import { CurrencyInput } from "@/components/ui/CurrencyInput";
+import { ParcelMapEmbed } from "@/components/ui/ParcelMapEmbed";
 import "./form.css";
 
 const SECTIONS = [
@@ -96,6 +97,7 @@ export default function NewAuctionForm() {
     observation: "",
     surrounds: "",
     link_regrid: "",
+    link_appraiser: "",
     link_sources: "",
     link_house_sources: "",
     link_video: "",
@@ -128,7 +130,7 @@ export default function NewAuctionForm() {
       
       const results: Record<string, any[]> = {};
       const lookupPromises = tables.map(table => {
-        const columns = table === "ls_county" ? "id, name, state" : "id, name";
+        const columns = table === "ls_county" ? "id, name, state, clerk_recording_link" : "id, name";
         return supabase.from(table).select(columns).order("name").then(({ data }) => {
           results[table] = data || [];
         });
@@ -1038,7 +1040,7 @@ export default function NewAuctionForm() {
               }} />
             </div>
           </div>
-          
+
           <div className="form-grid col-2" style={{ marginTop: "1.5rem", alignItems: 'flex-start' }}>
             <div className="input-group">
               <label className="input-label">Legal Description <span className="required-star">*</span></label>
@@ -1048,6 +1050,16 @@ export default function NewAuctionForm() {
               <input type="checkbox" id="corner_lot" name="corner_lot" checked={formData.corner_lot} onChange={handleChange as any} className="checkbox-input" />
               <label htmlFor="corner_lot" className="checkbox-label">Corner Lot</label>
             </div>
+          </div>
+
+          <div className="input-group" style={{ marginTop: "1.5rem" }}>
+            <label className="input-label">Map Preview</label>
+            <ParcelMapEmbed
+              coordinates={formData.coordinates}
+              regridLink={formData.link_regrid}
+              appraiserLink={formData.link_appraiser}
+              clerkLink={lookups.ls_county?.find((c: any) => c.id === formData.county_id)?.clerk_recording_link}
+            />
           </div>
         </section>
 
@@ -1283,10 +1295,11 @@ export default function NewAuctionForm() {
 
           <div className="form-grid col-2" style={{ marginTop: "1.5rem" }}>
             {renderLinkInput("Regrid Link", "link_regrid", formData.link_regrid, "https://regrid.com/...")}
+            {renderLinkInput("Appraiser Link", "link_appraiser", formData.link_appraiser, "https://...")}
             {renderLinkInput("Sources Link", "link_sources", formData.link_sources, "https://...")}
             {renderLinkInput("House Sources Link", "link_house_sources", formData.link_house_sources, "https://zillow.com/...")}
             {renderLinkInput("Video Link", "link_video", formData.link_video, "https://youtube.com/...")}
-            {renderLinkInput("Google Earth Link", "link_earth", formData.link_earth, "https://earth.google.com/...", { gridColumn: 'span 2' })}
+            {renderLinkInput("Google Earth Link", "link_earth", formData.link_earth, "https://earth.google.com/...")}
           </div>
         </section>
 
