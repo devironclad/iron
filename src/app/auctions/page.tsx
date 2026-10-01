@@ -40,6 +40,7 @@ export default function AuctionsPage() {
   const [selectedAuctionType, setSelectedAuctionType] = useState(searchParams.get('auctionType') || "all");
   const [selectedPropertyType, setSelectedPropertyType] = useState(searchParams.get('propertyType') || "all");
   const [selectedPriority, setSelectedPriority] = useState(searchParams.get('priority') || "all");
+  const [selectedStatus, setSelectedStatus] = useState(searchParams.get('status') || "all");
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showPast, setShowPast] = useState(searchParams.get('past') === 'true');
   
@@ -47,12 +48,14 @@ export default function AuctionsPage() {
     origens: any[],
     auctionTypes: any[],
     propertyTypes: any[],
-    priorities: any[]
+    priorities: any[],
+    statuses: any[]
   }>({
     origens: [],
     auctionTypes: [],
     propertyTypes: [],
-    priorities: []
+    priorities: [],
+    statuses: []
   });
   const [userPermissions, setUserPermissions] = useState<Record<string, Permission> | null>(null);
   const [rejectedPriorityId, setRejectedPriorityId] = useState<number | null | undefined>(undefined);
@@ -92,12 +95,12 @@ export default function AuctionsPage() {
   useEffect(() => {
     if (rejectedPriorityId === undefined) return;
     fetchAuctions();
-  }, [selectedState, selectedCounty, selectedDate, selectedOrigem, selectedAuctionType, selectedPropertyType, selectedPriority, showPast, currentPage, searchTerm, rejectedPriorityId]);
+  }, [selectedState, selectedCounty, selectedDate, selectedOrigem, selectedAuctionType, selectedPropertyType, selectedPriority, selectedStatus, showPast, currentPage, searchTerm, rejectedPriorityId]);
 
   useEffect(() => {
     if (!filterChangeMounted.current) { filterChangeMounted.current = true; return; }
     setCurrentPage(1);
-  }, [searchTerm, selectedCounty, selectedState, selectedOrigem, selectedAuctionType, selectedPropertyType, selectedPriority, selectedDate]);
+  }, [searchTerm, selectedCounty, selectedState, selectedOrigem, selectedAuctionType, selectedPropertyType, selectedPriority, selectedStatus, selectedDate]);
 
   // Sync all active filters to URL so they survive navigation to/from auction detail
   useEffect(() => {
@@ -116,10 +119,11 @@ export default function AuctionsPage() {
     if (selectedAuctionType !== 'all') params.set('auctionType', selectedAuctionType);
     if (selectedPropertyType !== 'all') params.set('propertyType', selectedPropertyType);
     if (selectedPriority !== 'all' && !isRejectedView) params.set('priority', selectedPriority);
+    if (selectedStatus !== 'all') params.set('status', selectedStatus);
     if (showPast) params.set('past', 'true');
     if (currentPage > 1) params.set('page', String(currentPage));
     router.replace(`?${params.toString()}`, { scroll: false });
-  }, [searchTerm, selectedState, selectedCounty, selectedDate, selectedOrigem, selectedAuctionType, selectedPropertyType, selectedPriority, showPast, currentPage]);
+  }, [searchTerm, selectedState, selectedCounty, selectedDate, selectedOrigem, selectedAuctionType, selectedPropertyType, selectedPriority, selectedStatus, showPast, currentPage]);
 
   useEffect(() => {
     const savedView = localStorage.getItem("auctionsViewMode");
@@ -209,18 +213,20 @@ export default function AuctionsPage() {
   }
 
   async function fetchLookups() {
-    const [origens, auctionTypes, propertyTypes, priorities] = await Promise.all([
+    const [origens, auctionTypes, propertyTypes, priorities, statuses] = await Promise.all([
       supabase.from("ls_origem").select("id, name").order("name"),
       supabase.from("ls_auction_type").select("id, name").order("name"),
       supabase.from("ls_property_type").select("id, name").order("name"),
       supabase.from("ls_priority").select("id, name").order("name"),
+      supabase.from("ls_status").select("id, name").order("name"),
     ]);
 
     setLookups({
       origens: origens.data || [],
       auctionTypes: auctionTypes.data || [],
       propertyTypes: propertyTypes.data || [],
-      priorities: priorities.data || []
+      priorities: priorities.data || [],
+      statuses: statuses.data || []
     });
   }
 
@@ -312,6 +318,10 @@ export default function AuctionsPage() {
 
       if (selectedPriority && selectedPriority !== "all") {
         query = query.eq("priority_id", selectedPriority);
+      }
+
+      if (selectedStatus && selectedStatus !== "all") {
+        query = query.eq("status_id", selectedStatus);
       }
 
       if (selectedDate) {
@@ -422,6 +432,7 @@ export default function AuctionsPage() {
       if (selectedAuctionType && selectedAuctionType !== "all") query = query.eq("auction_type_id", selectedAuctionType);
       if (selectedPropertyType && selectedPropertyType !== "all") query = query.eq("property_type_id", selectedPropertyType);
       if (selectedPriority && selectedPriority !== "all") query = query.eq("priority_id", selectedPriority);
+      if (selectedStatus && selectedStatus !== "all") query = query.eq("status_id", selectedStatus);
       if (selectedDate) {
         query = query.gte("auction_date", `${selectedDate}T00:00:00`)
                      .lte("auction_date", `${selectedDate}T23:59:59`);
@@ -786,7 +797,19 @@ export default function AuctionsPage() {
                 {lookups.priorities.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
             </div>
-            
+
+            <div className="auc-filter-item">
+              <label>Status</label>
+              <select
+                className="auc-filter-select"
+                value={selectedStatus}
+                onChange={(e) => setSelectedStatus(e.target.value)}
+              >
+                <option value="all">All Statuses</option>
+                {lookups.statuses.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+            </div>
+
             <div className="auc-filter-item auc-actions-item">
               <button className="auc-clear-filters-link" onClick={() => {
                 setSelectedState("all");
@@ -796,6 +819,7 @@ export default function AuctionsPage() {
                 setSelectedAuctionType("all");
                 setSelectedPropertyType("all");
                 setSelectedPriority("all");
+                setSelectedStatus("all");
                 setSearchTerm("");
               }}>
                 Clear All
