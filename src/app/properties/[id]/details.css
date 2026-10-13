@@ -618,8 +618,9 @@
 /* ===== Mobile (<= 768px) ===== */
 @media (max-width: 768px) {
   .property-details-container {
-    height: auto;
-    min-height: calc(100dvh - 56px - 1rem);
+    /* Fixed height with an internal scroller (same pattern as desktop and the Auction form):
+       header and tab strip stay put, only the content scrolls underneath. */
+    height: calc(100dvh - 56px - 1rem);
     border-radius: 14px;
   }
 
@@ -653,7 +654,8 @@
   /* Tabs: vertical icon rail -> sticky horizontal scroller */
   .details-body {
     grid-template-columns: 1fr;
-    grid-template-rows: auto 1fr;
+    grid-template-rows: auto minmax(0, 1fr);
+    min-height: 0;
   }
 
   .tabs-nav {
@@ -665,9 +667,6 @@
     border-right: none;
     border-bottom: 2px solid rgba(16, 185, 129, 0.1);
     border-bottom-left-radius: 0;
-    position: sticky;
-    top: 0;
-    z-index: 20;
   }
 
   .tab-item {
@@ -687,7 +686,7 @@
 
   .tab-content {
     padding: 1.25rem 0.75rem 6rem 0.75rem;
-    overflow-y: visible;
+    min-height: 0;
   }
 
   .tab-section-header {
