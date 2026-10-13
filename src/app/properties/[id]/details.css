@@ -614,3 +614,129 @@
   from { opacity: 0; transform: translateY(20px); }
   to   { opacity: 1; transform: translateY(0); }
 }
+
+/* ===== Mobile (<= 768px) ===== */
+@media (max-width: 768px) {
+  .property-details-container {
+    height: auto;
+    min-height: calc(100dvh - 56px - 1rem);
+    border-radius: 14px;
+  }
+
+  .details-header {
+    height: auto;
+    padding: 0.75rem 1rem;
+    border-top-left-radius: 14px;
+    border-top-right-radius: 14px;
+  }
+
+  .header-left {
+    gap: 0.75rem;
+    min-width: 0;
+  }
+
+  .header-title-area {
+    min-width: 0;
+  }
+
+  .header-title {
+    font-size: 1.05rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .header-subtitle {
+    font-size: 0.78rem;
+  }
+
+  /* Tabs: vertical icon rail -> sticky horizontal scroller */
+  .details-body {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+  }
+
+  .tabs-nav {
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: 0.35rem;
+    padding: 0.5rem 0.75rem;
+    overflow-x: auto;
+    border-right: none;
+    border-bottom: 2px solid rgba(16, 185, 129, 0.1);
+    border-bottom-left-radius: 0;
+    position: sticky;
+    top: 0;
+    z-index: 20;
+  }
+
+  .tab-item {
+    width: 44px;
+    height: 44px;
+    flex-shrink: 0;
+  }
+
+  .tab-item:hover {
+    transform: none;
+  }
+
+  .tab-item::before,
+  .tab-item.active::after {
+    display: none;
+  }
+
+  .tab-content {
+    padding: 1.25rem 0.75rem 6rem 0.75rem;
+    overflow-y: visible;
+  }
+
+  .tab-section-header {
+    margin-bottom: 1.5rem;
+  }
+
+  .property-details-container .section-title {
+    font-size: 1.4rem;
+  }
+
+  .section-desc {
+    font-size: 0.95rem;
+  }
+
+  /* Form grids: stack fields */
+  .property-details-container .form-grid,
+  .property-details-container .form-grid.col-3 {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
+  .property-details-container .form-grid.col-4 {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem;
+  }
+
+  /* Amenities */
+  .amenity-form-card {
+    padding: 1.25rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .amenity-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
+  .amenities-list {
+    overflow-x: auto;
+  }
+
+  .amenities-table th,
+  .amenities-table td {
+    padding: 0.75rem 1rem;
+    white-space: nowrap;
+  }
+
+  .amenity-cards-grid {
+    grid-template-columns: 1fr;
+    padding: 0.75rem;
+  }
+}
