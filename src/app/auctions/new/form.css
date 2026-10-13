@@ -268,8 +268,54 @@ select.input-field {
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
-
+/* ===== Mobile (<= 768px) ===== */
 @media (max-width: 768px) {
+  /* Column layout: section icons on top, scrolling form below */
+  .smart-form-container {
+    flex-direction: column;
+    gap: 0.75rem;
+    height: calc(100dvh - 56px - 1rem);
+  }
+
+  .form-sidebar {
+    position: static;
+    width: 100%;
+    height: auto;
+    flex-direction: row;
+    padding: 0.4rem;
+    overflow-x: auto;
+  }
+
+  .spy-nav {
+    flex-direction: row;
+    gap: 0.35rem;
+    width: auto;
+  }
+
+  .spy-link {
+    width: 44px;
+    height: 44px;
+    flex-shrink: 0;
+  }
+
+  .form-content-area {
+    min-width: 0;
+    padding-right: 0;
+    gap: 1rem;
+    padding-bottom: 6rem; /* keeps the last fields clear of the fixed action bar */
+  }
+
+  .form-section {
+    padding: 1rem;
+  }
+
+  .form-grid,
+  .form-grid.col-3,
+  .form-grid.col-4 {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
   .form-actions-bar {
     width: 100%;
     padding: 0.75rem 1rem;
