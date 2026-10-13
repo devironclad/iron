@@ -30,6 +30,7 @@ import "./access.css";
 const RESOURCES = [
   { id: "page:dashboard", label: "Dashboard: Operational", category: "Pages" },
   { id: "page:dashboard:financial", label: "Dashboard: Financial", category: "Pages" },
+  { id: "page:auctions:pre", label: "Research: Pre Auction", category: "Pages" },
   { id: "page:auctions", label: "Research: Auctions", category: "Pages" },
   { id: "page:auctions:rejected", label: "Research: Rejecteds", category: "Pages" },
   { id: "page:properties:ironclad", label: "Properties: Ironclad", category: "Pages" },
@@ -96,6 +97,7 @@ export default function AccessPage() {
   const [editingUser, setEditingUser] = useState<any | null>(null);
   const [editForm, setEditForm] = useState({ full_name: '', email: '' });
   const [editError, setEditError] = useState<string | null>(null);
+  const [resetResult, setResetResult] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [deletingUser, setDeletingUser] = useState<any | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [userPermissions, setUserPermissions] = useState<Record<string, Permission> | null>(null);
@@ -337,6 +339,7 @@ export default function AccessPage() {
     if (!canEditUsersTab) return;
     if (!confirm(`Send a password reset email to ${email}?`)) return;
     setResettingUserId(userId);
+    setResetResult(null);
     try {
       const { data: { session } } = await supabase.auth.getSession();
 
@@ -346,18 +349,18 @@ export default function AccessPage() {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${session?.access_token}`,
         },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ user_id: userId, email }),
       });
 
       const json = await res.json();
       if (!res.ok) throw new Error(json.error);
 
-      setMessage({ type: 'success', text: `Password reset email sent to ${email}.` });
+      // Shown inside the edit modal (the page banner sits behind it) and kept until the modal closes
+      setResetResult({ type: 'success', text: `Reset email requested for ${json.email ?? email}. If it doesn't arrive in a few minutes, check spam and the Supabase email settings.` });
     } catch (err: any) {
-      setMessage({ type: 'error', text: "Error sending password reset: " + err.message });
+      setResetResult({ type: 'error', text: "Error sending password reset: " + err.message });
     } finally {
       setResettingUserId(null);
-      setTimeout(() => setMessage(null), 4000);
     }
   }
 
@@ -365,6 +368,7 @@ export default function AccessPage() {
     setEditingUser(user);
     setEditForm({ full_name: user.full_name || '', email: user.email || '' });
     setEditError(null);
+    setResetResult(null);
   }
 
   async function handleEditUser() {
@@ -957,6 +961,12 @@ export default function AccessPage() {
                     : <KeyRound className="w-4 h-4" />}
                   Send password reset email
                 </button>
+                {resetResult && (
+                  <div className={`message-banner ${resetResult.type}`} style={{ marginTop: '0.75rem', marginBottom: 0 }}>
+                    {resetResult.type === 'success' ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+                    {resetResult.text}
+                  </div>
+                )}
               </div>
             </div>
 

@@ -20,10 +20,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const { email } = await request.json();
+    const { user_id, email: requestedEmail } = await request.json();
+
+    // Resolve the address from Auth itself: resetPasswordForEmail silently succeeds for
+    // unknown addresses, so a mismatch with ls_users_metadata would look like "sent" but never arrive.
+    let email: string | undefined = requestedEmail;
+    if (user_id) {
+      const { data: authUser, error: lookupError } = await supabaseAdmin.auth.admin.getUserById(user_id);
+      if (lookupError || !authUser?.user?.email) {
+        return NextResponse.json({ error: "User not found in Auth" }, { status: 404 });
+      }
+      email = authUser.user.email;
+    }
 
     if (!email) {
-      return NextResponse.json({ error: "email is required" }, { status: 400 });
+      return NextResponse.json({ error: "user_id or email is required" }, { status: 400 });
     }
 
     const supabasePublic = createClient(
@@ -39,7 +50,7 @@ export async function POST(request: NextRequest) {
     if (resetError) throw resetError;
 
     await logSystemAction(caller.id, "auth.users", "RESET_PASSWORD");
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, email });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

@@ -6,6 +6,8 @@ import { supabase } from "@/lib/supabase";
 import { Lock, Loader2, ArrowRight, ShieldCheck, KeyRound, CheckCircle2 } from "lucide-react";
 import "../../login/login.css";
 
+const RECOVERY_FLAG = "pwd_recovery_session";
+
 const TIPS = [
   { icon: KeyRound,     label: "Use at least 8 characters" },
   { icon: ShieldCheck,  label: "Mix letters, numbers & symbols" },
@@ -21,6 +23,9 @@ export default function SetPasswordPage() {
   const router = useRouter();
 
   useEffect(() => {
+    // Did the page load from a recovery/invite link? (checked before the client strips the hash)
+    const arrivedWithToken = new URLSearchParams(window.location.hash.substring(1)).has("access_token");
+
     async function initSession() {
       // Extract tokens from URL hash (#access_token=...&refresh_token=...&type=recovery)
       const hash = window.location.hash.substring(1);
@@ -31,22 +36,39 @@ export default function SetPasswordPage() {
       if (access_token && refresh_token) {
         const { data, error } = await supabase.auth.setSession({ access_token, refresh_token });
         if (data.session && !error) {
+          // Remember that this session came from a recovery/invite link (survives a page refresh)
+          try { sessionStorage.setItem(RECOVERY_FLAG, "1"); } catch {}
+          setMessage(null);
           setSessionReady(true);
           // Clean up hash from URL without triggering navigation
           window.history.replaceState(null, "", window.location.pathname);
           return;
         }
+        setMessage({ type: "error", text: "This link is invalid or has expired. Ask an administrator to send a new one." });
+        return;
       }
 
-      // Fallback: session may already exist (e.g. user refreshed the page)
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) setSessionReady(true);
+      // Fallback (page refresh): only accept an existing session that was created by a recovery link.
+      // Never reuse an arbitrary logged-in session, or the wrong account's password could be changed.
+      let fromRecovery = false;
+      try { fromRecovery = sessionStorage.getItem(RECOVERY_FLAG) === "1"; } catch {}
+      if (fromRecovery) {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          setMessage(null);
+          setSessionReady(true);
+          return;
+        }
+      }
+      setMessage({ type: "error", text: "This link is invalid or has expired. Ask an administrator to send a new one." });
     }
 
     initSession();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if ((event === "PASSWORD_RECOVERY" || event === "SIGNED_IN") && session) {
+      if (session && (event === "PASSWORD_RECOVERY" || (event === "SIGNED_IN" && arrivedWithToken))) {
+        try { sessionStorage.setItem(RECOVERY_FLAG, "1"); } catch {}
+        setMessage(null);
         setSessionReady(true);
       }
     });
@@ -79,6 +101,7 @@ export default function SetPasswordPage() {
       setMessage({ type: "error", text: error.message });
       setLoading(false);
     } else {
+      try { sessionStorage.removeItem(RECOVERY_FLAG); } catch {}
       setMessage({ type: "success", text: "Password set successfully! Redirecting..." });
       setTimeout(() => router.push("/"), 2000);
     }
