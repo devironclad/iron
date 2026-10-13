@@ -461,3 +461,73 @@
     transform: translateY(0);
   }
 }
+
+/* ===== Mobile (<= 768px) ===== */
+@media (max-width: 768px) {
+  .search-filter-bar {
+    padding: 0.75rem;
+    gap: 0.75rem;
+  }
+
+  .search-wrapper {
+    flex-basis: 100%;
+    max-width: none;
+  }
+
+  .bar-actions {
+    width: 100%;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+
+  /* Advanced filters: one per row */
+  .prop-filters-container {
+    gap: 1rem !important;
+  }
+
+  .prop-filter-item {
+    flex: 1 1 100% !important;
+    min-width: 0 !important;
+  }
+
+  /* Cards: photo on top, body stacked */
+  .prop-card-layout {
+    flex-direction: column !important;
+    gap: 0 !important;
+  }
+
+  .prop-card-photo {
+    width: 100% !important;
+    min-height: 0 !important;
+    height: 180px;
+    align-self: auto !important;
+    border-radius: 0.75rem 0.75rem 0 0 !important;
+  }
+
+  .prop-card-content {
+    padding: 1rem !important;
+  }
+
+  .prop-card-body {
+    grid-template-columns: 1fr !important;
+    gap: 1rem !important;
+  }
+
+  /* List view: horizontal scroll instead of squashing columns */
+  .properties-table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+
+  .properties-table th,
+  .properties-table td {
+    padding: 0.75rem 1rem;
+  }
+
+  .app-toast {
+    left: 1rem !important;
+    right: 1rem !important;
+    bottom: 1rem !important;
+  }
+}

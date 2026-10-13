@@ -861,10 +861,10 @@ export default function PropertiesPage() {
                 } : { transition: 'all 0.3s ease-in-out' }}
               >
               {/* ── LAYOUT: foto lateral + conteúdo ── */}
-              <div style={{ display: 'flex', gap: '1.25rem', margin: '-1.25rem', padding: '0' }}>
+              <div className="prop-card-layout" style={{ display: 'flex', gap: '1.25rem', margin: '-1.25rem', padding: '0' }}>
 
                 {/* Foto lateral */}
-                <div style={{ width: '160px', flexShrink: 0, overflow: 'hidden', borderRadius: '0.75rem 0 0 0.75rem', backgroundColor: '#f1f5f9', alignSelf: 'stretch', position: 'relative', minHeight: '180px' }}>
+                <div className="prop-card-photo" style={{ width: '160px', flexShrink: 0, overflow: 'hidden', borderRadius: '0.75rem 0 0 0.75rem', backgroundColor: '#f1f5f9', alignSelf: 'stretch', position: 'relative', minHeight: '180px' }}>
                   {prop.photo_url ? (
                     <NextImage
                       src={prop.photo_url}
@@ -883,7 +883,7 @@ export default function PropertiesPage() {
                 </div>
 
                 {/* Conteúdo do card */}
-                <div style={{ flex: 1, padding: '1.25rem 1.25rem 1.25rem 0' }}>
+                <div className="prop-card-content" style={{ flex: 1, padding: '1.25rem 1.25rem 1.25rem 0' }}>
 
               {/* ── HEADER ── */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
@@ -983,7 +983,7 @@ export default function PropertiesPage() {
               </div>
 
               {/* ── MAIN BODY: 3 colunas ── */}
-              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1.4fr', gap: '1.75rem', alignItems: 'stretch' }}>
+              <div className="prop-card-body" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1.4fr', gap: '1.75rem', alignItems: 'stretch' }}>
 
                 {/* COLUNA 1 — Detalhes da propriedade */}
                 <div>
@@ -1313,7 +1313,7 @@ export default function PropertiesPage() {
 
       {/* Toast Notification */}
       {toastMsg && (
-        <div style={{
+        <div className="app-toast" style={{
           position: 'fixed', bottom: '2rem', right: '2rem',
           backgroundColor: '#10b981', color: 'white',
           padding: '1rem 1.5rem', borderRadius: '0.75rem',
