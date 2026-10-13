@@ -25,6 +25,10 @@ export default function AuctionsPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const isRejectedView = searchParams.get('filter') === 'rejected';
+  // Pre Auction: cargas importadas (RTD-FL) ficam como INACTIVE ate serem
+  // revisadas e publicadas (update p/ AUCTION direto no banco).
+  const isPreView = searchParams.get('filter') === 'pre';
+  const recordType = isPreView ? 'INACTIVE' : 'AUCTION';
   const [recentCardId, setRecentCardId] = useState<number | null>(null);
   const [highlightId, setHighlightId] = useState<number | null>(null);
   const [totalCount, setTotalCount] = useState(0);
@@ -95,7 +99,7 @@ export default function AuctionsPage() {
   useEffect(() => {
     if (rejectedPriorityId === undefined) return;
     fetchAuctions();
-  }, [selectedState, selectedCounty, selectedDate, selectedOrigem, selectedAuctionType, selectedPropertyType, selectedPriority, selectedStatus, showPast, currentPage, searchTerm, rejectedPriorityId]);
+  }, [selectedState, selectedCounty, selectedDate, selectedOrigem, selectedAuctionType, selectedPropertyType, selectedPriority, selectedStatus, showPast, currentPage, searchTerm, rejectedPriorityId, isPreView]);
 
   useEffect(() => {
     if (!filterChangeMounted.current) { filterChangeMounted.current = true; return; }
@@ -252,7 +256,7 @@ export default function AuctionsPage() {
     let lessQ = supabase
       .from("ls_assets")
       .select("id", { count: "exact", head: true })
-      .eq("record_type", "AUCTION")
+      .eq("record_type", recordType)
       .lt("auction_date", target.auction_date);
     if (!usePast) lessQ = lessQ.gte("auction_date", today);
     const { count: lessCount } = await lessQ;
@@ -260,7 +264,7 @@ export default function AuctionsPage() {
     const { count: tieCount } = await supabase
       .from("ls_assets")
       .select("id", { count: "exact", head: true })
-      .eq("record_type", "AUCTION")
+      .eq("record_type", recordType)
       .eq("auction_date", target.auction_date)
       .lt("id", target.id);
 
@@ -292,7 +296,7 @@ export default function AuctionsPage() {
       let query = supabase
         .from("ls_assets")
         .select(selectStr, { count: "exact" })
-        .eq("record_type", "AUCTION");
+        .eq("record_type", recordType);
 
       if (!showPast) {
         query = query.gte("auction_date", new Date().toISOString().split('T')[0]);
@@ -375,7 +379,7 @@ export default function AuctionsPage() {
     }
   }
 
-  const canEdit = userPermissions !== null && hasPermission(userPermissions, 'page:auctions', 'edit');
+  const canEdit = userPermissions !== null && hasPermission(userPermissions, isPreView ? 'page:auctions:pre' : 'page:auctions', 'edit');
   const canCopyAuction = hasPermission(userPermissions, 'action:copy_auction');
 
   const handleDelete = (id: number, parcel: string) => {
@@ -421,7 +425,7 @@ export default function AuctionsPage() {
       let query = supabase
         .from("ls_assets")
         .select(selectStr)
-        .eq("record_type", "AUCTION");
+        .eq("record_type", recordType);
 
       if (!showPast) {
         query = query.gte("auction_date", new Date().toISOString().split('T')[0]);
@@ -572,7 +576,7 @@ export default function AuctionsPage() {
   const returnTo = encodeURIComponent(`/auctions?${cleanParams.toString()}`);
 
   return (
-    <PermissionGuard anyOf={["page:auctions", "page:auctions:rejected"]}>
+    <PermissionGuard anyOf={["page:auctions", "page:auctions:rejected", "page:auctions:pre"]}>
       <div className="auctions-container">
 
       {auctionToDelete && (
@@ -624,20 +628,22 @@ export default function AuctionsPage() {
       {/* Page Header */}
       <div className="page-header">
         <div className="page-header-text">
-          <h1 className="page-title">{isRejectedView ? 'Rejecteds' : 'Auctions'}<span className="dot">.</span></h1>
-          <p className="page-subtitle">{isRejectedView ? 'Auction records marked as Rejected Property.' : 'Manage upcoming auctions and research prospective acquisitions.'}</p>
+          <h1 className="page-title">{isRejectedView ? 'Rejecteds' : isPreView ? 'Pre Auction' : 'Auctions'}<span className="dot">.</span></h1>
+          <p className="page-subtitle">{isRejectedView ? 'Auction records marked as Rejected Property.' : isPreView ? 'Imported auction records awaiting review before publishing.' : 'Manage upcoming auctions and research prospective acquisitions.'}</p>
         </div>
-        <div style={{ display: 'flex', gap: '0.75rem' }}>
+        <div className="page-header-actions" style={{ display: 'flex', gap: '0.75rem' }}>
           {hasPermission(userPermissions, 'action:export_auctions') && (
             <button onClick={handleExportExcel} className="btn-secondary" disabled={loading}>
               <Download className="w-5 h-5" />
               Export
             </button>
           )}
+          {!isPreView && (
           <Link href="/auctions/new" className="primary-btn" style={{ textDecoration: 'none' }}>
             <Plus className="w-5 h-5" />
             New Auction
           </Link>
+          )}
         </div>
       </div>
 
@@ -836,10 +842,12 @@ export default function AuctionsPage() {
         </div>
       ) : totalCount === 0 ? (
         <div className="empty-state">
-          <span>No auctions found matching your criteria.</span>
+          <span>{isPreView ? 'No imported records awaiting review.' : 'No auctions found matching your criteria.'}</span>
+          {!isPreView && (
           <Link href="/auctions/new" style={{ color: 'var(--primary)', fontWeight: 600, display: 'block', marginTop: '1rem' }}>
             Register your first auction now
           </Link>
+          )}
         </div>
       ) : viewMode === "grid" ? (
         <div className="auctions-grid">
@@ -951,7 +959,7 @@ export default function AuctionsPage() {
                 </div>
 
                 <div style={{ display: 'flex', gap: '0.5rem', marginTop: 'auto' }}>
-                  <Link href={`/auctions/new?id=${auction.id}${isRejectedView ? '&from=rejected' : ''}&returnTo=${returnTo}`} className="card-details-btn" style={{ textDecoration: 'none', flex: 1 }}>
+                  <Link href={`/auctions/new?id=${auction.id}${isRejectedView ? '&from=rejected' : isPreView ? '&from=pre' : ''}&returnTo=${returnTo}`} className="card-details-btn" style={{ textDecoration: 'none', flex: 1 }}>
                     View Details
                     <ArrowRight className="w-4 h-4" />
                   </Link>
@@ -970,11 +978,13 @@ export default function AuctionsPage() {
             );
           })}
 
+          {!isPreView && (
           <Link href="/auctions/new" className="add-new-card" style={{ textDecoration: 'none' }}>
             <Plus className="w-6 h-6 add-icon" />
             <span className="add-title">Register Another</span>
             <span className="add-subtitle">NEW ENTRY</span>
           </Link>
+          )}
         </div>
       ) : (
         <table className="auctions-table">
@@ -1049,7 +1059,7 @@ export default function AuctionsPage() {
                   </td>
                   <td style={{ display: 'flex', gap: '0.4rem' }}>
                     <Link
-                      href={`/auctions/new?id=${auction.id}${isRejectedView ? '&from=rejected' : ''}&returnTo=${returnTo}`}
+                      href={`/auctions/new?id=${auction.id}${isRejectedView ? '&from=rejected' : isPreView ? '&from=pre' : ''}&returnTo=${returnTo}`}
                       className="btn-list-edit"
                     >
                       Edit
@@ -1154,7 +1164,7 @@ export default function AuctionsPage() {
 
       {/* Toast Notification */}
       {toastMsg && (
-        <div style={{
+        <div className="app-toast" style={{
           position: 'fixed', bottom: '2rem', right: '2rem',
           backgroundColor: '#10b981', color: 'white',
           padding: '1rem 1.5rem', borderRadius: '0.75rem',

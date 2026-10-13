@@ -499,3 +499,79 @@
 .auc-clear-filters-link:hover {
   opacity: 0.7;
 }
+
+/* ===== Mobile (<= 768px) ===== */
+@media (max-width: 768px) {
+  .auctions-container .page-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+  }
+
+  .auctions-container .page-title {
+    font-size: 1.5rem;
+  }
+
+  .page-header-actions {
+    width: 100%;
+  }
+
+  .page-header-actions > * {
+    flex: 1;
+    justify-content: center;
+  }
+
+  .search-filter-bar {
+    padding: 0.75rem;
+    gap: 0.75rem;
+  }
+
+  .search-wrapper {
+    flex-basis: 100%;
+    max-width: none;
+  }
+
+  .bar-actions {
+    width: 100%;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+
+  .auc-filters-container {
+    gap: 1rem !important;
+  }
+
+  .auc-filter-item {
+    flex: 1 1 100% !important;
+    min-width: 0 !important;
+  }
+
+  .auctions-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
+  .auction-card {
+    padding: 1.25rem;
+  }
+
+  /* List view: horizontal scroll instead of squashing columns */
+  .auctions-table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+
+  .pagination-container {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.5rem;
+  }
+
+  .app-toast {
+    left: 1rem !important;
+    right: 1rem !important;
+    bottom: 1rem !important;
+  }
+}
