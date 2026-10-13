@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { Menu } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { Sidebar } from "@/components/layout/sidebar";
 import { PreviewBanner } from "@/components/auth/PreviewBanner";
@@ -25,6 +26,8 @@ export default function RootLayout({
   const isSetPasswordPage = pathname === "/auth/set-password";
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [isReady, setIsReady] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const closeMenu = useCallback(() => setMenuOpen(false), []);
 
   useEffect(() => {
     async function checkUser() {
@@ -92,7 +95,25 @@ export default function RootLayout({
         <div className={`app-container ${isAuthPage ? "login-mode" : ""}`}>
           {isReady ? (
             <>
-              {showSidebar && <Sidebar />}
+              {showSidebar && (
+                <>
+                  <header className="mobile-topbar">
+                    <button
+                      className="mobile-menu-btn"
+                      aria-label="Open menu"
+                      onClick={() => setMenuOpen(true)}
+                    >
+                      <Menu size={24} />
+                    </button>
+                    <img src="/modelo.png" alt="Ironclad Tech" className="mobile-topbar-logo" />
+                  </header>
+                  <div
+                    className={`sidebar-overlay ${menuOpen ? "open" : ""}`}
+                    onClick={closeMenu}
+                  />
+                  <Sidebar open={menuOpen} onClose={closeMenu} />
+                </>
+              )}
               {showSidebar && <PreviewBanner />}
               {showSidebar && <ActivityHeartbeat />}
               <main className={isAuthPage ? "login-content" : "main-content"}>

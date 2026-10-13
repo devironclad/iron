@@ -41,6 +41,7 @@ const NAV_ITEMS: NavItem[] = [
     name: "Research",
     icon: Gavel,
     children: [
+      { name: "Pre Auction", href: "/auctions?filter=pre", resource: "page:auctions:pre" },
       { name: "Auctions", href: "/auctions", resource: "page:auctions" },
       { name: "Rejecteds", href: "/auctions?filter=rejected", resource: "page:auctions:rejected" },
     ],
@@ -64,7 +65,7 @@ const NAV_ITEMS: NavItem[] = [
   { name: "Settings", href: "/settings", icon: Settings, resource: "page:settings" },
 ];
 
-export function Sidebar() {
+export function Sidebar({ open = false, onClose }: { open?: boolean; onClose?: () => void }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -127,6 +128,12 @@ export function Sidebar() {
     });
   };
 
+  // Close the mobile drawer after any navigation
+  useEffect(() => {
+    onClose?.();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname, searchParams]);
+
   // Auto-expand parent when a child route is active
   useEffect(() => {
     NAV_ITEMS.forEach(item => {
@@ -150,7 +157,7 @@ export function Sidebar() {
     : [];
 
   return (
-    <aside className="sidebar">
+    <aside className={`sidebar ${open ? "open" : ""}`}>
       <div className="sidebar-header">
         <Link href="/" className="logo-link">
           <img src="/modelo.png" alt="Ironclad Tech" className="logo-img" />
