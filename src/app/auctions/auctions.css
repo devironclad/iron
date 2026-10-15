@@ -213,7 +213,7 @@
 
 .card-details-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr)); /* minmax(0) lets long values shrink instead of widening the card */
   gap: 0.75rem;
   margin-bottom: 1.5rem;
 }
@@ -225,6 +225,19 @@
   font-size: 0.8rem;
   font-weight: 500;
   color: var(--text-secondary);
+  min-width: 0;
+}
+
+/* Long values (parcel, case number, coordinates...) are cut with an ellipsis; the full text stays in the title tooltip */
+.detail-item > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detail-item > .detail-icon {
+  flex-shrink: 0;
 }
 
 .detail-item-full {
