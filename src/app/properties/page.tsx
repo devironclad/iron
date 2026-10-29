@@ -10,12 +10,13 @@ import {
   ArrowRight, Tag, Loader2, Navigation, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
   Filter, Layers, Maximize, Hash, CheckCircle2, Building2, UserCheck,
   Coins, DollarSign, TrendingUp, ImageOff, Gavel, Briefcase, ClipboardList,
-  Copy, Check, HandCoins, X
+  Copy, Check, HandCoins, X, Download, Info
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { getPreviewPartner } from "@/lib/impersonation";
 import { PermissionGuard } from "@/components/auth/PermissionGuard";
 import { getCurrentUserPermissions, hasPermission, Permission } from "@/lib/permissions";
+import * as XLSX from "xlsx";
 import "./properties.css";
 
 export default function PropertiesPage() {
@@ -74,6 +75,7 @@ export default function PropertiesPage() {
   const [partnerInterestMap, setPartnerInterestMap] = useState<Record<number, number>>({});
   const [partnerInterestDetails, setPartnerInterestDetails] = useState<Record<number, Array<{ id: string; partnerName: string; createdAt: string | null; requestId: number | null }>>>({});
   const [openInterestPopoverId, setOpenInterestPopoverId] = useState<number | null>(null);
+  const [salesInfoProp, setSalesInfoProp] = useState<any | null>(null);
 
   // Refs to prevent effects from firing on first mount
   const filterSyncMounted  = useRef(false);
@@ -283,6 +285,8 @@ export default function PropertiesPage() {
           ls_property_type(name),
           ls_origem(name),
           ls_auction_type(name),
+          ls_wetlands!wetlands_id(name),
+          ls_road_access!road_access_id(name),
           owner_partner:ls_users_metadata!owner_partner_id(full_name)
           ${extraJoins.length ? ', ' + extraJoins.join(', ') : ''}
         `, { count: "exact" })
@@ -478,6 +482,7 @@ export default function PropertiesPage() {
 
   const [copiedId, setCopiedId] = useState<number | null>(null);
   const canCopyProperty = hasPermission(userPermissions, 'action:copy_property');
+  const canViewSalesInfo = hasPermission(userPermissions, 'action:sales_info');
 
   const copyProperty = (prop: any) => {
     const fmt = (v: number | null | undefined) =>
@@ -513,6 +518,162 @@ export default function PropertiesPage() {
       setCopiedId(prop.id);
       setTimeout(() => setCopiedId(null), 2000);
     });
+  };
+
+  const canExportProperties = hasPermission(userPermissions, 'action:export_properties');
+
+  const handleExportExcel = async () => {
+    try {
+      setLoading(true);
+      const extraJoins: string[] = [];
+      if (selectedAmenityType !== 'all') extraJoins.push('ls_asset_amenities!inner(*)');
+      if (source === 'ironclad' && showPartnerInterestOnly) extraJoins.push('ls_asset_partner_interest!inner(id)');
+
+      let query = supabase
+        .from("ls_assets")
+        .select(`
+          *,
+          ls_county(name, state),
+          owner_partner:ls_users_metadata!owner_partner_id(full_name)
+          ${extraJoins.length ? ', ' + extraJoins.join(', ') : ''}
+        `)
+        .eq("record_type", "PROPERTY");
+
+      if (source === 'sold_out') {
+        query = query.eq('sale_type', 'sold_out');
+      } else {
+        query = query.or('sale_type.is.null,sale_type.neq.sold_out');
+
+        if (source === 'ironclad') {
+          query = query.or('owner_type.is.null,owner_type.neq.partner');
+        } else if (source === 'broker') {
+          query = query.eq('owner_type', 'partner');
+        } else if (source === 'partners') {
+          query = query.eq('owner_type', 'partner').eq('owner_partner_id', currentUserId!);
+        }
+      }
+
+      if (selectedCounty && selectedCounty !== "all") {
+        query = query.eq("county_id", selectedCounty);
+      }
+
+      if (selectedPropertyType && selectedPropertyType !== "all") {
+        query = query.eq("property_type_id", selectedPropertyType);
+      }
+
+      if (selectedPriority && selectedPriority !== "all") {
+        query = query.eq("priority_id", selectedPriority);
+      }
+
+      if (selectedState && selectedState !== "all") {
+        const countyIdsForState = counties
+          .filter(c => c.state === selectedState)
+          .map(c => c.id);
+        if (countyIdsForState.length === 0) {
+          setToastMsg({ title: "Export Complete", desc: "No properties match the current filters." });
+          setLoading(false);
+          return;
+        }
+        query = query.in("county_id", countyIdsForState);
+      }
+
+      if (selectedAmenityType && selectedAmenityType !== "all") {
+        query = query.eq("ls_asset_amenities.amenity_type_id", selectedAmenityType);
+        if (maxDistance) query = query.lte("ls_asset_amenities.distance_miles", parseFloat(maxDistance));
+        if (maxTime) query = query.lte("ls_asset_amenities.time_minutes", parseInt(maxTime));
+      } else if (selectedAmenityCategory && selectedAmenityCategory !== "all") {
+        const typesInCategory = lookups.amenityTypes
+          .filter(t => t.category_id === selectedAmenityCategory)
+          .map(t => t.id);
+
+        if (typesInCategory.length > 0) {
+          query = query.in("ls_asset_amenities.amenity_type_id", typesInCategory);
+          if (maxDistance) query = query.lte("ls_asset_amenities.distance_miles", parseFloat(maxDistance));
+          if (maxTime) query = query.lte("ls_asset_amenities.time_minutes", parseInt(maxTime));
+        }
+      }
+
+      if (source === 'ironclad' && showPartnerInterestOnly) {
+        query = query.is("ls_asset_partner_interest.resolved_at", null);
+      }
+
+      if (selectedOrigin && selectedOrigin !== "all") {
+        query = query.eq("origem_id", selectedOrigin);
+      }
+
+      if (selectedAuctionType && selectedAuctionType !== "all") {
+        query = query.eq("auction_type_id", selectedAuctionType);
+      }
+
+      if (selectedAcquisitionDate) {
+        query = query.gte("acquisition_date", selectedAcquisitionDate);
+      }
+
+      if (selectedInvestor && selectedInvestor !== "all") {
+        query = query.eq("owner_partner_id", selectedInvestor);
+      }
+
+      if (searchTerm) {
+        const prpMatch = searchTerm.match(/PRP-(\d+)/i);
+        if (prpMatch) {
+          query = query.eq("ref_id", parseInt(prpMatch[1]));
+        } else {
+          const isOnlyNumber = /^\d+$/.test(searchTerm);
+          if (isOnlyNumber) {
+            query = query.or(`ref_id.eq.${searchTerm},parcel_number.ilike.%${searchTerm}%,address.ilike.%${searchTerm}%,case_number.ilike.%${searchTerm}%`);
+          } else {
+            const s = `%${searchTerm}%`;
+            query = query.or(`parcel_number.ilike."${s}",address.ilike."${s}",case_number.ilike."${s}"`);
+          }
+        }
+      }
+
+      const { data, error } = await query.order("ref_id", { ascending: false });
+
+      if (error) throw error;
+
+      const excelData = (data || []).map((item: any) => ({
+        "ID": formatPropId(item.ref_id, item.id),
+        "County": item.ls_county?.name || "",
+        "Parcel No": item.parcel_number || "",
+        "Regrid Link": item.link_regrid || "",
+        "Size": item.size || 0,
+        "Coordinates": item.coordinates || "",
+        "Address": item.address || "",
+        "Legal Description": item.legal_description || "",
+        "Owner": item.owner_type === 'partner' ? (item.owner_partner?.full_name || "") : "Ironclad",
+        "Paid Bid": item.paid_bid || 0,
+        "Sale Price": item.sale_price || 0,
+        "Appraisal Min ($)": item.appraisal_min || 0,
+        "Appraisal Average ($)": item.appraisal_avg || 0,
+        "Appraisal Max ($)": item.appraisal_max || 0,
+        "Tax Deed Link": item.tax_deed || "",
+        "Warranty Deed Link": item.warranty_deed || "",
+        "Survey Link": item.survey || "",
+        "Site Plan Link": item.site_plan || ""
+      }));
+
+      const worksheet = XLSX.utils.json_to_sheet(excelData);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Properties");
+
+      const wscols = [
+        {wch: 12},
+        {wch: 15}, {wch: 20}, {wch: 40}, {wch: 10}, {wch: 25}, {wch: 30},
+        {wch: 40}, {wch: 20}, {wch: 15}, {wch: 15}, {wch: 15}, {wch: 15}, {wch: 15},
+        {wch: 40}, {wch: 40}, {wch: 40}, {wch: 40}
+      ];
+      worksheet['!cols'] = wscols;
+
+      XLSX.writeFile(workbook, `properties_export_${new Date().toISOString().split('T')[0]}.xlsx`);
+
+      setToastMsg({ title: "Export Complete", desc: "Your property data has been exported to Excel." });
+    } catch (err: any) {
+      console.error("Export Error:", err);
+      alert("Error exporting to Excel: " + err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE);
@@ -555,6 +716,14 @@ export default function PropertiesPage() {
           <h1 className="page-title">{pageTitle}<span className="dot">.</span></h1>
           <p className="page-subtitle">{pageSubtitle}</p>
         </div>
+        {canExportProperties && (
+          <div style={{ display: 'flex', gap: '0.75rem' }}>
+            <button onClick={handleExportExcel} className="btn-secondary" disabled={loading}>
+              <Download className="w-5 h-5" />
+              Export
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Search and Filter Bar */}
@@ -832,6 +1001,87 @@ export default function PropertiesPage() {
         </div>
       </div>
 
+      {salesInfoProp && (() => {
+        const p = salesInfoProp;
+        const dash = '—';
+        const labelStyle = { fontSize: '0.62rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' as const, letterSpacing: '0.06em', marginBottom: '0.2rem' };
+        const valueStyle = { fontSize: '0.88rem', fontWeight: 600, color: '#0f172a', wordBreak: 'break-word' as const };
+        const field = (label: string, value: string, icon?: React.ReactNode) => (
+          <div style={{ minWidth: 0 }}>
+            <div style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: '0.3rem' }}>{icon}{label}</div>
+            <div style={valueStyle}>{value}</div>
+          </div>
+        );
+        const mapsUrl = p.coordinates ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.coordinates)}` : '';
+        const icon = { width: '11px', height: '11px' };
+        return (
+          <div
+            onClick={() => setSalesInfoProp(null)}
+            style={{ position: 'fixed', inset: 0, zIndex: 1000, backgroundColor: 'rgba(15,23,42,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}
+          >
+            <div
+              onClick={e => e.stopPropagation()}
+              style={{ width: '100%', maxWidth: '480px', maxHeight: '90vh', overflowY: 'auto', backgroundColor: 'white', borderRadius: '0.9rem', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.35)' }}
+            >
+              {/* Header */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '1rem 1.25rem', backgroundColor: '#273548', borderRadius: '0.9rem 0.9rem 0 0', color: 'white' }}>
+                <div>
+                  <div style={{ fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#94a3b8' }}>Sales Info</div>
+                  <div style={{ fontSize: '1.1rem', fontWeight: 800, marginTop: '0.1rem' }}>{formatPropId(p.ref_id, p.id)}</div>
+                  <div style={{ fontSize: '0.8rem', color: '#cbd5e1', marginTop: '0.1rem' }}>
+                    {p.ls_county?.name || 'Unknown County'}{p.ls_county?.state ? `, ${p.ls_county.state}` : ''}
+                  </div>
+                </div>
+                <button onClick={() => setSalesInfoProp(null)} aria-label="Close" style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '6px', padding: '4px', cursor: 'pointer', color: 'white', display: 'flex' }}>
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div style={{ padding: '1.1rem 1.25rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                {/* Sale price */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.85rem 1rem', backgroundColor: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: '0.65rem' }}>
+                  <div style={{ width: '38px', height: '38px', borderRadius: '9px', backgroundColor: '#d1fae5', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <DollarSign className="w-5 h-5" style={{ color: '#059669' }} />
+                  </div>
+                  <div>
+                    <div style={{ ...labelStyle, color: '#047857', marginBottom: 0 }}>Sale Price</div>
+                    <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#064e3b', lineHeight: 1.2 }}>
+                      {p.sale_price != null ? formatCurrency(p.sale_price) : dash}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Location */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', paddingBottom: '1rem', borderBottom: '1px solid #f1f5f9' }}>
+                  {field('Address', p.address || dash, <MapPin style={icon} />)}
+                  {field('Parcel Number', p.parcel_number || dash, <Hash style={icon} />)}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.85rem 1rem' }}>
+                    {field('State', p.ls_county?.state || dash)}
+                    {field('County', p.ls_county?.name || dash)}
+                  </div>
+                  <div>
+                    {field('Coordinates', p.coordinates || dash, <Navigation style={icon} />)}
+                    {mapsUrl && (
+                      <a href={mapsUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', marginTop: '0.3rem', fontSize: '0.72rem', fontWeight: 600, color: '#10b981', textDecoration: 'none' }}>
+                        Open in Google Maps <ExternalLink style={icon} />
+                      </a>
+                    )}
+                  </div>
+                </div>
+
+                {/* Land */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.85rem 1rem' }}>
+                  {field('Size', p.size ? `${p.size} AC` : dash, <Maximize style={icon} />)}
+                  {field('Zoning', p.zoning || dash, <Layers style={icon} />)}
+                  {field('Wetland', p.ls_wetlands?.name || dash)}
+                  {field('Road Access', p.ls_road_access?.name || dash)}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Main Content */}
       {loading ? (
         <div className="empty-state">
@@ -912,6 +1162,20 @@ export default function PropertiesPage() {
                       ? <><Check style={{ width: '11px', height: '11px' }} /> Copied!</>
                       : <><Copy style={{ width: '11px', height: '11px' }} /> Copy</>
                     }
+                  </button>
+                  )}
+                  {canViewSalesInfo && (
+                  <button
+                    onClick={e => { e.stopPropagation(); setSalesInfoProp(prop); }}
+                    title="Quick sales info"
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: '0.25rem',
+                      background: 'var(--bg-base)', border: '1px solid var(--border-subtle)',
+                      borderRadius: '5px', padding: '2px 7px', cursor: 'pointer',
+                      fontSize: '0.68rem', fontWeight: 600, color: 'var(--text-muted)',
+                    }}
+                  >
+                    <Info style={{ width: '11px', height: '11px' }} /> Sales Info
                   </button>
                   )}
                   {prop.ls_origem?.name && (

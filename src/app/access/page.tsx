@@ -77,6 +77,7 @@ const RESOURCES = [
   { id: "action:export_auctions", label: "Action: Export Auctions Data", category: "Actions" },
   { id: "action:export_properties", label: "Action: Export Properties Data", category: "Actions" },
   { id: "action:copy_property", label: "Action: Copy Property Info", category: "Actions" },
+  { id: "action:sales_info", label: "Action: Sales Info Popup (Properties)", category: "Actions" },
   { id: "action:copy_auction", label: "Action: Copy Auction Info", category: "Actions" },
   { id: "action:find_amenities", label: "Action: Find Amenities (Auctions)", category: "Actions" },
 ];
