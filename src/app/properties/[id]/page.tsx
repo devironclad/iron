@@ -2058,6 +2058,7 @@ export default function PropertyDetailsPage() {
                         <select name="recurrence" value={taxForm.recurrence} onChange={handleTaxFormChange} className="input-field">
                           <option value="">Select...</option>
                           <option value="Annual">Annual</option>
+                          <option value="Monthly">Monthly</option>
                           <option value="Single">Single</option>
                         </select>
                       </div>
@@ -2208,7 +2209,6 @@ export default function PropertyDetailsPage() {
                             </tr>
                           );
                         })}
-                          <option value="Monthly">Monthly</option>
                       </tbody>
                     </table>
                   </div>
