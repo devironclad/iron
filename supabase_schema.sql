@@ -628,7 +628,7 @@ CREATE TABLE IF NOT EXISTS ls_asset_tax (
     link_advalorem TEXT,
     value NUMERIC,
     vigency VARCHAR(10),    -- '2025' | '2026' | '2027' | '2028' | '2029' | '2030'
-    recurrence VARCHAR(20), -- 'Annual' | 'Single'
+    recurrence VARCHAR(20), -- 'Annual' | 'Monthly' | 'Single'
     status VARCHAR(20),     -- 'On Time' | 'Over Due'
     type_tax VARCHAR(30),   -- 'Annual Tax' | 'Fees' | 'HOA/POA'
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,

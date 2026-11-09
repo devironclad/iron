@@ -2208,6 +2208,7 @@ export default function PropertyDetailsPage() {
                             </tr>
                           );
                         })}
+                          <option value="Monthly">Monthly</option>
                       </tbody>
                     </table>
                   </div>
