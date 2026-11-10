@@ -32,24 +32,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { userHasPermission } from "@/lib/server-permissions";
 import { logSystemAction } from "@/lib/activity";
-import {
-  fetchAirportViaOverpass,
-  fetchDowntownViaOverpass,
-  fetchNearbyAmenities,
-  geocodeAddress,
-} from "@/lib/amenities/overpass";
-import {
-  fetchAirportViaLocationIQ,
-  fetchDowntownViaLocationIQ,
-  fetchNearbyAmenitiesViaLocationIQ,
-} from "@/lib/amenities/locationiq";
+import { geocodeAddress } from "@/lib/amenities/overpass";
+import { lookupAmenities } from "@/lib/amenities/lookup";
 import {
   DEFAULT_RADIUS_MILES,
-  OVERPASS_DOWNTOWN_FALLBACK_MILES,
   WIDE_RADIUS_MILES,
-  emptyResults,
   formatAmenitiesText,
-  sleep,
 } from "@/lib/amenities/shared";
 
 export const runtime = "nodejs";
@@ -120,7 +108,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (assetError || !asset) {
     return NextResponse.json({ error: "Auction not found" }, { status: 404 });
   }
-  if (asset.record_type !== "AUCTION") {
+  // INACTIVE = registros do Pre Auction (carga importada ainda nao publicada).
+  if (asset.record_type !== "AUCTION" && asset.record_type !== "INACTIVE") {
     return NextResponse.json({ error: "Not an auction record" }, { status: 400 });
   }
 
@@ -151,94 +140,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   // immediately, piling up bursts instead of backing off.
   await logSystemAction(user.id, "ls_assets", "AMENITIES_LOOKUP");
 
-  const hasLocationIQ = !!process.env.LOCATIONIQ_API_KEY;
-  const providersUsed = new Set<string>();
-  const sectionErrors: string[] = [];
-
-  // 1) Standard categories (5mi) — Overpass primary, LocationIQ fallback.
-  let results = emptyResults();
-  let standardOk = false;
-  try {
-    results = await fetchNearbyAmenities(point.lat, point.lon, DEFAULT_RADIUS_MILES);
-    providersUsed.add("Overpass");
-    standardOk = true;
-  } catch (overpassErr: any) {
-    if (hasLocationIQ) {
-      try {
-        results = await fetchNearbyAmenitiesViaLocationIQ(point.lat, point.lon, DEFAULT_RADIUS_MILES);
-        providersUsed.add("LocationIQ");
-        standardOk = true;
-      } catch (liqErr: any) {
-        sectionErrors.push(`standard categories: Overpass ${overpassErr.message}; LocationIQ ${liqErr.message}`);
-      }
-    } else {
-      sectionErrors.push(`standard categories: Overpass ${overpassErr.message}`);
-    }
-  }
-
-  await sleep(300);
-
-  // 2) Airport (100mi) — LocationIQ primary, Overpass fallback.
-  let airportOk = false;
-  if (hasLocationIQ) {
-    try {
-      results.Airport = await fetchAirportViaLocationIQ(point.lat, point.lon, WIDE_RADIUS_MILES);
-      providersUsed.add("LocationIQ");
-      airportOk = true;
-    } catch (liqErr: any) {
-      try {
-        results.Airport = await fetchAirportViaOverpass(point.lat, point.lon, WIDE_RADIUS_MILES);
-        providersUsed.add("Overpass");
-        airportOk = true;
-      } catch (opErr: any) {
-        sectionErrors.push(`Airport: LocationIQ ${liqErr.message}; Overpass ${opErr.message}`);
-      }
-    }
-  } else {
-    try {
-      results.Airport = await fetchAirportViaOverpass(point.lat, point.lon, WIDE_RADIUS_MILES);
-      providersUsed.add("Overpass");
-      airportOk = true;
-    } catch (opErr: any) {
-      sectionErrors.push(`Airport: Overpass ${opErr.message}`);
-    }
-  }
-
-  await sleep(300);
-
-  // 3) Downtown (100mi primary / 25mi degraded fallback) — LocationIQ primary.
-  let downtownOk = false;
-  if (hasLocationIQ) {
-    try {
-      results.Downtown = await fetchDowntownViaLocationIQ(point.lat, point.lon, WIDE_RADIUS_MILES);
-      providersUsed.add("LocationIQ");
-      downtownOk = true;
-    } catch (liqErr: any) {
-      try {
-        results.Downtown = await fetchDowntownViaOverpass(point.lat, point.lon, OVERPASS_DOWNTOWN_FALLBACK_MILES);
-        providersUsed.add("Overpass");
-        downtownOk = true;
-      } catch (opErr: any) {
-        sectionErrors.push(`Downtown: LocationIQ ${liqErr.message}; Overpass ${opErr.message}`);
-      }
-    }
-  } else {
-    try {
-      results.Downtown = await fetchDowntownViaOverpass(point.lat, point.lon, OVERPASS_DOWNTOWN_FALLBACK_MILES);
-      providersUsed.add("Overpass");
-      downtownOk = true;
-    } catch (opErr: any) {
-      sectionErrors.push(`Downtown: Overpass ${opErr.message}`);
-    }
-  }
+  const lookup = await lookupAmenities(point.lat, point.lon);
+  const { results, sectionErrors } = lookup;
 
   // Only fail the whole request if every section failed on every provider —
   // a section that comes up empty otherwise just shows "none found".
-  if (!standardOk && !airportOk && !downtownOk) {
+  if (lookup.allFailed) {
     return NextResponse.json({ error: sectionErrors.join(" | ") }, { status: 502 });
   }
 
-  const provider = `OpenStreetMap (${[...providersUsed].join(", ") || "unavailable"})`;
+  const provider = `OpenStreetMap (${lookup.providersUsed.join(", ") || "unavailable"})`;
   const text = formatAmenitiesText(results, {
     lat: point.lat,
     lon: point.lon,

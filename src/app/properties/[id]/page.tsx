@@ -40,7 +40,8 @@ import {
   Home,
   UserCog,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Sparkles
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { hasPermission, getCurrentUserPermissions } from "@/lib/permissions";
@@ -124,6 +125,9 @@ export default function PropertyDetailsPage() {
 
   // Amenities specific state
   const [amenities, setAmenities] = useState<any[]>([]);
+  const [amenitiesLoading, setAmenitiesLoading] = useState(false);
+  const [amenitiesMsg, setAmenitiesMsg] = useState<string | null>(null);
+  const [amenitiesResumed, setAmenitiesResumed] = useState(false); // polling a lookup started earlier / elsewhere
   const [amenityCategories, setAmenityCategories] = useState<any[]>([]);
   const [amenityTypes, setAmenityTypes] = useState<any[]>([]);
   const [newAmenity, setNewAmenity] = useState({
@@ -768,6 +772,112 @@ export default function PropertyDetailsPage() {
     }
   };
 
+  // "Find Amenities": server search -> one ls_asset_amenities row per item found
+  // (source = 'auto'; manual rows are never touched). See
+  // src/app/api/properties/[id]/amenities/route.ts.
+  const canFindAmenities = !isIroncladOpportunity && permissions !== null && hasPermission(permissions, 'action:find_amenities');
+  const hasLocationInfo = !!(String(property?.address ?? '').trim() || String(property?.coordinates ?? '').trim());
+
+  async function reloadAmenities() {
+    const { data: amenData } = await supabase
+      .from('ls_asset_amenities')
+      .select(`*, ls_amenity_type ( name, ls_amenity_category ( name ) )`)
+      .eq('asset_id', id);
+    setAmenities((amenData || []).sort((a: any, b: any) => {
+      const catA = a.ls_amenity_type?.ls_amenity_category?.name || '';
+      const catB = b.ls_amenity_type?.ls_amenity_category?.name || '';
+      if (catA !== catB) return catA.localeCompare(catB);
+      return (a.ls_amenity_type?.name || '').localeCompare(b.ls_amenity_type?.name || '');
+    }));
+    const { data: typeData } = await supabase.from('ls_amenity_type').select('*').order('name');
+    setAmenityTypes(typeData || []);
+  }
+
+  async function fetchAmenitiesRunning(): Promise<boolean> {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(`/api/properties/${id}/amenities`, {
+        headers: { Authorization: `Bearer ${session?.access_token ?? ''}` },
+      });
+      if (!res.ok) return false;
+      return !!(await res.json()).running;
+    } catch {
+      return false;
+    }
+  }
+
+  // Coming back to a property whose lookup is still running on the server:
+  // check once on open, and if so show "Searching..." and poll until done.
+  useEffect(() => {
+    if (isIroncladOpportunity || !canFindAmenities || !id) return;
+    let cancelled = false;
+    fetchAmenitiesRunning().then((running) => {
+      if (!cancelled && running) { setAmenitiesResumed(true); setAmenitiesLoading(true); }
+    });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, canFindAmenities, isIroncladOpportunity]);
+
+  useEffect(() => {
+    if (!amenitiesResumed) return;
+    let cancelled = false;
+    const timer = setInterval(async () => {
+      if (await fetchAmenitiesRunning() || cancelled) return;
+      clearInterval(timer);
+      await reloadAmenities();
+      if (cancelled) return;
+      setAmenitiesResumed(false);
+      setAmenitiesLoading(false);
+      setAmenitiesMsg('Found successfully: search finished, amenities updated.');
+      setTimeout(() => setAmenitiesMsg(null), 8000);
+    }, 5000);
+    return () => { cancelled = true; clearInterval(timer); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [amenitiesResumed]);
+
+  const handleFindAmenities = async () => {
+    if (amenitiesLoading || !canEdit || !tabCanEdit) return;
+    if (!hasLocationInfo) {
+      setAmenitiesMsg("Fill in Address or Coordinates before searching for amenities.");
+      return;
+    }
+    let handedOver = false;
+    setAmenitiesLoading(true);
+    setAmenitiesMsg(null);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(`/api/properties/${id}/amenities`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session?.access_token ?? ''}` },
+      });
+      let json: any;
+      try {
+        json = await res.json();
+      } catch {
+        throw new Error(`Server returned an unexpected response (status ${res.status}). Check the server logs.`);
+      }
+      if (res.status === 429) {
+        setAmenitiesMsg(`Just searched — try again in ${json.retryInSec}s.`);
+      } else if (res.status === 409) {
+        // Already running (started earlier, maybe before leaving the page): follow it instead of starting another.
+        handedOver = true;
+        setAmenitiesResumed(true);
+        return;
+      } else if (!res.ok || json.error) {
+        setAmenitiesMsg(json.error || 'Amenities lookup failed.');
+      } else {
+        await reloadAmenities();
+        const onlyFallback = typeof json.provider === 'string' && json.provider.includes('LocationIQ') && !json.provider.includes('Overpass');
+        setAmenitiesMsg(`Found successfully: ${json.inserted} amenities added.` + (onlyFallback ? ' Note: the main provider (Overpass) was unavailable, so the backup provider was used and fewer categories may have been found — try again later.' : ''));
+      }
+    } catch (err: any) {
+      setAmenitiesMsg(err?.message || 'Amenities lookup failed.');
+    } finally {
+      if (!handedOver) setAmenitiesLoading(false);
+      setTimeout(() => setAmenitiesMsg(null), 8000);
+    }
+  };
+
   const handleAddAmenity = async () => {
     if (!newAmenity.type_id || !canEdit || !tabCanEdit) return;
     
@@ -1305,10 +1415,39 @@ export default function PropertyDetailsPage() {
               <div style={{ margin: '0 1rem 1rem 1rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', marginBottom: '1.25rem' }}>
                   <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a', margin: 0 }}>Amenities in Region</h3>
-                  <span style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a' }}>
-                    {amenities.length}
-                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                    {canFindAmenities && (
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        onClick={handleFindAmenities}
+                        disabled={!canEdit || !tabCanEdit || !hasLocationInfo || amenitiesLoading}
+                        title={
+                          !hasLocationInfo
+                            ? 'Fill in Address or Coordinates first.'
+                            : 'Look up airports, schools, hospitals, etc. via OpenStreetMap. Replaces previous automatic results; manual entries are kept.'
+                        }
+                        style={{ padding: '0.35rem 0.75rem', fontSize: '0.85rem' }}
+                      >
+                        {amenitiesLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Compass className="w-4 h-4" />}
+                        {amenitiesLoading ? 'Searching...' : 'Find Amenities'}
+                      </button>
+                    )}
+                    <span style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a' }}>
+                      {amenities.length}
+                    </span>
+                  </div>
                 </div>
+                {canFindAmenities && amenitiesMsg && (
+                  <p style={{ fontSize: '0.8rem', color: amenitiesMsg.startsWith('Found') ? '#059669' : '#dc2626', margin: '-0.75rem 0 1rem' }}>
+                    {amenitiesMsg}
+                  </p>
+                )}
+                {canFindAmenities && !hasLocationInfo && (
+                  <p style={{ fontSize: '0.8rem', color: '#b45309', margin: '-0.75rem 0 1rem' }}>
+                    Fill in Address or Coordinates to search for amenities.
+                  </p>
+                )}
                 
                 <div style={{ backgroundColor: '#f8fafc', padding: '1.5rem', borderRadius: '0.75rem', marginBottom: '2rem', border: '1px solid #e2e8f0' }}>
                   <h4 style={{ margin: '0 0 1rem 0', fontSize: '0.9rem', fontWeight: 700, color: '#0f172a' }}>Add New Amenity</h4>
@@ -1381,9 +1520,20 @@ export default function PropertyDetailsPage() {
                           <span style={{ fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase', color: '#94a3b8' }}>{catName}</span>
                           <h4 style={{ margin: '0.25rem 0 0 0', fontSize: '1rem', fontWeight: 700 }}>{a.ls_amenity_type?.name}</h4>
                         </div>
-                        <button onClick={() => handleDeleteAmenity(a.id)} style={{ color: '#cbd5e1', background: 'none', border: 'none', cursor: 'pointer' }}>
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
+                          {a.source === 'auto' ? (
+                            <span title="Collected automatically (Find Amenities)" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem', backgroundColor: '#ede9fe', color: '#6d28d9', borderRadius: '6px', padding: '0.15rem 0.4rem', fontSize: '0.65rem', fontWeight: 800 }}>
+                              <Sparkles className="w-3 h-3" /> AI
+                            </span>
+                          ) : (
+                            <span title="Added manually" style={{ display: 'inline-flex', alignItems: 'center', backgroundColor: '#f1f5f9', color: '#64748b', borderRadius: '6px', padding: '0.15rem 0.4rem' }}>
+                              <User className="w-3 h-3" />
+                            </span>
+                          )}
+                          <button onClick={() => handleDeleteAmenity(a.id)} style={{ color: '#cbd5e1', background: 'none', border: 'none', cursor: 'pointer' }}>
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
                       <div style={{ display: 'flex', gap: '0.75rem' }}>
                         <span style={{ backgroundColor: '#f1f5f9', padding: '0.25rem 0.5rem', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.3rem' }}>

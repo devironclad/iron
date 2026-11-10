@@ -79,7 +79,7 @@ const RESOURCES = [
   { id: "action:copy_property", label: "Action: Copy Property Info", category: "Actions" },
   { id: "action:sales_info", label: "Action: Sales Info Popup (Properties)", category: "Actions" },
   { id: "action:copy_auction", label: "Action: Copy Auction Info", category: "Actions" },
-  { id: "action:find_amenities", label: "Action: Find Amenities (Auctions)", category: "Actions" },
+  { id: "action:find_amenities", label: "Action: Find Amenities (Auctions & Properties)", category: "Actions" },
 ];
 
 export default function AccessPage() {

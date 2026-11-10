@@ -6,9 +6,20 @@ export interface ChangelogItem {
   changes: string[];
 }
 
-export const CURRENT_VERSION = "1.9.4";
+export const CURRENT_VERSION = "1.10.0";
 
 export const CHANGELOG: ChangelogItem[] = [
+  {
+    version: "1.10.0",
+    date: "2026-11-06",
+    title: "Find Amenities on Properties",
+    type: "minor",
+    changes: [
+      "Properties > Amenities tab: new Find Amenities button (same permission as Auctions). Each place found becomes its own amenity record (up to 3 per category, 2 for Airport/Downtown) instead of a text block.",
+      "Re-running replaces only the automatic records; amenities entered manually are kept. The Surrounds field is not changed.",
+      "New ls_asset_amenities.source column (manual / auto)."
+    ]
+  },
   {
     version: "1.9.4",
     date: "2026-08-11",

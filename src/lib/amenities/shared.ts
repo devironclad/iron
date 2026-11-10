@@ -92,7 +92,7 @@ export function finalizeResults(results: AmenityResults): AmenityResults {
 
 const HIGHWAY_THRESHOLD_MILES = 10;
 
-function estimateMinutes(distMi: number): number {
+export function estimateMinutes(distMi: number): number {
   const mpm = distMi > HIGHWAY_THRESHOLD_MILES ? HIGHWAY_MILES_PER_MINUTE : LOCAL_MILES_PER_MINUTE;
   return Math.max(1, Math.round(distMi / mpm));
 }
