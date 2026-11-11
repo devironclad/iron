@@ -2216,6 +2216,7 @@ export default function PropertyDetailsPage() {
                         <label className="input-label">Vigency <span style={{ color: '#ef4444' }}>*</span></label>
                         <select name="vigency" value={taxForm.vigency} onChange={handleTaxFormChange} className="input-field">
                           <option value="">Select...</option>
+                          <option value="2024">2024</option>
                           <option value="2025">2025</option>
                           <option value="2026">2026</option>
                           <option value="2027">2027</option>
