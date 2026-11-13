@@ -1133,7 +1133,8 @@ export default function PropertyDetailsPage() {
         .from("property-photos")
         .getPublicUrl(path);
 
-      const cleanUrl = urlData.publicUrl;
+      // ?v= muda a cada upload: invalida o cache longo do otimizador de imagens
+      const cleanUrl = `${urlData.publicUrl}?v=${Date.now()}`;
 
       const { error: dbErr } = await supabase
         .from("ls_assets")
@@ -1143,7 +1144,7 @@ export default function PropertyDetailsPage() {
       if (dbErr) throw dbErr;
 
       // Cache-bust only in local state so the new image loads immediately
-      setProperty((prev: any) => ({ ...prev, photo_url: `${cleanUrl}?t=${Date.now()}` }));
+      setProperty((prev: any) => ({ ...prev, photo_url: cleanUrl }));
     } catch (err: any) {
       alert("Upload failed: " + err.message);
     } finally {
